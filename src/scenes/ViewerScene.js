@@ -37,17 +37,16 @@ export class ViewerScene extends BaseScene {
     this._liked = false;
 
     // --- settings ---
-    // (tốc độ và fov đã bị loại bỏ, chỉ còn brightness)
-    this._walkSpeed = 0.07; // mặc định, không hiển thị điều chỉnh nữa
+    this._walkSpeed = 0.07;
 
     // --- chat ---
     this._chatOpen = false;
     this._unreadCount = 0;
     this._shownMsgIds = new Set();
-    this._chatUsername = ''; // sẽ được gán khi init chat, không prompt
+    this._chatUsername = '';
     this._CHAT_ROOM = 'room1';
 
-    // --- expand state (ảnh lớn & 3D mini) ---
+    // --- expand state ---
     this._expand3d = {
       drag: false, lx: 0, ly: 0,
       yaw: 0.5, pitch: 0.3, dist: 3, center: new THREE.Vector3(),
@@ -56,6 +55,9 @@ export class ViewerScene extends BaseScene {
     this._expandImg = {
       zoom: 1, panX: 0, panY: 0, drag: false, lx: 0, ly: 0
     };
+
+    // --- waypoint markers (bổ sung) ---
+    this.pathMarkers = [];   // lưu các mesh disc và line
   }
 
   async init() {
@@ -103,7 +105,7 @@ export class ViewerScene extends BaseScene {
     this.fwd      = new THREE.Vector3();
     this.rgt      = new THREE.Vector3();
 
-    /* ---- waypoint (giữ nguyên logic cũ) ---- */
+    /* ---- waypoint ---- */
     this.pathWaypoints  = [];
     this.currentWpIdx   = -1;
     this.wpTravelTarget = null;
@@ -128,9 +130,9 @@ export class ViewerScene extends BaseScene {
     if (this._disposed) return;
     this._renderMinimapRoomChips();
 
-    /* ========== KHỞI TẠO UI ========== */
+    /* ========== UI ========== */
     this._injectViewerCSS();
-    this._buildTopBar();               // <-- thêm top bar
+    this._buildTopBar();
     this._buildRightPanel();
     this._buildArtworkPopup();
     this._buildExpandOverlay();
@@ -144,7 +146,6 @@ export class ViewerScene extends BaseScene {
     this._renderCart();
     this._bindFeatureEvents();
 
-    // Cập nhật tên phòng/artist lên top bar (sau khi load room)
     this._updateTopBarInfo();
 
     if (!localStorage.getItem('gallery_visited')) {
@@ -155,41 +156,74 @@ export class ViewerScene extends BaseScene {
     }
   }
 
-  /* ================================================================
-     UI: TOP BAR
-  ================================================================ */
-  _buildTopBar() {
-    const bar = document.createElement('div');
-    bar.id = 'topbar';
-    bar.innerHTML = `
-      <div id="logo-area">
-        <div id="logo-mark">C</div>
-        <div id="logo-text">Creatory</div>
-      </div>
-      <div id="gallery-info">
-        <div id="gallery-name">Phòng Tranh 3D</div>
-        <div id="artist-name">Artist Name</div>
-      </div>
-      <div id="topbar-right"></div>
-    `;
-    document.body.appendChild(bar);
-    this._el(bar);
+  /* ==================== WAYPOINT MARKERS (bổ sung) ==================== */
+  makeWpTex(num, hovered) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+    const ctx = c.getContext('2d');
+    const grd = ctx.createRadialGradient(128, 128, 70, 128, 128, 128);
+    grd.addColorStop(0, hovered ? 'rgba(255,220,130,.4)' : 'rgba(200,169,110,.2)');
+    grd.addColorStop(1, 'rgba(200,169,110,0)');
+    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(128, 128, 128, 0, Math.PI * 2); ctx.fill();
+    const inner = ctx.createRadialGradient(115, 115, 0, 128, 128, 88);
+    inner.addColorStop(0, hovered ? 'rgba(255,235,155,.98)' : 'rgba(225,195,125,.9)');
+    inner.addColorStop(1, hovered ? 'rgba(200,155,75,.9)' : 'rgba(165,135,75,.78)');
+    ctx.fillStyle = inner; ctx.beginPath(); ctx.arc(128, 128, 88, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = hovered ? 'rgba(255,255,210,.95)' : 'rgba(255,230,160,.72)'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.arc(128, 128, 88, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#0f0d0a'; ctx.font = `bold ${num > 9 ? '58' : '66'}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(num), 128, 134);
+    return new THREE.CanvasTexture(c);
   }
 
-  _updateTopBarInfo() {
-    // Dữ liệu đã load từ DB có thể có gallery_name / artist_name
-    // Ta lưu lại khi loadRoom nếu có, hoặc lấy từ currentRoom
-    const galleryName = this._galleryName || this.manager.currentRoom?.name || 'Phòng Tranh 3D';
-    const artistName  = this._artistName  || 'Artist Name';
-    const gnEl = document.getElementById('gallery-name');
-    const anEl = document.getElementById('artist-name');
-    if (gnEl) gnEl.textContent = galleryName;
-    if (anEl) anEl.textContent = artistName;
+  addWaypointMarker(wp, idx) {
+    const disc = new THREE.Mesh(
+      new THREE.CircleGeometry(0.55, 32),
+      new THREE.MeshBasicMaterial({ map: this.makeWpTex(idx + 1, false), transparent: true, depthWrite: false, side: THREE.DoubleSide })
+    );
+    disc.rotation.x = -Math.PI / 2;
+    disc.position.set(wp.x, wp.y - 1.65 + 0.012, wp.z);
+    disc.userData = { waypointIdx: idx, isWpDisc: true };
+    this.threeScene.add(disc);
+    
+    let line = null;
+    if (idx > 0) {
+      const prev = this.pathWaypoints[idx - 1];
+      line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(prev.x, prev.y - 1.65 + 0.015, prev.z),
+          new THREE.Vector3(wp.x, wp.y - 1.65 + 0.015, wp.z)
+        ]),
+        new THREE.LineBasicMaterial({ color: 0xc8a96e, transparent: true, opacity: 0.45 })
+      );
+      this.threeScene.add(line);
+    }
+    this.pathMarkers.push({ mesh: disc, line });
   }
 
-  /* ================================================================
-     CSS (bổ sung top bar)
-  ================================================================ */
+  rebuildWaypointMarkers() {
+    // Xóa cũ
+    this.pathMarkers.forEach(m => {
+      this.threeScene.remove(m.mesh);
+      if (m.line) this.threeScene.remove(m.line);
+    });
+    this.pathMarkers = [];
+    // Tạo lại theo danh sách waypoints hiện tại
+    this.pathWaypoints.forEach((wp, i) => this.addWaypointMarker(wp, i));
+  }
+
+  /* ==================== CÁC HÀM CÒN LẠI (GIỮ NGUYÊN) ==================== */
+  _toast(msg, type = 'info', dur = 2800) {
+    const el = document.getElementById('vw-toast'); if (!el) return;
+    el.textContent = msg; el.className = 'show ' + type;
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.className = ''; }, dur);
+  }
+
+  _buildToast() {
+    const t = document.createElement('div'); t.id = 'vw-toast';
+    document.body.appendChild(t); this._el(t);
+  }
+
   _injectViewerCSS() {
     if (document.getElementById('vw-css')) return;
     const s = document.createElement('style');
@@ -411,7 +445,7 @@ export class ViewerScene extends BaseScene {
       }
       #chat-send:hover { background:rgba(212,197,169,.15); color:var(--gold); }
 
-      /* SETTINGS PANEL (chỉ còn brightness) */
+      /* SETTINGS PANEL */
       #settings-panel {
         position:fixed; left:66px; bottom:14px;
         width:220px; background:rgba(18,15,12,.98);
@@ -491,7 +525,7 @@ export class ViewerScene extends BaseScene {
       }
       .icon-btn.liked { animation:heartPop .4s ease; color:#e85d7a !important; }
 
-      /* RIGHT PANEL (existing CSS, keep) */
+      /* RIGHT PANEL */
       #right-panel{
         position:fixed; top:0; right:0; bottom:0; width:var(--panel-w);
         background:rgba(18,15,12,.97); border-left:.5px solid var(--border);
@@ -527,7 +561,6 @@ export class ViewerScene extends BaseScene {
       #product-list{ flex:1; overflow-y:auto; padding:10px 12px; }
       #product-list::-webkit-scrollbar{ width:3px; }
       #product-list::-webkit-scrollbar-thumb{ background:rgba(212,197,169,.15); border-radius:2px; }
-      #product-list::-webkit-scrollbar-track{ background:transparent; }
 
       .product-card{
         display:flex; align-items:stretch; gap:0;
@@ -650,20 +683,7 @@ export class ViewerScene extends BaseScene {
       }
       #expand-close:hover{ background:rgba(181,74,58,.8); border-color:var(--danger); }
 
-      /* TOAST */
-      #vw-toast{
-        position:fixed; bottom:54px; left:50%; transform:translateX(-50%) translateY(16px);
-        background:rgba(20,17,14,.97); border:.5px solid var(--border);
-        color:var(--gold); font-family:var(--font-mono); font-size:8px;
-        letter-spacing:.14em; text-transform:uppercase; padding:8px 18px; border-radius:20px;
-        pointer-events:none; opacity:0; transition:opacity .3s, transform .3s;
-        z-index:40; white-space:nowrap; backdrop-filter:blur(8px);
-      }
-      #vw-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
-      #vw-toast.success{ border-color:var(--green); color:var(--green); }
-      #vw-toast.error{ border-color:var(--danger); color:var(--danger); }
-
-      /* WAYPOINT (giữ nguyên style cũ) */
+      /* WAYPOINT BAR (giữ nguyên) */
       #vw-nav{ position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(15,13,12,.94); border:.5px solid #c8a96e; border-radius:4px; padding:6px 10px; display:none; align-items:center; gap:8px; z-index:25; font-family:monospace; }
       #vw-nav.show{ display:flex; }
       .vw-arr{ background:rgba(200,169,110,.12); border:.5px solid rgba(200,169,110,.4); color:#c8a96e; font-size:14px; width:28px; height:28px; cursor:pointer; border-radius:3px; display:flex; align-items:center; justify-content:center; transition:all .2s; }
@@ -674,9 +694,31 @@ export class ViewerScene extends BaseScene {
     this._el(s);
   }
 
-  _buildToast() {
-    const t = document.createElement('div'); t.id = 'vw-toast';
-    document.body.appendChild(t); this._el(t);
+  _buildTopBar() {
+    const bar = document.createElement('div');
+    bar.id = 'topbar';
+    bar.innerHTML = `
+      <div id="logo-area">
+        <div id="logo-mark">C</div>
+        <div id="logo-text">Creatory</div>
+      </div>
+      <div id="gallery-info">
+        <div id="gallery-name">Phòng Tranh 3D</div>
+        <div id="artist-name">Artist Name</div>
+      </div>
+      <div id="topbar-right"></div>
+    `;
+    document.body.appendChild(bar);
+    this._el(bar);
+  }
+
+  _updateTopBarInfo() {
+    const galleryName = this._galleryName || this.manager.currentRoom?.name || 'Phòng Tranh 3D';
+    const artistName  = this._artistName  || 'Artist Name';
+    const gnEl = document.getElementById('gallery-name');
+    const anEl = document.getElementById('artist-name');
+    if (gnEl) gnEl.textContent = galleryName;
+    if (anEl) anEl.textContent = artistName;
   }
 
   _buildLeftColumn() {
@@ -762,17 +804,11 @@ export class ViewerScene extends BaseScene {
       </div>
     `;
     document.body.appendChild(overlay); this._el(overlay);
-
-    document.getElementById('help-close').addEventListener('click', () => {
-      overlay.classList.remove('open');
-    });
-    overlay.addEventListener('click', e => {
-      if (e.target === overlay) overlay.classList.remove('open');
-    });
+    document.getElementById('help-close').addEventListener('click', () => overlay.classList.remove('open'));
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
   }
 
   _buildSettingsPanel() {
-    // Chỉ còn brightness
     const panel = document.createElement('div'); panel.id = 'settings-panel';
     panel.innerHTML = `
       <div class="sp-title">⚙ Cài đặt</div>
@@ -786,13 +822,9 @@ export class ViewerScene extends BaseScene {
   }
 
   _bindFeatureEvents() {
-    // ── FULLSCREEN ──
     document.getElementById('btn-fullscreen').addEventListener('click', () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else {
-        document.exitFullscreen();
-      }
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+      else document.exitFullscreen();
     });
     document.addEventListener('fullscreenchange', () => {
       this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -800,7 +832,6 @@ export class ViewerScene extends BaseScene {
       this.camera.updateProjectionMatrix();
     });
 
-    // ── SOUND ──
     document.getElementById('btn-sound').addEventListener('click', () => {
       this._soundOn = !this._soundOn;
       const btn = document.getElementById('btn-sound');
@@ -809,18 +840,15 @@ export class ViewerScene extends BaseScene {
       if (this._bgAudio) this._bgAudio.muted = !this._soundOn;
     });
 
-    // ── LIKE ──
     document.getElementById('btn-like').addEventListener('click', () => {
       this._liked = !this._liked;
       const btn = document.getElementById('btn-like');
       btn.innerHTML = this._liked ? '♥' : '♡';
       btn.classList.toggle('liked', this._liked);
       btn.classList.toggle('active', this._liked);
-      if (this._liked) this._toast('Đã thích phòng tranh này ♥', 'success', 2000);
-      else this._toast('Đã bỏ thích', 'info', 1500);
+      this._toast(this._liked ? 'Đã thích phòng tranh này ♥' : 'Đã bỏ thích', this._liked ? 'success' : 'info', 2000);
     });
 
-    // ── SETTINGS (chỉ brightness) ──
     document.getElementById('btn-settings').addEventListener('click', () => {
       const sp = document.getElementById('settings-panel');
       sp.classList.toggle('open');
@@ -833,12 +861,10 @@ export class ViewerScene extends BaseScene {
       document.getElementById('sp-brightness-val').textContent = v.toFixed(1);
     });
 
-    // ── HELP ──
     document.getElementById('btn-help').addEventListener('click', () => {
       document.getElementById('help-overlay').classList.toggle('open');
     });
 
-    // ── MINIMAP EXPAND ──
     document.getElementById('minimap-expand-btn').addEventListener('click', () => {
       this._mmExpanded = !this._mmExpanded;
       const wrap = document.getElementById('minimap-wrap');
@@ -850,28 +876,19 @@ export class ViewerScene extends BaseScene {
       mmCanvas.width = cw; mmCanvas.height = cw;
     });
 
-    // ── CHAT ──
     this._initChat();
   }
 
   _initChat() {
-    // Sử dụng tên từ tài khoản đăng nhập, không prompt
     const authUser = this.manager.auth?.user;
     if (!this._chatUsername || this._chatUsername === '…') {
-      if (authUser) {
-        this._chatUsername = authUser.user_metadata?.name || authUser.email || 'Người dùng';
-      } else {
-        this._chatUsername = 'Khách';
-      }
+      if (authUser) this._chatUsername = authUser.user_metadata?.name || authUser.email || 'Người dùng';
+      else this._chatUsername = 'Khách';
       localStorage.setItem('chat_username', this._chatUsername);
     } else {
-      // Nếu đã có trong localStorage, dùng luôn
       this._chatUsername = localStorage.getItem('chat_username') || 'Khách';
     }
-
     document.getElementById('chat-username-tag').textContent = this._chatUsername;
-
-    // Cho phép đổi tên thủ công (vẫn giữ chức năng click)
     document.getElementById('chat-username-tag').addEventListener('click', () => {
       const n = prompt('Đổi tên hiển thị:', this._chatUsername);
       if (n && n.trim()) {
@@ -880,7 +897,6 @@ export class ViewerScene extends BaseScene {
         document.getElementById('chat-username-tag').textContent = this._chatUsername;
       }
     });
-
     document.getElementById('chat-toggle-btn').addEventListener('click', () => {
       this._chatOpen = !this._chatOpen;
       document.getElementById('chat-box').classList.toggle('open', this._chatOpen);
@@ -892,12 +908,8 @@ export class ViewerScene extends BaseScene {
         m.scrollTop = m.scrollHeight;
       }
     });
-
     document.getElementById('chat-send').addEventListener('click', () => this._sendChat());
-    document.getElementById('chat-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') this._sendChat();
-    });
-
+    document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') this._sendChat(); });
     this._loadOldMessages();
     this._subscribeChat();
   }
@@ -918,12 +930,8 @@ export class ViewerScene extends BaseScene {
   }
 
   async _loadOldMessages() {
-    const { data, error } = await supabase.from('messages')
-      .select('*').eq('room', this._CHAT_ROOM)
-      .order('created_at', { ascending: true }).limit(50);
-    if (!error && data) {
-      data.forEach(m => this._appendMsg(m.username, m.content, m.username === this._chatUsername));
-    }
+    const { data, error } = await supabase.from('messages').select('*').eq('room', this._CHAT_ROOM).order('created_at', { ascending: true }).limit(50);
+    if (!error && data) data.forEach(m => this._appendMsg(m.username, m.content, m.username === this._chatUsername));
   }
 
   async _sendChat() {
@@ -932,8 +940,7 @@ export class ViewerScene extends BaseScene {
     if (!text) return;
     inp.value = '';
     this._appendMsg(this._chatUsername, text, true);
-    const { data, error } = await supabase.from('messages')
-      .insert({ room: this._CHAT_ROOM, username: this._chatUsername, content: text }).select();
+    const { data, error } = await supabase.from('messages').insert({ room: this._CHAT_ROOM, username: this._chatUsername, content: text }).select();
     if (error) { this._toast('Gửi thất bại', 'error'); return; }
     if (data && data[0] && data[0].id) this._shownMsgIds.add(data[0].id);
   }
@@ -947,9 +954,6 @@ export class ViewerScene extends BaseScene {
       }).subscribe();
   }
 
-  /* ================================================================
-     MINIMAP
-  ================================================================ */
   _renderMinimapRoomChips() {
     const container = document.getElementById('minimap-rooms');
     if (!container) return;
@@ -980,10 +984,8 @@ export class ViewerScene extends BaseScene {
     const mmCtx = mmCanvas.getContext('2d');
     mmCtx.clearRect(0, 0, S, S);
     mmCtx.fillStyle = 'rgba(10,8,6,.9)'; mmCtx.fillRect(0, 0, S, S);
-
     const rooms = this._rooms || [{ id: 0, name: 'Phòng chính', x: 0, z: 0, w: 16, d: 16, floor: 0 }];
     if (rooms.length === 0) return;
-
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     rooms.forEach(r => {
       minX = Math.min(minX, r.x - r.w / 2); maxX = Math.max(maxX, r.x + r.w / 2);
@@ -995,12 +997,9 @@ export class ViewerScene extends BaseScene {
     const scale = Math.min(scaleX, scaleZ);
     const ox = pad + ((S - pad * 2) - spanX * scale) / 2 - minX * scale;
     const oz = pad + ((S - pad * 2) - spanZ * scale) / 2 - minZ * scale;
-
     const toMM = (wx, wz) => [ox + wx * scale, oz + wz * scale];
-
     const cFloor = Math.floor(this.camera.position.y / 5.1);
     const floorColors = ['rgba(90,78,62,.7)', 'rgba(60,78,100,.7)', 'rgba(78,100,60,.7)'];
-
     rooms.forEach(r => {
       if ((r.floor || 0) !== cFloor) return;
       const [fx1, fz1] = toMM(r.x - r.w / 2, r.z - r.d / 2);
@@ -1017,7 +1016,6 @@ export class ViewerScene extends BaseScene {
         mmCtx.fillText((r.name || '').substring(0, 10), fx1 + rw / 2, fz1 + rd / 2);
       }
     });
-
     this.artworks.forEach(a => {
       if (!a.group) return;
       const [mx, mz] = toMM(a.group.position.x, a.group.position.z);
@@ -1025,7 +1023,6 @@ export class ViewerScene extends BaseScene {
       mmCtx.fillStyle = 'rgba(200,169,110,.8)';
       mmCtx.fillRect(mx - sz / 2, mz - sz * .4, sz, sz * .8);
     });
-
     const [cx, cy2] = toMM(this.camera.position.x, this.camera.position.z);
     const arrowSize = this._mmExpanded ? 7 : 5;
     mmCtx.save(); mmCtx.translate(cx, cy2); mmCtx.rotate(-this.yaw);
@@ -1037,13 +1034,6 @@ export class ViewerScene extends BaseScene {
     mmCtx.lineTo(-arrowSize * .6, arrowSize * .6);
     mmCtx.closePath(); mmCtx.fill();
     mmCtx.restore();
-  }
-
-  _toast(msg, type = 'info', dur = 2800) {
-    const el = document.getElementById('vw-toast'); if (!el) return;
-    el.textContent = msg; el.className = 'show ' + type;
-    clearTimeout(el._t);
-    el._t = setTimeout(() => { el.className = ''; }, dur);
   }
 
   _buildRightPanel() {
@@ -1082,7 +1072,6 @@ export class ViewerScene extends BaseScene {
       </div>
     `;
     document.body.appendChild(panel); this._el(panel);
-
     let panelOpen = true;
     const toggle = () => {
       panelOpen = !panelOpen;
@@ -1091,14 +1080,13 @@ export class ViewerScene extends BaseScene {
     };
     document.getElementById('panel-toggle-btn').addEventListener('click', toggle);
     document.getElementById('panel-tab').addEventListener('click', toggle);
-
     document.getElementById('checkout-btn').addEventListener('click', () => {
       if (this.cartItems.length === 0) return;
       const payload = this.cartItems.map(ci => ({
-        title:  ci.art.meta?.title  || 'Untitled',
+        title:  ci.art.meta?.title || 'Untitled',
         artist: ci.art.meta?.artist || '',
-        year:   ci.art.meta?.year   || '',
-        price:  ci.art.meta?.price  || ''
+        year:   ci.art.meta?.year || '',
+        price:  ci.art.meta?.price || ''
       }));
       localStorage.setItem('gallery_cart', JSON.stringify(payload));
       window.open('checkout.html', '_blank');
@@ -1128,7 +1116,6 @@ export class ViewerScene extends BaseScene {
       </div>
     `;
     document.body.appendChild(popup); this._el(popup);
-
     document.getElementById('ap-close').addEventListener('click', () => popup.classList.remove('open'));
     document.getElementById('ap-expand-btn').addEventListener('click', () => {
       if (this.popupArt) this._showExpand(this.popupArt, this.popupArt._idx, this.popupArt._kind);
@@ -1159,7 +1146,6 @@ export class ViewerScene extends BaseScene {
       </div>
     `;
     document.body.appendChild(overlay); this._el(overlay);
-
     document.getElementById('expand-close').addEventListener('click', () => this._closeExpand());
     overlay.addEventListener('click', e => { if (e.target === overlay) this._closeExpand(); });
   }
@@ -1170,12 +1156,9 @@ export class ViewerScene extends BaseScene {
     if (this._expand3d.renderer) { this._expand3d.renderer.dispose(); this._expand3d.renderer = null; }
     this._expand3d.scene = null; this._expand3d.camera = null;
     document.getElementById('expand-img-wrap').style.display = 'none';
-    document.getElementById('expand-3d-wrap').style.display  = 'none';
+    document.getElementById('expand-3d-wrap').style.display = 'none';
   }
 
-  /* ================================================================
-     THUMBNAIL HELPERS
-  ================================================================ */
   _renderThumb(art, kind) {
     const c = document.createElement('canvas');
     c.width = 72; c.height = 72;
@@ -1235,21 +1218,17 @@ export class ViewerScene extends BaseScene {
       const meta = art.meta || {};
       const card = document.createElement('div'); card.className = 'product-card';
       card.dataset.idx = i; card.dataset.kind = item.kind;
-
       const tw = document.createElement('div'); tw.className = 'product-thumb-wrap';
       const tc = this._renderThumb(art, item.kind);
       tc.className = 'product-thumb-canvas'; tw.appendChild(tc);
-
       const body = document.createElement('div'); body.className = 'product-body';
       const dName = meta.title || (item.kind==='model' ? (art.name||'Model 3D') : ('Tác phẩm #'+(i+1)));
       body.innerHTML = `<div class="product-name">${dName}</div>
         <div class="product-artist">${meta.artist || (item.kind==='model'?'<span style="color:#3a3028;font-size:6px">● 3D</span>':'')}</div>
         <div class="product-price ${meta.price?'':'contact'}">${meta.price||'Liên hệ'}</div>`;
-
       const acts = document.createElement('div'); acts.className = 'product-actions';
       const infoBtn = document.createElement('button'); infoBtn.className='product-act-btn'; infoBtn.title='Xem thông tin'; infoBtn.innerHTML='ℹ';
       const flyBtn = document.createElement('button'); flyBtn.className='product-act-btn'; flyBtn.title='Di chuyển đến'; flyBtn.innerHTML='⤢';
-
       infoBtn.addEventListener('click', e => { e.stopPropagation(); this._showArtworkPopup(art, i, item.kind); });
       flyBtn.addEventListener('click', e => { e.stopPropagation(); this._showExpand(art, i, item.kind); });
       acts.appendChild(infoBtn); acts.appendChild(flyBtn);
@@ -1306,7 +1285,6 @@ export class ViewerScene extends BaseScene {
       row.appendChild(rm); itemsEl.appendChild(row);
     });
     badge.textContent = this.cartItems.length > 9 ? '9+' : this.cartItems.length; badge.classList.add('show');
-
     let total=0, allParsed=true;
     this.cartItems.forEach(ci => { const n=parsePrice(ci.art.meta?.price||''); if(isNaN(n)) allParsed=false; else total+=n; });
     totalEl.textContent = allParsed ? formatPrice(total) : '— (Liên hệ)';
@@ -1318,7 +1296,6 @@ export class ViewerScene extends BaseScene {
     art._kind = kind; art._idx = idx;
     const meta = art.meta || {};
     const apCanvas = document.getElementById('ap-img-canvas');
-
     if (kind === 'model') {
       apCanvas.width=280; apCanvas.height=210; apCanvas.style.width='280px'; apCanvas.style.height='210px';
       try { this._renderModelThumb(art.object, apCanvas); } catch(e) {}
@@ -1332,7 +1309,6 @@ export class ViewerScene extends BaseScene {
       if (art.sourceImage) ctx.drawImage(art.sourceImage,0,0,popW,popH);
       else if (art.videoEl) { ctx.fillStyle='#111'; ctx.fillRect(0,0,popW,popH); ctx.fillStyle='#c8a96e'; ctx.font='30px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('▶',popW/2,popH/2); }
     }
-
     document.getElementById('ap-title').textContent = meta.title || (kind==='model'? (art.name||'Model 3D') : ('Tác phẩm #'+(idx+1)));
     document.getElementById('ap-artist').textContent = meta.artist ? '— '+meta.artist : '';
     document.getElementById('ap-year').textContent   = meta.year   || '';
@@ -1340,12 +1316,10 @@ export class ViewerScene extends BaseScene {
     const priceRow = document.getElementById('ap-price-row');
     if (meta.price) { document.getElementById('ap-price').textContent=meta.price; priceRow.style.display='flex'; }
     else priceRow.style.display='none';
-
     const addBtn = document.getElementById('ap-add-cart');
     const inCart = this.cartItems.some(ci => ci.art === art);
     addBtn.disabled = inCart; addBtn.textContent = inCart ? '✓ Đã thêm vào giỏ' : '🛒 Thêm vào giỏ hàng';
     addBtn.className = inCart ? 'added' : ''; addBtn._art = art;
-
     const popup = document.getElementById('artwork-popup');
     popup.style.left='50%'; popup.style.top='50%'; popup.style.transform='translate(-50%,-50%)';
     popup.classList.add('open');
@@ -1358,13 +1332,11 @@ export class ViewerScene extends BaseScene {
     const wrap3d  = document.getElementById('expand-3d-wrap');
     const cap     = document.getElementById('expand-caption');
     cap.textContent = art.meta?.title || (kind==='model'? (art.name||'Model 3D') : ('Tác phẩm #'+(idx+1)));
-
     if (kind === 'model') {
       imgWrap.style.display='none'; wrap3d.style.display='block';
       const SIZE_W=Math.min(Math.round(innerWidth*.75),800), SIZE_H=Math.min(Math.round(innerHeight*.65),600);
       const ec3=document.getElementById('expand-3d-canvas');
       ec3.width=SIZE_W; ec3.height=SIZE_H; ec3.style.width=SIZE_W+'px'; ec3.style.height=SIZE_H+'px';
-
       this._expand3d.renderer = new THREE.WebGLRenderer({ canvas:ec3, antialias:true });
       this._expand3d.renderer.setPixelRatio(Math.min(devicePixelRatio,2));
       this._expand3d.renderer.setSize(SIZE_W,SIZE_H); this._expand3d.renderer.setClearColor(0x0f0d0a);
@@ -1377,11 +1349,9 @@ export class ViewerScene extends BaseScene {
       const box=new THREE.Box3().setFromObject(clone); this._expand3d.center=box.getCenter(new THREE.Vector3());
       const bsize=box.getSize(new THREE.Vector3()); this._expand3d.dist=Math.max(bsize.x,bsize.y,bsize.z)*2.2;
       this._expand3d.yaw=0.5; this._expand3d.pitch=0.3;
-
       const updateCam=()=>{ const {camera,center,yaw,pitch,dist}=this._expand3d; camera.position.set(center.x+dist*Math.sin(yaw)*Math.cos(pitch), center.y+dist*Math.sin(pitch), center.z+dist*Math.cos(yaw)*Math.cos(pitch)); camera.lookAt(center); };
       const loop=()=>{ this._expand3d.raf=requestAnimationFrame(loop); updateCam(); this._expand3d.renderer.render(this._expand3d.scene,this._expand3d.camera); };
       loop();
-
       ec3.onmousedown=e=>{ this._expand3d.drag=true; this._expand3d.lx=e.clientX; this._expand3d.ly=e.clientY; ec3.style.cursor='grabbing'; };
       window.addEventListener('mouseup',()=>{ this._expand3d.drag=false; ec3.style.cursor='grab'; });
       window.addEventListener('mousemove',e=>{ if(!this._expand3d.drag)return; this._expand3d.yaw+=(e.clientX-this._expand3d.lx)*0.006; this._expand3d.pitch-=(e.clientY-this._expand3d.ly)*0.006; this._expand3d.pitch=Math.max(-1.2,Math.min(1.2,this._expand3d.pitch)); this._expand3d.lx=e.clientX; this._expand3d.ly=e.clientY; });
@@ -1397,7 +1367,6 @@ export class ViewerScene extends BaseScene {
       const ctx=ec.getContext('2d'); ctx.scale(dpr,dpr);
       if(art.sourceImage) ctx.drawImage(art.sourceImage,0,0,natW,natH);
       else if(art.videoEl){ ctx.fillStyle='#111'; ctx.fillRect(0,0,natW,natH); ctx.fillStyle='#c8a96e'; ctx.font='40px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('▶',natW/2,natH/2); }
-
       this._expandImg={zoom:1,panX:0,panY:0,drag:false,lx:0,ly:0};
       const apply=()=>{ ec.style.transform=`translate(${this._expandImg.panX}px,${this._expandImg.panY}px) scale(${this._expandImg.zoom})`; ec.style.transformOrigin='center center'; };
       imgWrap.onmousedown=e=>{ this._expandImg.drag=true; this._expandImg.lx=e.clientX; this._expandImg.ly=e.clientY; imgWrap.style.cursor='grabbing'; };
@@ -1435,8 +1404,6 @@ export class ViewerScene extends BaseScene {
       return;
     }
     const sd = data[0].scene_data;
-
-    // Lưu tên gallery/artist để dùng cho top bar
     this._galleryName = sd.gallery_name || this.manager.currentRoom.name || 'Phòng Tranh 3D';
     this._artistName  = sd.artist_name  || 'Artist Name';
 
@@ -1448,7 +1415,6 @@ export class ViewerScene extends BaseScene {
         const meta = a.meta || {};
         const group = new THREE.Group();
         group.position.copy(pos); group.rotation.set(0, a.ry||0, 0); if (sv) group.scale.copy(sv);
-
         if (a.isVideo) {
           const vid = document.createElement('video'); vid.src = a.storageUrl; vid.loop=true; vid.muted=true; vid.playsInline=true; vid.crossOrigin='anonymous';
           vid.addEventListener('loadeddata', () => {
@@ -1508,14 +1474,14 @@ export class ViewerScene extends BaseScene {
       this.pathWaypoints = sd.waypoints.map(wp=>({ ...wp }));
       this.currentWpIdx  = 0;
       this._updateWaypointBar();
+      // Bổ sung: tạo markers và đường line cho khách
+      this.rebuildWaypointMarkers();
     }
     if (sd.rooms && sd.rooms.length) {
       this._rooms = sd.rooms;
     } else {
       this._rooms = [{ id: 0, name: 'Phòng chính', x: 0, z: 0, w: 16, d: 16, floor: 0 }];
     }
-
-    // Cập nhật top bar sau khi có dữ liệu
     this._updateTopBarInfo();
   }
 
@@ -1569,6 +1535,14 @@ export class ViewerScene extends BaseScene {
     this.mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
     this.mouse.y = -(e.clientY / innerHeight) * 2 + 1;
     this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    // Kiểm tra click vào waypoint marker trước
+    const wpHits = this.raycaster.intersectObjects(this.pathMarkers.map(m => m.mesh), false);
+    if (wpHits.length) {
+      const idx = wpHits[0].object.userData.waypointIdx;
+      this._travelTo(idx);
+      return;
+    }
 
     const aHits = this.raycaster.intersectObjects(this.artworks.map(a => a.group), true);
     if (aHits.length) {
