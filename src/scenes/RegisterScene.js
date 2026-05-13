@@ -95,15 +95,20 @@ export class RegisterScene extends BaseScene {
     el.style.border     = type === 'success' ? '1px solid rgba(106,170,122,.25)' : '1px solid rgba(181,74,58,.25)';
   }
 
-  _handleRegister() {
+  async _handleRegister() {
     const name = document.getElementById('re-name').value.trim();
     const role = document.querySelector('input[name="re-role"]:checked')?.value ?? 'user';
 
     if (!name) { this._showMsg('Vui lòng nhập tên hiển thị'); return; }
 
-    this.manager.auth.setProfile(name, role);
-    this._showMsg('Tạo hồ sơ thành công!', 'success');
-    setTimeout(() => this.manager.navigateTo('landing'), 800);
+    try {
+      await this.manager.auth.setProfile(name, role);
+      this._showMsg('Tạo hồ sơ thành công!', 'success');
+      setTimeout(() => this.manager.navigateTo('landing'), 800);
+    } catch (err) {
+      console.error(err);
+      this._showMsg('Có lỗi xảy ra, vui lòng thử lại');
+    }
   }
 
   update(_dt) {

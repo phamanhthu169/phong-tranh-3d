@@ -95,14 +95,19 @@ export class LoginScene extends BaseScene {
     el.style.border     = type === 'success' ? '1px solid rgba(106,170,122,.25)' : '1px solid rgba(181,74,58,.25)';
   }
 
-  _handleLogin() {
+  async _handleLogin() {
     const name = document.getElementById('li-name').value.trim();
     const role = document.querySelector('input[name="li-role"]:checked')?.value ?? 'user';
 
     if (!name) { this._showMsg('Vui lòng nhập tên của bạn'); return; }
 
-    this.manager.auth.setProfile(name, role);
-    this.manager.navigateTo('landing');
+    try {
+      await this.manager.auth.setProfile(name, role);
+      this.manager.navigateTo('landing');
+    } catch (err) {
+      console.error(err);
+      this._showMsg('Có lỗi xảy ra, vui lòng thử lại');
+    }
   }
 
   update(_dt) {

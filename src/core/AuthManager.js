@@ -1,44 +1,104 @@
+import { supabase } from '../utils/supabase.js';
+import { v4 as uuidv4 } from 'uuid';
+
 const STORAGE_KEY = 'creatory_user';
 
 export class AuthManager {
   constructor() {
-    this._profile   = this._load();
+    this._profile   = null;
     this._listeners = [];
-    this._ready     = Promise.resolve();
+    this._ready     = this._init();
   }
 
-  _load() {
+  // Khởi tạo: load từ localStorage, sau đó kiểm tra và đồng bộ với Supabase
+  async _init() {
+    const localProfile = this._loadFromLocal();
+    if (!localProfile) return;
+
+    // Fetch dữ liệu mới nhất từ Supabase
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', localProfile.id)
+      .maybeSingle();
+
+    if (!error && data) {
+      // Gộp dữ liệu (ưu tiên Supabase nếu có)
+      this._profile = { ...localProfile, ...data };
+      this._saveToLocal(this._profile);
+    } else if (error && error.code !== 'PGRST116') {
+      console.error('Lỗi khi đồng bộ profile từ Supabase:', error);
+      this._profile = localProfile;
+    } else {
+      // Không tìm thấy trên Supabase -> tạo mới
+      await this._upsertToSupabase(localProfile);
+      this._profile = localProfile;
+    }
+    this._notify();
+  }
+
+  _loadFromLocal() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch { return null; }
   }
 
-  _save(profile) {
+  _saveToLocal(profile) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-    this._profile = profile;
+  }
+
+  async _upsertToSupabase(profile) {
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: profile.id,
+        display_name: profile.name,
+        role: profile.role,
+        location: profile.location || null,
+        website: profile.website || null,
+        bio: profile.bio || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+    if (error) console.error('Lỗi upsert profile lên Supabase:', error);
+  }
+
+  // Public API
+  ready() { return this._ready; }
+  get profile() { return this._profile; }
+  get user() { return this._profile; }
+  get isLoggedIn() { return !!this._profile; }
+  get isArtist() { return this._profile?.role === 'artist'; }
+
+  // Đăng ký / đăng nhập lần đầu
+  async setProfile(name, role) {
+    const newProfile = {
+      id: this._profile?.id || uuidv4(),  // giữ nguyên id nếu đã có
+      name,
+      role,
+      location: this._profile?.location || '',
+      website: this._profile?.website || '',
+      bio: this._profile?.bio || '',
+    };
+    this._profile = newProfile;
+    this._saveToLocal(newProfile);
+    await this._upsertToSupabase(newProfile);
     this._notify();
   }
 
-  ready()         { return this._ready; }
-  get profile()   { return this._profile; }
-  get user()      { return this._profile; }
-  get isLoggedIn(){ return !!this._profile; }
-  get isArtist()  { return this._profile?.role === 'artist'; }
+  // Cập nhật thông tin (chỉnh sửa profile)
+  async updateProfile(fields) {
+    if (!this._profile) throw new Error('Chưa đăng nhập');
 
-  // Đặt name + role khi đăng ký/đăng nhập lần đầu
-  setProfile(name, role) {
-    const existing = this._profile || {};
-    this._save({ ...existing, name, role });
+    const updated = { ...this._profile, ...fields };
+    this._profile = updated;
+    this._saveToLocal(updated);
+    await this._upsertToSupabase(updated);
+    this._notify();
   }
 
-  // Cập nhật bất kỳ field nào của profile (merge)
-  updateProfile(fields) {
-    if (!this._profile) return;
-    this._save({ ...this._profile, ...fields });
-  }
-
-  signOut() {
+  async signOut() {
     localStorage.removeItem(STORAGE_KEY);
     this._profile = null;
     this._notify();
