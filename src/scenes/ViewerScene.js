@@ -113,6 +113,8 @@ export class ViewerScene extends BaseScene {
     /* ---- raycaster ---- */
     this.raycaster = new THREE.Raycaster();
     this.mouse     = new THREE.Vector2();
+    this.colRay    = new THREE.Raycaster();
+    this.colDir    = new THREE.Vector3();
 
     /* ---------- listeners ---------- */
     this._on(this.renderer.domElement, 'click',     (e) => this._onCanvasClick(e));
@@ -1620,6 +1622,21 @@ export class ViewerScene extends BaseScene {
       if (this.keys['KeyS'] || this.keys['ArrowDown'])  this.moveDir.addScaledVector(this.fwd, -speed*dt);
       if (this.keys['KeyA'] || this.keys['ArrowLeft'])  this.moveDir.addScaledVector(this.rgt, -speed*dt);
       if (this.keys['KeyD'] || this.keys['ArrowRight']) this.moveDir.addScaledVector(this.rgt,  speed*dt);
+      if (this.moveDir.lengthSq() > 0 && this.modelMeshes.length) {
+        const MARGIN = 0.5;
+        if (Math.abs(this.moveDir.x) > 1e-6) {
+          this.colDir.set(Math.sign(this.moveDir.x), 0, 0);
+          this.colRay.set(this.camera.position, this.colDir);
+          const hx = this.colRay.intersectObjects(this.modelMeshes, false);
+          if (hx.length && hx[0].distance < MARGIN) this.moveDir.x = 0;
+        }
+        if (Math.abs(this.moveDir.z) > 1e-6) {
+          this.colDir.set(0, 0, Math.sign(this.moveDir.z));
+          this.colRay.set(this.camera.position, this.colDir);
+          const hz = this.colRay.intersectObjects(this.modelMeshes, false);
+          if (hz.length && hz[0].distance < MARGIN) this.moveDir.z = 0;
+        }
+      }
       this.camera.position.add(this.moveDir); this.camera.position.y = posY;
     }
     this.artworks.forEach(a => { if (a.isVideo && a.videoTex) a.videoTex.needsUpdate = true; });
