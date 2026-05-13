@@ -1,0 +1,1628 @@
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OBJLoader }  from 'three/addons/loaders/OBJLoader.js';
+import { supabase } from '../utils/supabase.js';
+import { BaseScene } from './BaseScene.js';
+
+const FRAME_MAT = new THREE.MeshLambertMaterial({ color: 0x2a2018 });
+
+function parsePrice(str) {
+  if (!str) return NaN;
+  return parseFloat(str.replace(/[^\d,\.]/g, '').replace(/\./g, '').replace(',', '.'));
+}
+function formatPrice(n) {
+  return n.toLocaleString('vi-VN') + ' ₫';
+}
+
+export class ViewerScene extends BaseScene {
+
+  constructor(manager, canvas) {
+    super(manager, canvas);
+    this.artworks    = [];
+    this.models3d    = [];
+
+    // --- cart ---
+    this.cartItems   = [];
+    this.cartIdCnt   = 0;
+    this.popupArt    = null;
+
+    // --- minimap ---
+    this._mmExpanded = false;
+
+    // --- sound ---
+    this._soundOn = true;
+    this._bgAudio = null;
+
+    // --- like ---
+    this._liked = false;
+
+    // --- settings ---
+    // (tốc độ và fov đã bị loại bỏ, chỉ còn brightness)
+    this._walkSpeed = 0.07; // mặc định, không hiển thị điều chỉnh nữa
+
+    // --- chat ---
+    this._chatOpen = false;
+    this._unreadCount = 0;
+    this._shownMsgIds = new Set();
+    this._chatUsername = ''; // sẽ được gán khi init chat, không prompt
+    this._CHAT_ROOM = 'room1';
+
+    // --- expand state (ảnh lớn & 3D mini) ---
+    this._expand3d = {
+      drag: false, lx: 0, ly: 0,
+      yaw: 0.5, pitch: 0.3, dist: 3, center: new THREE.Vector3(),
+      renderer: null, scene: null, camera: null, raf: null
+    };
+    this._expandImg = {
+      zoom: 1, panX: 0, panY: 0, drag: false, lx: 0, ly: 0
+    };
+  }
+
+  async init() {
+    await this.manager.auth.ready();
+    if (this._disposed) return;
+
+    if (!this.manager.currentRoom) { this.manager.navigateTo('explore'); return; }
+
+    /* ---- scene ---- */
+    this.threeScene.background = new THREE.Color(0x87ceeb);
+
+    this.ambLight  = new THREE.AmbientLight(0xffffff, 2.5);
+    this.hemiLight = new THREE.HemisphereLight(0xffe8c0, 0x3a2e20, 0.7);
+    this.dirLight  = new THREE.DirectionalLight(0xffffff, 3);
+    this.dirLight.position.set(5, 10, 5); this.dirLight.castShadow = true;
+    this.threeScene.add(this.ambLight, this.hemiLight, this.dirLight);
+
+    /* ---- load GLB phòng ---- */
+    this.modelMeshes = [];
+    await new Promise(resolve => {
+      new GLTFLoader().load('/models/scene.glb', (gltf) => {
+        const model = gltf.scene; this.threeScene.add(model);
+        model.traverse(c => { if (c.isMesh) this.modelMeshes.push(c); });
+        const box    = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        this.camera.position.set(center.x, box.min.y + 1.6, center.z);
+        resolve();
+      });
+    });
+    if (this._disposed) return;
+
+    /* ---- loaders ---- */
+    this.gltfLoader  = new GLTFLoader();
+    this.objLoader   = new OBJLoader();
+
+    /* ---- walk state ---- */
+    this.yaw      = 0;
+    this.pitch    = 0;
+    this.isLeftDown = false;
+    this.lastX    = 0;
+    this.lastY    = 0;
+    this.didDrag  = false;
+    this.keys     = {};
+    this.moveDir  = new THREE.Vector3();
+    this.fwd      = new THREE.Vector3();
+    this.rgt      = new THREE.Vector3();
+
+    /* ---- waypoint (giữ nguyên logic cũ) ---- */
+    this.pathWaypoints  = [];
+    this.currentWpIdx   = -1;
+    this.wpTravelTarget = null;
+    this.wpTravelFrom   = null;
+    this.wpTravelT      = 0;
+
+    /* ---- raycaster ---- */
+    this.raycaster = new THREE.Raycaster();
+    this.mouse     = new THREE.Vector2();
+
+    /* ---------- listeners ---------- */
+    this._on(this.renderer.domElement, 'click',     (e) => this._onCanvasClick(e));
+    this._on(this.renderer.domElement, 'mousedown', (e) => { if (e.button === 0) { this.isLeftDown = true; this.didDrag = false; this.lastX = e.clientX; this.lastY = e.clientY; } });
+    this._on(window,                   'mouseup',   () =>  { this.isLeftDown = false; });
+    this._on(this.renderer.domElement, 'mousemove', (e) => this._onMouseMove(e));
+    this._on(document,                 'keydown',   (e) => { this.keys[e.code] = true; });
+    this._on(document,                 'keyup',     (e) => { this.keys[e.code] = false; });
+
+    await this._loadRoom();
+    if (this._disposed) return;
+    this._renderMinimapRoomChips();
+
+    /* ========== KHỞI TẠO UI ========== */
+    this._injectViewerCSS();
+    this._buildTopBar();               // <-- thêm top bar
+    this._buildRightPanel();
+    this._buildArtworkPopup();
+    this._buildExpandOverlay();
+    this._buildLeftColumn();
+    this._buildControlsBar();
+    this._buildHelpOverlay();
+    this._buildSettingsPanel();
+    this._buildToast();
+    this._buildWaypointBar();
+    this._renderProductList();
+    this._renderCart();
+    this._bindFeatureEvents();
+
+    // Cập nhật tên phòng/artist lên top bar (sau khi load room)
+    this._updateTopBarInfo();
+
+    if (!localStorage.getItem('gallery_visited')) {
+      setTimeout(() => {
+        document.getElementById('help-overlay')?.classList.add('open');
+        localStorage.setItem('gallery_visited', '1');
+      }, 800);
+    }
+  }
+
+  /* ================================================================
+     UI: TOP BAR
+  ================================================================ */
+  _buildTopBar() {
+    const bar = document.createElement('div');
+    bar.id = 'topbar';
+    bar.innerHTML = `
+      <div id="logo-area">
+        <div id="logo-mark">C</div>
+        <div id="logo-text">Creatory</div>
+      </div>
+      <div id="gallery-info">
+        <div id="gallery-name">Phòng Tranh 3D</div>
+        <div id="artist-name">Artist Name</div>
+      </div>
+      <div id="topbar-right"></div>
+    `;
+    document.body.appendChild(bar);
+    this._el(bar);
+  }
+
+  _updateTopBarInfo() {
+    // Dữ liệu đã load từ DB có thể có gallery_name / artist_name
+    // Ta lưu lại khi loadRoom nếu có, hoặc lấy từ currentRoom
+    const galleryName = this._galleryName || this.manager.currentRoom?.name || 'Phòng Tranh 3D';
+    const artistName  = this._artistName  || 'Artist Name';
+    const gnEl = document.getElementById('gallery-name');
+    const anEl = document.getElementById('artist-name');
+    if (gnEl) gnEl.textContent = galleryName;
+    if (anEl) anEl.textContent = artistName;
+  }
+
+  /* ================================================================
+     CSS (bổ sung top bar)
+  ================================================================ */
+  _injectViewerCSS() {
+    if (document.getElementById('vw-css')) return;
+    const s = document.createElement('style');
+    s.id = 'vw-css';
+    s.textContent = `
+      :root {
+        --bg: #1a1714; --surface: rgba(26,23,20,.96);
+        --border: rgba(212,197,169,.15); --border-hi: rgba(212,197,169,.5);
+        --gold: #d4c5a9; --gold-dim: #7a6e5c; --text-dim: #555;
+        --accent: #c8a96e; --accent2: #e8c47a; --danger: #b54a3a; --green: #5aaa7a;
+        --radius: 6px; --radius-sm: 3px;
+        --font-ui: 'Nunito', sans-serif; --font-head: 'Cormorant Garamond', serif; --font-mono: 'Space Mono', monospace;
+        --panel-w: 300px;
+      }
+      @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Space+Mono:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap');
+      *,*::before,*::after{ margin:0; padding:0; box-sizing:border-box; }
+
+      /* TOP BAR */
+      #topbar {
+        position:fixed; top:0; left:0; right:0; height:54px;
+        display:flex; align-items:center; justify-content:space-between;
+        padding:0 18px;
+        background:linear-gradient(to bottom, rgba(20,17,14,.96) 0%, rgba(20,17,14,0) 100%);
+        z-index:20; pointer-events:none;
+      }
+      #logo-area {
+        display:flex; align-items:center; gap:10px; pointer-events:auto;
+      }
+      #logo-mark {
+        width:32px; height:32px;
+        background:linear-gradient(135deg, #c8a96e, #8a6a30);
+        border-radius:8px;
+        display:flex; align-items:center; justify-content:center;
+        font-family:var(--font-head); font-size:16px; font-style:italic; color:#fff;
+        font-weight:600; letter-spacing:.02em;
+        box-shadow:0 2px 12px rgba(200,169,110,.35);
+      }
+      #logo-text {
+        font-family:var(--font-head); font-size:16px; font-weight:600;
+        color:var(--gold); letter-spacing:.12em; font-style:italic;
+      }
+      #gallery-info {
+        position:absolute; left:50%; transform:translateX(-50%);
+        display:flex; flex-direction:column; align-items:center; gap:2px;
+        pointer-events:none;
+      }
+      #gallery-name {
+        font-family:var(--font-head); font-size:17px; font-weight:400; font-style:italic;
+        color:var(--gold); letter-spacing:.1em;
+      }
+      #artist-name {
+        font-family:var(--font-mono); font-size:8px; letter-spacing:.22em;
+        text-transform:uppercase; color:var(--accent);
+      }
+      #topbar-right {
+        display:flex; align-items:center; gap:8px; pointer-events:auto;
+      }
+
+      /* LEFT COLUMN: minimap + icon buttons + chat */
+      #left-column {
+        position:fixed; left:14px; bottom:14px;
+        display:flex; flex-direction:column; align-items:flex-start; gap:8px;
+        z-index:20;
+      }
+
+      /* MINI MAP */
+      #minimap-wrap {
+        width:96px;
+        background:rgba(18,15,12,.92);
+        border:.5px solid var(--border);
+        border-radius:var(--radius);
+        overflow:hidden;
+        backdrop-filter:blur(8px);
+        transition:width .3s, height .3s;
+      }
+      #minimap-header {
+        display:flex; align-items:center; justify-content:space-between;
+        padding:5px 8px;
+        border-bottom:.5px solid var(--border);
+      }
+      #minimap-label {
+        font-family:var(--font-mono); font-size:7px; letter-spacing:.18em;
+        text-transform:uppercase; color:var(--gold-dim);
+      }
+      #minimap-expand-btn {
+        background:none; border:none; cursor:pointer;
+        font-size:10px; color:var(--gold-dim);
+        padding:0 2px; line-height:1;
+        transition:color .2s;
+      }
+      #minimap-expand-btn:hover { color:var(--gold); }
+
+      #minimap-rooms {
+        display:none; flex-wrap:wrap; gap:3px;
+        padding:5px 7px; border-bottom:.5px solid var(--border);
+      }
+      #minimap-rooms.show { display:flex; }
+      .mm-room-chip {
+        font-family:var(--font-mono); font-size:6px; letter-spacing:.1em;
+        padding:2px 5px; border-radius:2px; cursor:pointer;
+        transition:all .18s; white-space:nowrap;
+        border:.5px solid rgba(212,197,169,.2); color:var(--gold-dim);
+      }
+      .mm-room-chip.active {
+        background:rgba(200,169,110,.2); border-color:var(--accent); color:var(--accent);
+      }
+      .mm-room-chip:hover { border-color:var(--border-hi); color:var(--gold); }
+
+      #minimap-canvas-wrap {
+        position:relative; overflow:hidden;
+        width:96px; height:96px;
+        transition:all .3s cubic-bezier(.4,0,.2,1);
+      }
+      #minimap-wrap.expanded #minimap-canvas-wrap { width:200px; height:200px; }
+      #minimap-wrap.expanded { width:200px; }
+      #minimap-wrap.expanded #minimap-rooms { display:flex; }
+
+      #minimap-canvas { display:block; width:100%; height:100%; }
+
+      /* ICON BUTTONS (vertical, left side) */
+      .icon-btn {
+        width:38px; height:38px;
+        background:rgba(18,15,12,.85);
+        border:.5px solid var(--border);
+        border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        cursor:pointer; font-size:16px;
+        transition:all .2s; backdrop-filter:blur(8px);
+        color:var(--gold); position:relative;
+        flex-shrink:0;
+      }
+      .icon-btn:hover {
+        background:rgba(212,197,169,.15);
+        border-color:var(--border-hi);
+        transform:scale(1.08);
+      }
+      .icon-btn.active { background:rgba(200,169,110,.2); border-color:var(--accent); }
+
+      .icon-btn[title]:hover::after {
+        content:attr(title);
+        position:absolute; left:calc(100% + 10px); top:50%; transform:translateY(-50%);
+        background:rgba(18,15,12,.97); color:var(--gold); font-family:var(--font-mono);
+        font-size:7px; letter-spacing:.1em; padding:4px 9px;
+        border:.5px solid var(--border); white-space:nowrap; border-radius:3px;
+        pointer-events:none; z-index:50;
+      }
+
+      /* CHAT */
+      #chat-wrap {
+        position:relative;
+        width:100%;
+        display:flex; flex-direction:column; align-items:flex-start; gap:0;
+      }
+      #chat-toggle-btn {
+        display:flex; align-items:center; gap:7px;
+        background:rgba(18,15,12,.9); border:.5px solid var(--border);
+        border-radius:20px; padding:7px 14px;
+        cursor:pointer; transition:all .2s; width:fit-content;
+        margin-top:2px;
+      }
+      #chat-toggle-btn:hover { border-color:var(--border-hi); }
+      #chat-icon { font-size:13px; }
+      #chat-label { font-family:var(--font-mono); font-size:8px; letter-spacing:.14em; color:var(--gold-dim); text-transform:uppercase; }
+      #chat-unread {
+        background:var(--danger); color:#fff;
+        font-family:var(--font-mono); font-size:7px;
+        border-radius:10px; padding:1px 5px; display:none;
+      }
+      #chat-unread.show { display:inline; }
+
+      #chat-box {
+        width:260px; background:rgba(18,15,12,.97);
+        border:.5px solid var(--border); border-radius:var(--radius);
+        overflow:hidden; display:none; flex-direction:column;
+        box-shadow:0 8px 32px rgba(0,0,0,.5);
+        margin-bottom:6px;
+      }
+      #chat-box.open { display:flex; }
+      #chat-box-header {
+        padding:8px 12px;
+        background:rgba(212,197,169,.04);
+        border-bottom:.5px solid var(--border);
+        display:flex; justify-content:space-between; align-items:center;
+      }
+      #chat-room-label {
+        font-family:var(--font-mono); font-size:7px; letter-spacing:.18em;
+        text-transform:uppercase; color:var(--gold-dim);
+      }
+      #chat-username-tag {
+        font-family:var(--font-mono); font-size:7px; color:var(--accent); cursor:pointer;
+        letter-spacing:.1em;
+      }
+      #chat-username-tag:hover { color:var(--gold); }
+
+      #chat-messages {
+        height:160px; overflow-y:auto;
+        padding:8px 10px; display:flex; flex-direction:column; gap:5px;
+      }
+      #chat-messages::-webkit-scrollbar { width:2px; }
+      #chat-messages::-webkit-scrollbar-thumb { background:rgba(212,197,169,.1); }
+
+      .chat-msg { line-height:1.55; word-break:break-word; }
+      .chat-msg .msg-name { font-family:var(--font-mono); font-size:8px; color:var(--accent); margin-right:5px; }
+      .chat-msg.is-me .msg-name { color:#8ab4ff; }
+      .chat-msg .msg-text { font-size:10px; color:rgba(212,197,169,.8); }
+
+      #chat-input-row { display:flex; border-top:.5px solid var(--border); }
+      #chat-input {
+        flex:1; padding:8px 10px; background:transparent; border:none;
+        color:var(--gold); font-family:var(--font-ui); font-size:10px;
+        outline:none; letter-spacing:.04em;
+      }
+      #chat-input::placeholder { color:var(--text-dim); }
+      #chat-send {
+        padding:8px 12px; background:rgba(212,197,169,.06);
+        border:none; border-left:.5px solid var(--border);
+        color:var(--gold-dim); font-family:var(--font-ui); font-size:10px;
+        font-weight:700; cursor:pointer; transition:all .2s; letter-spacing:.06em;
+      }
+      #chat-send:hover { background:rgba(212,197,169,.15); color:var(--gold); }
+
+      /* SETTINGS PANEL (chỉ còn brightness) */
+      #settings-panel {
+        position:fixed; left:66px; bottom:14px;
+        width:220px; background:rgba(18,15,12,.98);
+        border:.5px solid var(--border); border-radius:var(--radius);
+        z-index:30; padding:14px; display:none; flex-direction:column; gap:12px;
+        box-shadow:0 8px 32px rgba(0,0,0,.5);
+      }
+      #settings-panel.open { display:flex; }
+      .sp-title {
+        font-family:var(--font-head); font-size:14px; font-style:italic;
+        color:var(--gold); letter-spacing:.08em;
+        border-bottom:.5px solid var(--border); padding-bottom:8px;
+      }
+      .sp-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+      .sp-label { font-family:var(--font-mono); font-size:8px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold-dim); }
+      .sp-range { flex:1; -webkit-appearance:none; height:2px; background:rgba(212,197,169,.2); border-radius:1px; outline:none; cursor:pointer; }
+      .sp-range::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--gold); cursor:pointer; }
+      .sp-val { font-family:var(--font-mono); font-size:8px; color:var(--gold); min-width:24px; text-align:right; }
+
+      /* HELP OVERLAY */
+      #help-overlay {
+        position:fixed; inset:0; z-index:60;
+        background:rgba(12,9,6,.92); backdrop-filter:blur(10px);
+        display:none; align-items:center; justify-content:center;
+      }
+      #help-overlay.open { display:flex; }
+      #help-box {
+        background:rgba(20,17,14,.99);
+        border:.5px solid var(--border); border-radius:10px;
+        padding:32px 36px; width:420px;
+        display:flex; flex-direction:column; gap:18px;
+      }
+      #help-title {
+        font-family:var(--font-head); font-size:22px; font-style:italic;
+        color:var(--gold); letter-spacing:.1em; text-align:center;
+      }
+      .help-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+      .help-item { display:flex; flex-direction:column; gap:4px; }
+      .help-key {
+        display:inline-flex; align-items:center; gap:5px; flex-wrap:wrap;
+      }
+      .key {
+        background:rgba(212,197,169,.12); border:.5px solid var(--border);
+        border-radius:3px; padding:3px 8px;
+        font-family:var(--font-mono); font-size:9px; color:var(--gold);
+        letter-spacing:.08em;
+      }
+      .help-desc { font-size:10px; color:var(--gold-dim); letter-spacing:.06em; }
+      #help-close {
+        align-self:center;
+        padding:8px 24px; background:rgba(212,197,169,.08);
+        border:.5px solid var(--border); color:var(--gold-dim);
+        font-family:var(--font-mono); font-size:8px; letter-spacing:.14em;
+        text-transform:uppercase; cursor:pointer; border-radius:var(--radius-sm);
+        transition:all .2s;
+      }
+      #help-close:hover { border-color:var(--gold); color:var(--gold); }
+
+      /* CONTROLS BAR (bottom center) */
+      #controls-bar {
+        position:fixed; bottom:14px;
+        left:50%; transform:translateX(-50%);
+        background:rgba(18,15,12,.82); border:.5px solid var(--border);
+        border-radius:20px; padding:7px 18px;
+        font-family:var(--font-mono); font-size:8px; letter-spacing:.14em;
+        text-transform:uppercase; color:var(--gold-dim);
+        pointer-events:none; white-space:nowrap; backdrop-filter:blur(8px);
+        z-index:15;
+      }
+
+      /* LIKE animation */
+      @keyframes heartPop {
+        0%   { transform:scale(1); }
+        40%  { transform:scale(1.4); }
+        70%  { transform:scale(.9); }
+        100% { transform:scale(1); }
+      }
+      .icon-btn.liked { animation:heartPop .4s ease; color:#e85d7a !important; }
+
+      /* RIGHT PANEL (existing CSS, keep) */
+      #right-panel{
+        position:fixed; top:0; right:0; bottom:0; width:var(--panel-w);
+        background:rgba(18,15,12,.97); border-left:.5px solid var(--border);
+        display:flex; flex-direction:column; z-index:20;
+        transition:transform .35s cubic-bezier(.4,0,.2,1); backdrop-filter:blur(12px);
+      }
+      #right-panel.collapsed{ transform:translateX(var(--panel-w)); }
+      #panel-tab{
+        position:absolute; left:-32px; top:50%; transform:translateY(-50%);
+        width:32px; height:72px; background:rgba(18,15,12,.95);
+        border:.5px solid var(--border); border-right:none;
+        border-radius:var(--radius) 0 0 var(--radius);
+        display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+        cursor:pointer; transition:all .2s;
+      }
+      #panel-tab:hover{ background:rgba(212,197,169,.12); }
+      #panel-tab-icon{ font-size:12px; }
+      #panel-tab-text{
+        font-family:var(--font-mono); font-size:6px; letter-spacing:.1em;
+        writing-mode:vertical-rl; text-orientation:mixed; color:var(--gold-dim); text-transform:uppercase;
+      }
+      #panel-header{ padding:16px 16px 12px; border-bottom:.5px solid var(--border); flex-shrink:0; }
+      #panel-header-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+      #panel-title{ font-family:var(--font-head); font-size:15px; font-weight:400; font-style:italic; color:var(--gold); letter-spacing:.08em; }
+      #panel-toggle-btn{
+        width:26px; height:26px; background:rgba(212,197,169,.07);
+        border:.5px solid var(--border); border-radius:50%; cursor:pointer;
+        display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--gold-dim); transition:all .2s;
+      }
+      #panel-toggle-btn:hover{ background:rgba(212,197,169,.15); color:var(--gold); }
+      #panel-count{ font-family:var(--font-mono); font-size:8px; letter-spacing:.14em; color:var(--text-dim); text-transform:uppercase; }
+
+      #product-list{ flex:1; overflow-y:auto; padding:10px 12px; }
+      #product-list::-webkit-scrollbar{ width:3px; }
+      #product-list::-webkit-scrollbar-thumb{ background:rgba(212,197,169,.15); border-radius:2px; }
+      #product-list::-webkit-scrollbar-track{ background:transparent; }
+
+      .product-card{
+        display:flex; align-items:stretch; gap:0;
+        background:rgba(255,255,255,.03); border:.5px solid rgba(212,197,169,.1);
+        border-radius:var(--radius); margin-bottom:8px; overflow:hidden;
+        transition:border-color .2s, background .2s; cursor:pointer;
+      }
+      .product-card:hover{ border-color:rgba(212,197,169,.3); background:rgba(212,197,169,.06); }
+      .product-card.in-cart{ border-color:rgba(90,170,122,.35); background:rgba(90,170,122,.05); }
+
+      .product-thumb-wrap{ width:72px; flex-shrink:0; position:relative; overflow:hidden; }
+      .product-thumb{ width:72px; height:72px; object-fit:cover; display:block; background:#111; }
+      .product-thumb-canvas{ width:72px; height:72px; display:block; background:#111; }
+      .product-body{ flex:1; padding:8px 10px; display:flex; flex-direction:column; justify-content:space-between; min-width:0; }
+      .product-name{ font-family:var(--font-head); font-size:13px; font-weight:400; color:var(--gold); letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .product-artist{ font-family:var(--font-mono); font-size:7px; letter-spacing:.1em; color:var(--text-dim); text-transform:uppercase; margin-top:2px; }
+      .product-price{ font-family:var(--font-head); font-size:14px; font-weight:600; color:var(--accent); letter-spacing:.04em; margin-top:4px; }
+      .product-price.contact{ color:var(--text-dim); font-size:11px; font-family:var(--font-mono); }
+      .product-actions{ flex-shrink:0; display:flex; flex-direction:column; border-left:.5px solid rgba(212,197,169,.08); }
+      .product-act-btn{
+        flex:1; width:36px; background:none; border:none; cursor:pointer;
+        display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--gold-dim); transition:all .2s;
+      }
+      .product-act-btn:hover{ background:rgba(212,197,169,.1); color:var(--gold); }
+      .product-act-btn:first-child{ border-bottom:.5px solid rgba(212,197,169,.08); }
+
+      #product-empty{ padding:32px 16px; text-align:center; font-family:var(--font-mono); font-size:8px; letter-spacing:.16em; text-transform:uppercase; color:var(--text-dim); line-height:2.5; }
+
+      /* CART */
+      #cart-section{ border-top:.5px solid var(--border); padding:12px; flex-shrink:0; }
+      #cart-header-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+      #cart-label{ font-family:var(--font-head); font-size:13px; font-style:italic; color:var(--gold); letter-spacing:.06em; }
+      #cart-badge{ background:var(--danger); color:#fff; font-family:var(--font-mono); font-size:7px; border-radius:10px; padding:2px 6px; min-width:18px; text-align:center; display:none; }
+      #cart-badge.show{ display:inline-block; }
+      #cart-items{ max-height:120px; overflow-y:auto; margin-bottom:8px; }
+      #cart-items::-webkit-scrollbar{ width:2px; }
+      #cart-items::-webkit-scrollbar-thumb{ background:rgba(212,197,169,.12); }
+      .cart-row{ display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:.5px solid rgba(212,197,169,.06); }
+      .cart-row:last-child{ border-bottom:none; }
+      .cart-row-name{ flex:1; font-size:10px; color:var(--gold); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .cart-row-price{ font-family:var(--font-mono); font-size:8px; color:var(--accent); white-space:nowrap; }
+      .cart-row-rm{ background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:10px; padding:2px 3px; transition:color .2s; }
+      .cart-row-rm:hover{ color:var(--danger); }
+      #cart-empty-msg{ padding:10px 0; text-align:center; font-family:var(--font-mono); font-size:8px; letter-spacing:.12em; color:var(--text-dim); text-transform:uppercase; }
+      #cart-total-row{ display:flex; justify-content:space-between; align-items:center; padding:6px 0 8px; margin-top:2px; border-top:.5px solid rgba(212,197,169,.1); }
+      #cart-total-label{ font-family:var(--font-mono); font-size:7px; letter-spacing:.16em; color:var(--gold-dim); text-transform:uppercase; }
+      #cart-total-price{ font-family:var(--font-head); font-size:15px; color:var(--gold); letter-spacing:.04em; }
+      #checkout-btn{
+        width:100%; padding:10px; background:linear-gradient(135deg, rgba(200,169,110,.25) 0%, rgba(200,169,110,.1) 100%);
+        border:.5px solid rgba(200,169,110,.5); color:var(--accent); font-family:var(--font-ui); font-size:11px;
+        font-weight:700; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; border-radius:var(--radius); transition:all .25s;
+      }
+      #checkout-btn:hover{ background:linear-gradient(135deg, rgba(200,169,110,.45) 0%, rgba(200,169,110,.2) 100%); border-color:var(--accent); color:#fff; box-shadow:0 4px 20px rgba(200,169,110,.2); }
+      #checkout-btn:disabled{ opacity:.4; cursor:default; }
+
+      /* POPUP */
+      #artwork-popup{
+        position:fixed; z-index:30; background:rgba(18,15,12,.98);
+        border:.5px solid var(--border); border-radius:var(--radius);
+        padding:0; width:280px; display:none; flex-direction:column; overflow:hidden;
+        box-shadow:0 16px 48px rgba(0,0,0,.6);
+      }
+      #artwork-popup.open{ display:flex; }
+      #ap-img-wrap{ position:relative; width:100%; overflow:hidden; background:#111; }
+      #ap-img-canvas{ width:100%; height:auto; display:block; }
+      #ap-close{
+        position:absolute; top:8px; right:8px; width:26px; height:26px;
+        background:rgba(0,0,0,.7); border:.5px solid rgba(255,255,255,.2); border-radius:50%;
+        display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:#fff; transition:all .2s;
+      }
+      #ap-close:hover{ background:rgba(181,74,58,.8); }
+      #ap-expand-btn{
+        position:absolute; bottom:8px; right:8px; width:26px; height:26px;
+        background:rgba(0,0,0,.7); border:.5px solid rgba(255,255,255,.2); border-radius:50%;
+        display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:#fff; transition:all .2s;
+      }
+      #ap-expand-btn:hover{ background:rgba(200,169,110,.3); }
+      #ap-body{ padding:14px 16px; display:flex; flex-direction:column; gap:8px; }
+      #ap-title{ font-family:var(--font-head); font-size:18px; font-weight:400; font-style:italic; color:var(--gold); }
+      #ap-sub{ display:flex; align-items:center; gap:8px; }
+      #ap-artist{ font-family:var(--font-mono); font-size:8px; letter-spacing:.14em; color:var(--accent); text-transform:uppercase; }
+      #ap-year{ font-family:var(--font-mono); font-size:8px; letter-spacing:.1em; color:var(--text-dim); }
+      #ap-desc{ font-size:11px; line-height:1.75; color:rgba(212,197,169,.7); letter-spacing:.03em; }
+      #ap-price-row{ display:flex; flex-direction:column; gap:2px; }
+      #ap-price-label{ font-family:var(--font-mono); font-size:7px; letter-spacing:.16em; text-transform:uppercase; color:var(--text-dim); }
+      #ap-price{ font-family:var(--font-head); font-size:20px; color:var(--accent2); letter-spacing:.04em; }
+      #ap-add-cart{
+        width:100%; padding:10px;
+        background:linear-gradient(135deg, rgba(200,169,110,.2) 0%, rgba(200,169,110,.08) 100%);
+        border:.5px solid rgba(200,169,110,.4); color:var(--accent); font-family:var(--font-ui); font-size:10px;
+        font-weight:700; letter-spacing:.14em; text-transform:uppercase; cursor:pointer; border-radius:var(--radius-sm); transition:all .25s;
+      }
+      #ap-add-cart:hover:not(:disabled){ background:rgba(200,169,110,.35); border-color:var(--accent); color:#fff; }
+      #ap-add-cart:disabled{ opacity:.5; cursor:default; }
+      #ap-add-cart.added{ background:rgba(90,170,122,.15); border-color:rgba(90,170,122,.5); color:var(--green); }
+
+      /* EXPAND */
+      #expand-overlay{
+        position:fixed; inset:0; z-index:50; background:rgba(10,8,6,.92);
+        display:none; align-items:center; justify-content:center; backdrop-filter:blur(8px);
+      }
+      #expand-overlay.open{ display:flex; }
+      #expand-inner{ position:relative; max-width:85vw; max-height:90vh; display:flex; flex-direction:column; align-items:center; gap:14px; }
+      #expand-img-wrap{
+        position:relative; overflow:hidden; border:.5px solid rgba(212,197,169,.2); border-radius:6px;
+        background:#0a0806; max-width:80vw; max-height:72vh;
+      }
+      #expand-canvas{ display:block; max-width:80vw; max-height:72vh; }
+      #expand-3d-wrap{
+        display:none; position:relative; border:.5px solid rgba(212,197,169,.2);
+        border-radius:6px; overflow:hidden; background:#0a0806;
+      }
+      #expand-3d-canvas{ display:block; }
+      #expand-caption{ color:var(--gold); font-family:var(--font-head); font-size:16px; font-style:italic; letter-spacing:.08em; }
+      #expand-close{
+        position:absolute; top:-16px; right:-16px; width:32px; height:32px;
+        background:rgba(20,17,14,.95); border:.5px solid var(--border); border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        cursor:pointer; font-size:14px; color:var(--gold); transition:all .2s; z-index:2;
+      }
+      #expand-close:hover{ background:rgba(181,74,58,.8); border-color:var(--danger); }
+
+      /* TOAST */
+      #vw-toast{
+        position:fixed; bottom:54px; left:50%; transform:translateX(-50%) translateY(16px);
+        background:rgba(20,17,14,.97); border:.5px solid var(--border);
+        color:var(--gold); font-family:var(--font-mono); font-size:8px;
+        letter-spacing:.14em; text-transform:uppercase; padding:8px 18px; border-radius:20px;
+        pointer-events:none; opacity:0; transition:opacity .3s, transform .3s;
+        z-index:40; white-space:nowrap; backdrop-filter:blur(8px);
+      }
+      #vw-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+      #vw-toast.success{ border-color:var(--green); color:var(--green); }
+      #vw-toast.error{ border-color:var(--danger); color:var(--danger); }
+
+      /* WAYPOINT (giữ nguyên style cũ) */
+      #vw-nav{ position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(15,13,12,.94); border:.5px solid #c8a96e; border-radius:4px; padding:6px 10px; display:none; align-items:center; gap:8px; z-index:25; font-family:monospace; }
+      #vw-nav.show{ display:flex; }
+      .vw-arr{ background:rgba(200,169,110,.12); border:.5px solid rgba(200,169,110,.4); color:#c8a96e; font-size:14px; width:28px; height:28px; cursor:pointer; border-radius:3px; display:flex; align-items:center; justify-content:center; transition:all .2s; }
+      .vw-arr:hover{ background:rgba(200,169,110,.28); color:#fff; }
+      .vw-arr:disabled{ opacity:.3; cursor:not-allowed; }
+    `;
+    document.head.appendChild(s);
+    this._el(s);
+  }
+
+  _buildToast() {
+    const t = document.createElement('div'); t.id = 'vw-toast';
+    document.body.appendChild(t); this._el(t);
+  }
+
+  _buildLeftColumn() {
+    const col = document.createElement('div'); col.id = 'left-column';
+    col.innerHTML = `
+      <div id="minimap-wrap">
+        <div id="minimap-header">
+          <span id="minimap-label">Bản đồ</span>
+          <button id="minimap-expand-btn" title="Mở rộng">⤢</button>
+        </div>
+        <div id="minimap-rooms"></div>
+        <div id="minimap-canvas-wrap">
+          <canvas id="minimap-canvas" width="200" height="200"></canvas>
+        </div>
+      </div>
+
+      <div class="icon-btn" id="btn-fullscreen" title="Phóng to màn hình">⛶</div>
+      <div class="icon-btn" id="btn-sound" title="Tắt / mở âm thanh">🔊</div>
+      <div class="icon-btn" id="btn-like" title="Thích phòng tranh này">♡</div>
+      <div class="icon-btn" id="btn-settings" title="Cài đặt">⚙</div>
+      <div class="icon-btn" id="btn-help" title="Hướng dẫn sử dụng">?</div>
+
+      <div id="chat-wrap">
+        <div id="chat-box">
+          <div id="chat-box-header">
+            <span id="chat-room-label">Phòng tranh · Trực tiếp</span>
+            <span id="chat-username-tag">…</span>
+          </div>
+          <div id="chat-messages"></div>
+          <div id="chat-input-row">
+            <input id="chat-input" placeholder="Nhắn tin…" autocomplete="off">
+            <button id="chat-send">Gửi</button>
+          </div>
+        </div>
+        <div id="chat-toggle-btn">
+          <span id="chat-icon">💬</span>
+          <span id="chat-label">Chat</span>
+          <span id="chat-unread"></span>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(col); this._el(col);
+  }
+
+  _buildControlsBar() {
+    const bar = document.createElement('div'); bar.id = 'controls-bar';
+    bar.textContent = 'W A S D · Kéo chuột để xoay · Click tranh để xem';
+    document.body.appendChild(bar); this._el(bar);
+  }
+
+  _buildHelpOverlay() {
+    const overlay = document.createElement('div'); overlay.id = 'help-overlay';
+    overlay.innerHTML = `
+      <div id="help-box">
+        <div id="help-title">Hướng dẫn tham quan</div>
+        <div class="help-grid">
+          <div class="help-item">
+            <div class="help-key"><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span></div>
+            <div class="help-desc">Di chuyển trong phòng</div>
+          </div>
+          <div class="help-item">
+            <div class="help-key"><span class="key">Kéo chuột</span></div>
+            <div class="help-desc">Xoay góc nhìn</div>
+          </div>
+          <div class="help-item">
+            <div class="help-key"><span class="key">Click tranh</span></div>
+            <div class="help-desc">Xem thông tin tác phẩm</div>
+          </div>
+          <div class="help-item">
+            <div class="help-key"><span class="key">↑ ↓ ← →</span></div>
+            <div class="help-desc">Di chuyển thay thế</div>
+          </div>
+          <div class="help-item">
+            <div class="help-key"><span class="key">⛶</span></div>
+            <div class="help-desc">Phóng to toàn màn hình</div>
+          </div>
+          <div class="help-item">
+            <div class="help-key"><span class="key">📋</span></div>
+            <div class="help-desc">Danh sách tác phẩm</div>
+          </div>
+        </div>
+        <button id="help-close">Đã hiểu · Vào tham quan</button>
+      </div>
+    `;
+    document.body.appendChild(overlay); this._el(overlay);
+
+    document.getElementById('help-close').addEventListener('click', () => {
+      overlay.classList.remove('open');
+    });
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) overlay.classList.remove('open');
+    });
+  }
+
+  _buildSettingsPanel() {
+    // Chỉ còn brightness
+    const panel = document.createElement('div'); panel.id = 'settings-panel';
+    panel.innerHTML = `
+      <div class="sp-title">⚙ Cài đặt</div>
+      <div class="sp-row">
+        <span class="sp-label">Độ sáng</span>
+        <input type="range" class="sp-range" id="sp-brightness" min="0.2" max="2" step="0.1" value="1">
+        <span class="sp-val" id="sp-brightness-val">1.0</span>
+      </div>
+    `;
+    document.body.appendChild(panel); this._el(panel);
+  }
+
+  _bindFeatureEvents() {
+    // ── FULLSCREEN ──
+    document.getElementById('btn-fullscreen').addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen();
+      }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+      this.camera.aspect = window.innerWidth / window.innerHeight;
+      this.camera.updateProjectionMatrix();
+    });
+
+    // ── SOUND ──
+    document.getElementById('btn-sound').addEventListener('click', () => {
+      this._soundOn = !this._soundOn;
+      const btn = document.getElementById('btn-sound');
+      btn.textContent = this._soundOn ? '🔊' : '🔇';
+      btn.classList.toggle('active', !this._soundOn);
+      if (this._bgAudio) this._bgAudio.muted = !this._soundOn;
+    });
+
+    // ── LIKE ──
+    document.getElementById('btn-like').addEventListener('click', () => {
+      this._liked = !this._liked;
+      const btn = document.getElementById('btn-like');
+      btn.innerHTML = this._liked ? '♥' : '♡';
+      btn.classList.toggle('liked', this._liked);
+      btn.classList.toggle('active', this._liked);
+      if (this._liked) this._toast('Đã thích phòng tranh này ♥', 'success', 2000);
+      else this._toast('Đã bỏ thích', 'info', 1500);
+    });
+
+    // ── SETTINGS (chỉ brightness) ──
+    document.getElementById('btn-settings').addEventListener('click', () => {
+      const sp = document.getElementById('settings-panel');
+      sp.classList.toggle('open');
+      document.getElementById('btn-settings').classList.toggle('active', sp.classList.contains('open'));
+    });
+    document.getElementById('sp-brightness').addEventListener('input', (e) => {
+      const v = +e.target.value;
+      if (this.ambLight) this.ambLight.intensity = v * 2.5;
+      if (this.hemiLight) this.hemiLight.intensity = v * 0.7;
+      document.getElementById('sp-brightness-val').textContent = v.toFixed(1);
+    });
+
+    // ── HELP ──
+    document.getElementById('btn-help').addEventListener('click', () => {
+      document.getElementById('help-overlay').classList.toggle('open');
+    });
+
+    // ── MINIMAP EXPAND ──
+    document.getElementById('minimap-expand-btn').addEventListener('click', () => {
+      this._mmExpanded = !this._mmExpanded;
+      const wrap = document.getElementById('minimap-wrap');
+      wrap.classList.toggle('expanded', this._mmExpanded);
+      document.getElementById('minimap-expand-btn').textContent = this._mmExpanded ? '⤡' : '⤢';
+      document.getElementById('minimap-expand-btn').title = this._mmExpanded ? 'Thu nhỏ' : 'Mở rộng';
+      const cw = this._mmExpanded ? 200 : 96;
+      const mmCanvas = document.getElementById('minimap-canvas');
+      mmCanvas.width = cw; mmCanvas.height = cw;
+    });
+
+    // ── CHAT ──
+    this._initChat();
+  }
+
+  _initChat() {
+    // Sử dụng tên từ tài khoản đăng nhập, không prompt
+    const authUser = this.manager.auth?.user;
+    if (!this._chatUsername || this._chatUsername === '…') {
+      if (authUser) {
+        this._chatUsername = authUser.user_metadata?.name || authUser.email || 'Người dùng';
+      } else {
+        this._chatUsername = 'Khách';
+      }
+      localStorage.setItem('chat_username', this._chatUsername);
+    } else {
+      // Nếu đã có trong localStorage, dùng luôn
+      this._chatUsername = localStorage.getItem('chat_username') || 'Khách';
+    }
+
+    document.getElementById('chat-username-tag').textContent = this._chatUsername;
+
+    // Cho phép đổi tên thủ công (vẫn giữ chức năng click)
+    document.getElementById('chat-username-tag').addEventListener('click', () => {
+      const n = prompt('Đổi tên hiển thị:', this._chatUsername);
+      if (n && n.trim()) {
+        this._chatUsername = n.trim();
+        localStorage.setItem('chat_username', this._chatUsername);
+        document.getElementById('chat-username-tag').textContent = this._chatUsername;
+      }
+    });
+
+    document.getElementById('chat-toggle-btn').addEventListener('click', () => {
+      this._chatOpen = !this._chatOpen;
+      document.getElementById('chat-box').classList.toggle('open', this._chatOpen);
+      if (this._chatOpen) {
+        this._unreadCount = 0;
+        const u = document.getElementById('chat-unread');
+        u.textContent = ''; u.classList.remove('show');
+        const m = document.getElementById('chat-messages');
+        m.scrollTop = m.scrollHeight;
+      }
+    });
+
+    document.getElementById('chat-send').addEventListener('click', () => this._sendChat());
+    document.getElementById('chat-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') this._sendChat();
+    });
+
+    this._loadOldMessages();
+    this._subscribeChat();
+  }
+
+  _appendMsg(user, text, isMe) {
+    const msgs = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = 'chat-msg' + (isMe ? ' is-me' : '');
+    div.innerHTML = `<span class="msg-name">${user}</span><span class="msg-text">${text}</span>`;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+    if (!this._chatOpen && !isMe) {
+      this._unreadCount++;
+      const u = document.getElementById('chat-unread');
+      u.textContent = this._unreadCount > 9 ? '9+' : this._unreadCount;
+      u.classList.add('show');
+    }
+  }
+
+  async _loadOldMessages() {
+    const { data, error } = await supabase.from('messages')
+      .select('*').eq('room', this._CHAT_ROOM)
+      .order('created_at', { ascending: true }).limit(50);
+    if (!error && data) {
+      data.forEach(m => this._appendMsg(m.username, m.content, m.username === this._chatUsername));
+    }
+  }
+
+  async _sendChat() {
+    const inp = document.getElementById('chat-input');
+    const text = inp.value.trim();
+    if (!text) return;
+    inp.value = '';
+    this._appendMsg(this._chatUsername, text, true);
+    const { data, error } = await supabase.from('messages')
+      .insert({ room: this._CHAT_ROOM, username: this._chatUsername, content: text }).select();
+    if (error) { this._toast('Gửi thất bại', 'error'); return; }
+    if (data && data[0] && data[0].id) this._shownMsgIds.add(data[0].id);
+  }
+
+  _subscribeChat() {
+    supabase.channel('chat-viewer-v1')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: msg }) => {
+        if (!msg || msg.room !== this._CHAT_ROOM) return;
+        if (this._shownMsgIds.has(msg.id)) { this._shownMsgIds.delete(msg.id); return; }
+        this._appendMsg(msg.username, msg.content, msg.username === this._chatUsername);
+      }).subscribe();
+  }
+
+  /* ================================================================
+     MINIMAP
+  ================================================================ */
+  _renderMinimapRoomChips() {
+    const container = document.getElementById('minimap-rooms');
+    if (!container) return;
+    container.innerHTML = '';
+    const rooms = this._rooms || [{ id: 0, name: 'Phòng chính', x: 0, z: 0, w: 16, d: 16, floor: 0 }];
+    rooms.forEach((r, i) => {
+      const chip = document.createElement('div');
+      chip.className = 'mm-room-chip' + (i === 0 ? ' active' : '');
+      chip.textContent = r.name;
+      chip.dataset.roomId = r.id;
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('.mm-room-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        const fy = (r.floor || 0) * 5.1;
+        this.camera.position.set(r.x, fy + 1.7, r.z + r.d / 4);
+        this.yaw = 0; this.pitch = 0;
+        this._toast('Đến: ' + r.name, 'info', 1800);
+      });
+      container.appendChild(chip);
+    });
+    if (rooms.length > 1) container.classList.add('show');
+  }
+
+  _drawMinimap() {
+    const mmCanvas = document.getElementById('minimap-canvas');
+    if (!mmCanvas) return;
+    const S = mmCanvas.width;
+    const mmCtx = mmCanvas.getContext('2d');
+    mmCtx.clearRect(0, 0, S, S);
+    mmCtx.fillStyle = 'rgba(10,8,6,.9)'; mmCtx.fillRect(0, 0, S, S);
+
+    const rooms = this._rooms || [{ id: 0, name: 'Phòng chính', x: 0, z: 0, w: 16, d: 16, floor: 0 }];
+    if (rooms.length === 0) return;
+
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    rooms.forEach(r => {
+      minX = Math.min(minX, r.x - r.w / 2); maxX = Math.max(maxX, r.x + r.w / 2);
+      minZ = Math.min(minZ, r.z - r.d / 2); maxZ = Math.max(maxZ, r.z + r.d / 2);
+    });
+    const pad = Math.round(S * .1);
+    const spanX = maxX - minX || 20, spanZ = maxZ - minZ || 20;
+    const scaleX = (S - pad * 2) / spanX, scaleZ = (S - pad * 2) / spanZ;
+    const scale = Math.min(scaleX, scaleZ);
+    const ox = pad + ((S - pad * 2) - spanX * scale) / 2 - minX * scale;
+    const oz = pad + ((S - pad * 2) - spanZ * scale) / 2 - minZ * scale;
+
+    const toMM = (wx, wz) => [ox + wx * scale, oz + wz * scale];
+
+    const cFloor = Math.floor(this.camera.position.y / 5.1);
+    const floorColors = ['rgba(90,78,62,.7)', 'rgba(60,78,100,.7)', 'rgba(78,100,60,.7)'];
+
+    rooms.forEach(r => {
+      if ((r.floor || 0) !== cFloor) return;
+      const [fx1, fz1] = toMM(r.x - r.w / 2, r.z - r.d / 2);
+      const [fx2, fz2] = toMM(r.x + r.w / 2, r.z + r.d / 2);
+      const rw = fx2 - fx1, rd = fz2 - fz1;
+      mmCtx.fillStyle = floorColors[r.floor || 0] || floorColors[0];
+      mmCtx.fillRect(fx1, fz1, rw, rd);
+      mmCtx.strokeStyle = 'rgba(212,197,169,.4)'; mmCtx.lineWidth = .8;
+      mmCtx.strokeRect(fx1, fz1, rw, rd);
+      if (S > 100 && rw > 20) {
+        mmCtx.fillStyle = 'rgba(212,197,169,.6)';
+        mmCtx.font = `${Math.min(8, rw * .12)}px Space Mono,monospace`;
+        mmCtx.textAlign = 'center'; mmCtx.textBaseline = 'middle';
+        mmCtx.fillText((r.name || '').substring(0, 10), fx1 + rw / 2, fz1 + rd / 2);
+      }
+    });
+
+    this.artworks.forEach(a => {
+      if (!a.group) return;
+      const [mx, mz] = toMM(a.group.position.x, a.group.position.z);
+      const sz = this._mmExpanded ? 4 : 3;
+      mmCtx.fillStyle = 'rgba(200,169,110,.8)';
+      mmCtx.fillRect(mx - sz / 2, mz - sz * .4, sz, sz * .8);
+    });
+
+    const [cx, cy2] = toMM(this.camera.position.x, this.camera.position.z);
+    const arrowSize = this._mmExpanded ? 7 : 5;
+    mmCtx.save(); mmCtx.translate(cx, cy2); mmCtx.rotate(-this.yaw);
+    mmCtx.fillStyle = '#c8a96e';
+    mmCtx.shadowColor = 'rgba(200,169,110,.6)'; mmCtx.shadowBlur = 4;
+    mmCtx.beginPath();
+    mmCtx.moveTo(0, -arrowSize);
+    mmCtx.lineTo(arrowSize * .6, arrowSize * .6);
+    mmCtx.lineTo(-arrowSize * .6, arrowSize * .6);
+    mmCtx.closePath(); mmCtx.fill();
+    mmCtx.restore();
+  }
+
+  _toast(msg, type = 'info', dur = 2800) {
+    const el = document.getElementById('vw-toast'); if (!el) return;
+    el.textContent = msg; el.className = 'show ' + type;
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.className = ''; }, dur);
+  }
+
+  _buildRightPanel() {
+    const panel = document.createElement('div'); panel.id = 'right-panel';
+    panel.innerHTML = `
+      <div id="panel-tab">
+        <span id="panel-tab-icon">📋</span>
+        <span id="panel-tab-text">Tác phẩm</span>
+      </div>
+      <div id="panel-header">
+        <div id="panel-header-top">
+          <div id="panel-title">Tác phẩm trưng bày</div>
+          <button id="panel-toggle-btn">✕</button>
+        </div>
+        <div id="panel-count">0 tác phẩm</div>
+      </div>
+      <div id="product-list">
+        <div id="product-empty">
+          <div style="font-size:24px;margin-bottom:8px">🖼</div>
+          Chưa có tác phẩm nào<br>trong phòng tranh này
+        </div>
+      </div>
+      <div id="cart-section">
+        <div id="cart-header-row">
+          <div id="cart-label">Giỏ hàng</div>
+          <span id="cart-badge">0</span>
+        </div>
+        <div id="cart-items">
+          <div id="cart-empty-msg">Chưa có tác phẩm nào</div>
+        </div>
+        <div id="cart-total-row" style="display:none">
+          <span id="cart-total-label">Tổng cộng</span>
+          <span id="cart-total-price">—</span>
+        </div>
+        <button id="checkout-btn" disabled>✦ Tiến hành thanh toán →</button>
+      </div>
+    `;
+    document.body.appendChild(panel); this._el(panel);
+
+    let panelOpen = true;
+    const toggle = () => {
+      panelOpen = !panelOpen;
+      panel.classList.toggle('collapsed', !panelOpen);
+      document.getElementById('panel-toggle-btn').textContent = panelOpen ? '✕' : '☰';
+    };
+    document.getElementById('panel-toggle-btn').addEventListener('click', toggle);
+    document.getElementById('panel-tab').addEventListener('click', toggle);
+
+    document.getElementById('checkout-btn').addEventListener('click', () => {
+      if (this.cartItems.length === 0) return;
+      const payload = this.cartItems.map(ci => ({
+        title:  ci.art.meta?.title  || 'Untitled',
+        artist: ci.art.meta?.artist || '',
+        year:   ci.art.meta?.year   || '',
+        price:  ci.art.meta?.price  || ''
+      }));
+      localStorage.setItem('gallery_cart', JSON.stringify(payload));
+      window.open('checkout.html', '_blank');
+    });
+  }
+
+  _buildArtworkPopup() {
+    const popup = document.createElement('div'); popup.id = 'artwork-popup';
+    popup.innerHTML = `
+      <div id="ap-img-wrap">
+        <canvas id="ap-img-canvas"></canvas>
+        <div id="ap-close">✕</div>
+        <div id="ap-expand-btn" title="Phóng to">⤢</div>
+      </div>
+      <div id="ap-body">
+        <div id="ap-title">Untitled</div>
+        <div id="ap-sub">
+          <div id="ap-artist"></div>
+          <div id="ap-year"></div>
+        </div>
+        <div id="ap-desc"></div>
+        <div id="ap-price-row" style="display:none">
+          <div id="ap-price-label">Giá</div>
+          <div id="ap-price"></div>
+        </div>
+        <button id="ap-add-cart">🛒 Thêm vào giỏ hàng</button>
+      </div>
+    `;
+    document.body.appendChild(popup); this._el(popup);
+
+    document.getElementById('ap-close').addEventListener('click', () => popup.classList.remove('open'));
+    document.getElementById('ap-expand-btn').addEventListener('click', () => {
+      if (this.popupArt) this._showExpand(this.popupArt, this.popupArt._idx, this.popupArt._kind);
+    });
+    const addBtn = document.getElementById('ap-add-cart');
+    addBtn.addEventListener('click', () => {
+      const art = this.popupArt; if (!art) return;
+      this._addToCart(art);
+      addBtn.disabled = true;
+      addBtn.textContent = '✓ Đã thêm vào giỏ';
+      addBtn.className = 'added';
+    });
+  }
+
+  _buildExpandOverlay() {
+    const overlay = document.createElement('div'); overlay.id = 'expand-overlay';
+    overlay.innerHTML = `
+      <div id="expand-inner">
+        <div id="expand-close">✕</div>
+        <div id="expand-img-wrap" style="position:relative;overflow:hidden;border:.5px solid rgba(212,197,169,.2);border-radius:6px;background:#0a0806;cursor:zoom-in;">
+          <canvas id="expand-canvas"></canvas>
+        </div>
+        <div id="expand-3d-wrap" style="display:none;position:relative;border:.5px solid rgba(212,197,169,.2);border-radius:6px;overflow:hidden;background:#0a0806;">
+          <canvas id="expand-3d-canvas"></canvas>
+          <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-family:monospace;font-size:7px;letter-spacing:.12em;color:rgba(212,197,169,.4);text-transform:uppercase;pointer-events:none;white-space:nowrap">Kéo để xoay · Cuộn để zoom</div>
+        </div>
+        <div id="expand-caption"></div>
+      </div>
+    `;
+    document.body.appendChild(overlay); this._el(overlay);
+
+    document.getElementById('expand-close').addEventListener('click', () => this._closeExpand());
+    overlay.addEventListener('click', e => { if (e.target === overlay) this._closeExpand(); });
+  }
+
+  _closeExpand() {
+    document.getElementById('expand-overlay').classList.remove('open');
+    if (this._expand3d.raf) { cancelAnimationFrame(this._expand3d.raf); this._expand3d.raf = null; }
+    if (this._expand3d.renderer) { this._expand3d.renderer.dispose(); this._expand3d.renderer = null; }
+    this._expand3d.scene = null; this._expand3d.camera = null;
+    document.getElementById('expand-img-wrap').style.display = 'none';
+    document.getElementById('expand-3d-wrap').style.display  = 'none';
+  }
+
+  /* ================================================================
+     THUMBNAIL HELPERS
+  ================================================================ */
+  _renderThumb(art, kind) {
+    const c = document.createElement('canvas');
+    c.width = 72; c.height = 72;
+    const ctx = c.getContext('2d');
+    if (kind === 'model') {
+      try { this._renderModelThumb(art.object, c); } catch (e) { /* fallback */ }
+    } else if (art.sourceImage) {
+      const img = art.sourceImage;
+      const scale = Math.max(72/img.naturalWidth, 72/img.naturalHeight);
+      const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
+      ctx.drawImage(img, (72-dw)/2, (72-dh)/2, dw, dh);
+    } else if (art.videoEl) {
+      ctx.fillStyle='#111'; ctx.fillRect(0,0,72,72);
+      ctx.fillStyle='#c8a96e'; ctx.font='20px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('▶',36,36);
+    } else {
+      ctx.fillStyle='#111'; ctx.fillRect(0,0,72,72);
+    }
+    return c;
+  }
+
+  _renderModelThumb(object, canvas) {
+    const offRenderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+    offRenderer.setSize(72,72); offRenderer.setClearColor(0x111111,1);
+    const offScene = new THREE.Scene();
+    const offCamera = new THREE.PerspectiveCamera(45,1,0.01,100);
+    const clone = object.clone(true); offScene.add(clone);
+    const box = new THREE.Box3().setFromObject(clone);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x,size.y,size.z);
+    offCamera.position.set(center.x+maxDim*1.2, center.y+maxDim*0.6, center.z+maxDim*1.2);
+    offCamera.lookAt(center);
+    offScene.add(new THREE.AmbientLight(0xffffff,0.8));
+    const dl = new THREE.DirectionalLight(0xfff4e0,1.2); dl.position.set(5,8,5); offScene.add(dl);
+    offRenderer.render(offScene,offCamera);
+    canvas.getContext('2d').drawImage(offRenderer.domElement,0,0,72,72);
+    offRenderer.dispose();
+  }
+
+  _renderProductList() {
+    const list = document.getElementById('product-list');
+    const count = document.getElementById('panel-count');
+    list.innerHTML = '';
+    const allItems = [
+      ...this.artworks.map(a => ({ kind:'artwork', data:a })),
+      ...this.models3d.map(m => ({ kind:'model', data:m }))
+    ];
+    count.textContent = allItems.length + ' tác phẩm';
+    if (allItems.length === 0) {
+      const e = document.createElement('div'); e.id='product-empty';
+      e.innerHTML = '<div style="font-size:24px;margin-bottom:8px">🖼</div>Chưa có tác phẩm nào<br>trong phòng tranh này';
+      list.appendChild(e); return;
+    }
+    allItems.forEach((item,i) => {
+      const art = item.data;
+      const meta = art.meta || {};
+      const card = document.createElement('div'); card.className = 'product-card';
+      card.dataset.idx = i; card.dataset.kind = item.kind;
+
+      const tw = document.createElement('div'); tw.className = 'product-thumb-wrap';
+      const tc = this._renderThumb(art, item.kind);
+      tc.className = 'product-thumb-canvas'; tw.appendChild(tc);
+
+      const body = document.createElement('div'); body.className = 'product-body';
+      const dName = meta.title || (item.kind==='model' ? (art.name||'Model 3D') : ('Tác phẩm #'+(i+1)));
+      body.innerHTML = `<div class="product-name">${dName}</div>
+        <div class="product-artist">${meta.artist || (item.kind==='model'?'<span style="color:#3a3028;font-size:6px">● 3D</span>':'')}</div>
+        <div class="product-price ${meta.price?'':'contact'}">${meta.price||'Liên hệ'}</div>`;
+
+      const acts = document.createElement('div'); acts.className = 'product-actions';
+      const infoBtn = document.createElement('button'); infoBtn.className='product-act-btn'; infoBtn.title='Xem thông tin'; infoBtn.innerHTML='ℹ';
+      const flyBtn = document.createElement('button'); flyBtn.className='product-act-btn'; flyBtn.title='Di chuyển đến'; flyBtn.innerHTML='⤢';
+
+      infoBtn.addEventListener('click', e => { e.stopPropagation(); this._showArtworkPopup(art, i, item.kind); });
+      flyBtn.addEventListener('click', e => { e.stopPropagation(); this._showExpand(art, i, item.kind); });
+      acts.appendChild(infoBtn); acts.appendChild(flyBtn);
+      card.appendChild(tw); card.appendChild(body); card.appendChild(acts);
+      card.addEventListener('click', () => this._showArtworkPopup(art, i, item.kind));
+      list.appendChild(card);
+    });
+  }
+
+  _addToCart(art) {
+    if (this.cartItems.some(ci => ci.art === art)) return;
+    this.cartItems.push({ art, id: ++this.cartIdCnt });
+    this._renderCart();
+    this._toast('Đã thêm vào giỏ hàng ✓', 'success');
+    document.querySelectorAll('.product-card').forEach(card => {
+      const allItems = [...this.artworks.map(a=>({data:a})), ...this.models3d.map(m=>({data:m}))];
+      const item = allItems[parseInt(card.dataset.idx)];
+      if (item && item.data === art) card.classList.add('in-cart');
+    });
+  }
+
+  _removeFromCart(id) {
+    const idx = this.cartItems.findIndex(ci => ci.id === id);
+    if (idx !== -1) this.cartItems.splice(idx, 1);
+    this._renderCart();
+    const addBtn = document.getElementById('ap-add-cart');
+    if (addBtn._art && !this.cartItems.some(ci => ci.art === addBtn._art)) {
+      addBtn.disabled = false; addBtn.textContent = '🛒 Thêm vào giỏ hàng'; addBtn.className = '';
+    }
+    document.querySelectorAll('.product-card').forEach(card => {
+      const allItems = [...this.artworks.map(a=>({data:a})), ...this.models3d.map(m=>({data:m}))];
+      const item = allItems[parseInt(card.dataset.idx)];
+      if (item && !this.cartItems.some(ci => ci.art === item.data)) card.classList.remove('in-cart');
+    });
+  }
+
+  _renderCart() {
+    const itemsEl = document.getElementById('cart-items');
+    const badge = document.getElementById('cart-badge');
+    const totalRow = document.getElementById('cart-total-row');
+    const totalEl = document.getElementById('cart-total-price');
+    const checkBtn = document.getElementById('checkout-btn');
+    itemsEl.innerHTML = '';
+    if (this.cartItems.length === 0) {
+      const em = document.createElement('div'); em.id='cart-empty-msg'; em.textContent='Chưa có tác phẩm nào';
+      itemsEl.appendChild(em); badge.classList.remove('show'); totalRow.style.display='none'; checkBtn.disabled=true; return;
+    }
+    this.cartItems.forEach(ci => {
+      const m = ci.art.meta || {};
+      const row = document.createElement('div'); row.className='cart-row';
+      row.innerHTML = `<div class="cart-row-name">${m.title||'Untitled'}</div><div class="cart-row-price">${m.price||'—'}</div>`;
+      const rm = document.createElement('button'); rm.className='cart-row-rm'; rm.textContent='✕';
+      rm.addEventListener('click', () => this._removeFromCart(ci.id));
+      row.appendChild(rm); itemsEl.appendChild(row);
+    });
+    badge.textContent = this.cartItems.length > 9 ? '9+' : this.cartItems.length; badge.classList.add('show');
+
+    let total=0, allParsed=true;
+    this.cartItems.forEach(ci => { const n=parsePrice(ci.art.meta?.price||''); if(isNaN(n)) allParsed=false; else total+=n; });
+    totalEl.textContent = allParsed ? formatPrice(total) : '— (Liên hệ)';
+    totalRow.style.display='flex'; checkBtn.disabled=false;
+  }
+
+  _showArtworkPopup(art, idx, kind) {
+    this.popupArt = art;
+    art._kind = kind; art._idx = idx;
+    const meta = art.meta || {};
+    const apCanvas = document.getElementById('ap-img-canvas');
+
+    if (kind === 'model') {
+      apCanvas.width=280; apCanvas.height=210; apCanvas.style.width='280px'; apCanvas.style.height='210px';
+      try { this._renderModelThumb(art.object, apCanvas); } catch(e) {}
+    } else {
+      let ar = 4/3;
+      if (art.sourceImage) ar = art.sourceImage.naturalWidth / art.sourceImage.naturalHeight;
+      else if (art.videoEl) ar = art.videoEl.videoWidth / art.videoEl.videoHeight || 4/3;
+      const popW = 280, popH = Math.round(popW / ar);
+      apCanvas.width=popW*2; apCanvas.height=popH*2; apCanvas.style.width=popW+'px'; apCanvas.style.height=popH+'px';
+      const ctx = apCanvas.getContext('2d'); ctx.scale(2,2);
+      if (art.sourceImage) ctx.drawImage(art.sourceImage,0,0,popW,popH);
+      else if (art.videoEl) { ctx.fillStyle='#111'; ctx.fillRect(0,0,popW,popH); ctx.fillStyle='#c8a96e'; ctx.font='30px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('▶',popW/2,popH/2); }
+    }
+
+    document.getElementById('ap-title').textContent = meta.title || (kind==='model'? (art.name||'Model 3D') : ('Tác phẩm #'+(idx+1)));
+    document.getElementById('ap-artist').textContent = meta.artist ? '— '+meta.artist : '';
+    document.getElementById('ap-year').textContent   = meta.year   || '';
+    document.getElementById('ap-desc').textContent   = meta.desc   || '';
+    const priceRow = document.getElementById('ap-price-row');
+    if (meta.price) { document.getElementById('ap-price').textContent=meta.price; priceRow.style.display='flex'; }
+    else priceRow.style.display='none';
+
+    const addBtn = document.getElementById('ap-add-cart');
+    const inCart = this.cartItems.some(ci => ci.art === art);
+    addBtn.disabled = inCart; addBtn.textContent = inCart ? '✓ Đã thêm vào giỏ' : '🛒 Thêm vào giỏ hàng';
+    addBtn.className = inCart ? 'added' : ''; addBtn._art = art;
+
+    const popup = document.getElementById('artwork-popup');
+    popup.style.left='50%'; popup.style.top='50%'; popup.style.transform='translate(-50%,-50%)';
+    popup.classList.add('open');
+  }
+
+  _showExpand(art, idx, kind) {
+    this._closeExpand();
+    const overlay = document.getElementById('expand-overlay');
+    const imgWrap = document.getElementById('expand-img-wrap');
+    const wrap3d  = document.getElementById('expand-3d-wrap');
+    const cap     = document.getElementById('expand-caption');
+    cap.textContent = art.meta?.title || (kind==='model'? (art.name||'Model 3D') : ('Tác phẩm #'+(idx+1)));
+
+    if (kind === 'model') {
+      imgWrap.style.display='none'; wrap3d.style.display='block';
+      const SIZE_W=Math.min(Math.round(innerWidth*.75),800), SIZE_H=Math.min(Math.round(innerHeight*.65),600);
+      const ec3=document.getElementById('expand-3d-canvas');
+      ec3.width=SIZE_W; ec3.height=SIZE_H; ec3.style.width=SIZE_W+'px'; ec3.style.height=SIZE_H+'px';
+
+      this._expand3d.renderer = new THREE.WebGLRenderer({ canvas:ec3, antialias:true });
+      this._expand3d.renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+      this._expand3d.renderer.setSize(SIZE_W,SIZE_H); this._expand3d.renderer.setClearColor(0x0f0d0a);
+      this._expand3d.scene = new THREE.Scene();
+      this._expand3d.camera = new THREE.PerspectiveCamera(45, SIZE_W/SIZE_H, 0.01, 200);
+      this._expand3d.scene.add(new THREE.AmbientLight(0xfff4e0,0.9));
+      const dl=new THREE.DirectionalLight(0xfff0dd,1.4); dl.position.set(5,8,5); this._expand3d.scene.add(dl);
+      const dl2=new THREE.DirectionalLight(0xaac8ff,0.4); dl2.position.set(-5,3,-5); this._expand3d.scene.add(dl2);
+      const clone=art.object.clone(true); this._expand3d.scene.add(clone);
+      const box=new THREE.Box3().setFromObject(clone); this._expand3d.center=box.getCenter(new THREE.Vector3());
+      const bsize=box.getSize(new THREE.Vector3()); this._expand3d.dist=Math.max(bsize.x,bsize.y,bsize.z)*2.2;
+      this._expand3d.yaw=0.5; this._expand3d.pitch=0.3;
+
+      const updateCam=()=>{ const {camera,center,yaw,pitch,dist}=this._expand3d; camera.position.set(center.x+dist*Math.sin(yaw)*Math.cos(pitch), center.y+dist*Math.sin(pitch), center.z+dist*Math.cos(yaw)*Math.cos(pitch)); camera.lookAt(center); };
+      const loop=()=>{ this._expand3d.raf=requestAnimationFrame(loop); updateCam(); this._expand3d.renderer.render(this._expand3d.scene,this._expand3d.camera); };
+      loop();
+
+      ec3.onmousedown=e=>{ this._expand3d.drag=true; this._expand3d.lx=e.clientX; this._expand3d.ly=e.clientY; ec3.style.cursor='grabbing'; };
+      window.addEventListener('mouseup',()=>{ this._expand3d.drag=false; ec3.style.cursor='grab'; });
+      window.addEventListener('mousemove',e=>{ if(!this._expand3d.drag)return; this._expand3d.yaw+=(e.clientX-this._expand3d.lx)*0.006; this._expand3d.pitch-=(e.clientY-this._expand3d.ly)*0.006; this._expand3d.pitch=Math.max(-1.2,Math.min(1.2,this._expand3d.pitch)); this._expand3d.lx=e.clientX; this._expand3d.ly=e.clientY; });
+      ec3.onwheel=e=>{ e.preventDefault(); this._expand3d.dist*=e.deltaY>0?1.1:0.9; this._expand3d.dist=Math.max(0.3,Math.min(20,this._expand3d.dist)); };
+    } else {
+      wrap3d.style.display='none'; imgWrap.style.display='block';
+      const ec=document.getElementById('expand-canvas');
+      let ar=4/3; if(art.sourceImage) ar=art.sourceImage.naturalWidth/art.sourceImage.naturalHeight; else if(art.videoEl) ar=art.videoEl.videoWidth/art.videoEl.videoHeight||4/3;
+      const maxW=Math.min(Math.round(innerWidth*.75),900), maxH=Math.round(innerHeight*.68);
+      let natW=maxW, natH=Math.round(maxW/ar); if(natH>maxH){ natH=maxH; natW=Math.round(maxH*ar); }
+      const dpr=devicePixelRatio||1;
+      ec.width=natW*dpr; ec.height=natH*dpr; ec.style.width=natW+'px'; ec.style.height=natH+'px';
+      const ctx=ec.getContext('2d'); ctx.scale(dpr,dpr);
+      if(art.sourceImage) ctx.drawImage(art.sourceImage,0,0,natW,natH);
+      else if(art.videoEl){ ctx.fillStyle='#111'; ctx.fillRect(0,0,natW,natH); ctx.fillStyle='#c8a96e'; ctx.font='40px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('▶',natW/2,natH/2); }
+
+      this._expandImg={zoom:1,panX:0,panY:0,drag:false,lx:0,ly:0};
+      const apply=()=>{ ec.style.transform=`translate(${this._expandImg.panX}px,${this._expandImg.panY}px) scale(${this._expandImg.zoom})`; ec.style.transformOrigin='center center'; };
+      imgWrap.onmousedown=e=>{ this._expandImg.drag=true; this._expandImg.lx=e.clientX; this._expandImg.ly=e.clientY; imgWrap.style.cursor='grabbing'; };
+      window.addEventListener('mouseup',()=>{ this._expandImg.drag=false; imgWrap.style.cursor=this._expandImg.zoom>1?'grab':'zoom-in'; });
+      window.addEventListener('mousemove',e=>{ if(!this._expandImg.drag||this._expandImg.zoom<=1)return; this._expandImg.panX+=e.clientX-this._expandImg.lx; this._expandImg.panY+=e.clientY-this._expandImg.ly; this._expandImg.lx=e.clientX; this._expandImg.ly=e.clientY; apply(); });
+      imgWrap.onwheel=e=>{ e.preventDefault(); const f=e.deltaY>0?.85:1.18; this._expandImg.zoom=Math.max(1,Math.min(8,this._expandImg.zoom*f)); if(this._expandImg.zoom<=1){ this._expandImg.panX=0; this._expandImg.panY=0; } apply(); imgWrap.style.cursor=this._expandImg.zoom>1?'grab':'zoom-in'; };
+    }
+    overlay.classList.add('open');
+  }
+
+  _flyToArtwork(art, kind) {
+    let target, n;
+    if (kind === 'model') { target = art.object.position.clone(); n = new THREE.Vector3(0,0,1); }
+    else { target = art.group.position.clone(); n = new THREE.Vector3(Math.sin(art.group.rotation.y),0,Math.cos(art.group.rotation.y)); }
+    const dest = target.clone().addScaledVector(n, 3.5);
+    dest.y = this.camera.position.y;
+    const start = this.camera.position.clone();
+    const dur = 800, t0 = Date.now();
+    const fly = () => {
+      const t = Math.min((Date.now()-t0)/dur, 1);
+      const e = t<0.5 ? 2*t*t : -1+(4-2*t)*t;
+      this.camera.position.lerpVectors(start, dest, e);
+      const dir = target.clone().sub(this.camera.position);
+      this.yaw = Math.atan2(dir.x, dir.z);
+      if (t < 1) requestAnimationFrame(fly);
+    };
+    fly();
+  }
+
+  async _loadRoom() {
+    const { data, error } = await supabase.from('gallery').select('scene_data').eq('name', this.manager.currentRoom.id).limit(1);
+    if (error || !data?.length) {
+      this._galleryName = 'Phòng Tranh 3D';
+      this._artistName  = 'Artist Name';
+      return;
+    }
+    const sd = data[0].scene_data;
+
+    // Lưu tên gallery/artist để dùng cho top bar
+    this._galleryName = sd.gallery_name || this.manager.currentRoom.name || 'Phòng Tranh 3D';
+    this._artistName  = sd.artist_name  || 'Artist Name';
+
+    if (sd.artworks?.length) {
+      for (const a of sd.artworks) {
+        if (!a.storageUrl) continue;
+        const pos  = new THREE.Vector3(a.x, a.y, a.z);
+        const sv   = a.sx ? new THREE.Vector3(a.sx, a.sy, a.sz) : null;
+        const meta = a.meta || {};
+        const group = new THREE.Group();
+        group.position.copy(pos); group.rotation.set(0, a.ry||0, 0); if (sv) group.scale.copy(sv);
+
+        if (a.isVideo) {
+          const vid = document.createElement('video'); vid.src = a.storageUrl; vid.loop=true; vid.muted=true; vid.playsInline=true; vid.crossOrigin='anonymous';
+          vid.addEventListener('loadeddata', () => {
+            const tex = new THREE.VideoTexture(vid); tex.minFilter = THREE.LinearFilter;
+            const AH = 1.65, AW = AH * (vid.videoWidth / vid.videoHeight || 4/3);
+            group.add(new THREE.Mesh(new THREE.BoxGeometry(AW+.16, AH+.16, .08), FRAME_MAT));
+            const plane = new THREE.Mesh(new THREE.PlaneGeometry(AW, AH), new THREE.MeshBasicMaterial({ map:tex })); plane.position.z=.046; group.add(plane);
+            this.threeScene.add(group);
+            this.artworks.push({ group, isVideo:true, videoTex:tex, videoEl:vid, meta, sourceImage:null });
+            vid.play();
+          });
+        } else {
+          const img = new Image(); img.crossOrigin = 'anonymous'; img.src = a.storageUrl;
+          await new Promise(resolve => {
+            img.onload = () => {
+              const canvas = document.createElement('canvas'); canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
+              canvas.getContext('2d').drawImage(img,0,0);
+              const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.LinearFilter;
+              const AH = 1.65, AW = AH * (img.naturalWidth / img.naturalHeight);
+              group.add(new THREE.Mesh(new THREE.BoxGeometry(AW+.16, AH+.16, .08), FRAME_MAT));
+              const plane = new THREE.Mesh(new THREE.PlaneGeometry(AW, AH), new THREE.MeshBasicMaterial({ map:tex })); plane.position.z=.046; group.add(plane);
+              this.threeScene.add(group);
+              this.artworks.push({ group, sourceImage: img, meta });
+              resolve();
+            };
+            img.onerror = resolve;
+          });
+        }
+      }
+    }
+
+    if (sd.models?.length) {
+      for (const m of sd.models) {
+        if (!m.storageUrl) continue;
+        const ext = (m.name||m.storageUrl).split('.').pop().toLowerCase();
+        const pos = new THREE.Vector3(m.x, m.y, m.z);
+        const sv  = m.sx ? new THREE.Vector3(m.sx, m.sy, m.sz) : null;
+        const meta = m.meta || {};
+        const onLoad = (obj) => {
+          if (sv) obj.scale.copy(sv);
+          else { const box = new THREE.Box3().setFromObject(obj); const sz = box.getSize(new THREE.Vector3()); obj.scale.setScalar(1.2/Math.max(sz.x,sz.y,sz.z)); }
+          obj.position.copy(pos); obj.position.y = .88;
+          this.threeScene.add(obj);
+          const pl = new THREE.PointLight(0xfff0dd, 1.5, 4); pl.position.set(pos.x, pos.y+2, pos.z); this.threeScene.add(pl);
+          this._makePedestal(new THREE.Vector3(pos.x, 0, pos.z));
+          this.models3d.push({ object:obj, name:m.name, meta });
+        };
+        await new Promise(resolve => {
+          if (ext==='glb'||ext==='gltf') this.gltfLoader.load(m.storageUrl, g=>{ onLoad(g.scene); resolve(); }, null, resolve);
+          else if (ext==='obj') this.objLoader.load(m.storageUrl, obj=>{ obj.traverse(c=>{ if(c.isMesh)c.material=new THREE.MeshLambertMaterial({color:0xccbbaa}); }); onLoad(obj); resolve(); }, null, resolve);
+          else resolve();
+        });
+      }
+    }
+
+    if (sd.waypoints?.length) {
+      this.pathWaypoints = sd.waypoints.map(wp=>({ ...wp }));
+      this.currentWpIdx  = 0;
+      this._updateWaypointBar();
+    }
+    if (sd.rooms && sd.rooms.length) {
+      this._rooms = sd.rooms;
+    } else {
+      this._rooms = [{ id: 0, name: 'Phòng chính', x: 0, z: 0, w: 16, d: 16, floor: 0 }];
+    }
+
+    // Cập nhật top bar sau khi có dữ liệu
+    this._updateTopBarInfo();
+  }
+
+  _makePedestal(pos) {
+    const g    = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(1.1,.08,1.1), new THREE.MeshLambertMaterial({color:0xddd8d0})); base.position.set(0,.04,0); g.add(base);
+    const col  = new THREE.Mesh(new THREE.BoxGeometry(.9,.8,.9),    new THREE.MeshLambertMaterial({color:0xf0ece6})); col.position.set(0,.44,0);  g.add(col);
+    const top  = new THREE.Mesh(new THREE.BoxGeometry(1.05,.06,1.05), new THREE.MeshLambertMaterial({color:0xddd8d0})); top.position.set(0,.87,0); g.add(top);
+    g.position.copy(pos); this.threeScene.add(g); return g;
+  }
+
+  _buildWaypointBar() {
+    const bar = document.createElement('div'); bar.id = 'vw-nav';
+    bar.innerHTML = `
+      <button class="vw-arr" id="vw-prev">&#9664;</button>
+      <div style="display:flex;flex-direction:column;align-items:center;min-width:90px">
+        <span id="vw-num" style="color:#c8a96e;font-size:11px;font-style:italic">1/1</span>
+        <span id="vw-lbl" style="color:#7a6e5c;font-size:7px;letter-spacing:.1em;text-transform:uppercase;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
+      </div>
+      <button class="vw-arr" id="vw-next">&#9654;</button>
+      <button id="vw-close" style="background:none;border:.5px solid rgba(212,197,169,.15);color:#555;font-size:9px;cursor:pointer;border-radius:2px;padding:2px 6px;transition:all .2s">✕</button>
+    `;
+    document.body.appendChild(bar); this._el(bar);
+    document.getElementById('vw-prev').addEventListener('click', () => this._travelTo(this.currentWpIdx - 1));
+    document.getElementById('vw-next').addEventListener('click', () => this._travelTo(this.currentWpIdx + 1));
+    document.getElementById('vw-close').addEventListener('click', () => { bar.classList.remove('show'); this.currentWpIdx = -1; });
+  }
+
+  _updateWaypointBar() {
+    const bar = document.getElementById('vw-nav'); if (!bar) return;
+    if (!this.pathWaypoints.length) { bar.classList.remove('show'); return; }
+    bar.classList.add('show');
+    document.getElementById('vw-num').textContent = `${this.currentWpIdx+1} / ${this.pathWaypoints.length}`;
+    document.getElementById('vw-lbl').textContent = this.pathWaypoints[this.currentWpIdx]?.label || '—';
+    document.getElementById('vw-prev').disabled = this.currentWpIdx <= 0;
+    document.getElementById('vw-next').disabled = this.currentWpIdx >= this.pathWaypoints.length - 1;
+  }
+
+  _travelTo(idx) {
+    if (idx<0 || idx>=this.pathWaypoints.length) return;
+    this.currentWpIdx = idx;
+    const wp = this.pathWaypoints[idx];
+    this.wpTravelFrom   = { x:this.camera.position.x, y:this.camera.position.y, z:this.camera.position.z, yaw:this.yaw, pitch:this.pitch };
+    this.wpTravelTarget = { x:wp.x, y:wp.y, z:wp.z, yaw:wp.yaw||0, pitch:wp.pitch||0 };
+    this.wpTravelT = 0;
+    this._updateWaypointBar();
+  }
+
+  _onCanvasClick(e) {
+    if (this.didDrag) return;
+    this.mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
+    this.mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    const aHits = this.raycaster.intersectObjects(this.artworks.map(a => a.group), true);
+    if (aHits.length) {
+      let h = aHits[0].object;
+      while (h.parent && !this.artworks.find(a => a.group === h)) h = h.parent;
+      const art = this.artworks.find(a => a.group === h);
+      if (art) { this._showArtworkPopup(art, this.artworks.indexOf(art), 'artwork'); return; }
+    }
+
+    const mHits = this.raycaster.intersectObjects(this.models3d.map(m => m.object), true);
+    if (mHits.length) {
+      let h = mHits[0].object;
+      while (h.parent && !this.models3d.find(m => m.object === h)) h = h.parent;
+      const mod = this.models3d.find(m => m.object === h);
+      if (mod) { this._showArtworkPopup(mod, this.models3d.indexOf(mod), 'model'); return; }
+    }
+
+    document.getElementById('artwork-popup')?.classList.remove('open');
+  }
+
+  _onMouseMove(e) {
+    if (!this.isLeftDown) return;
+    const dx = e.clientX - this.lastX, dy = e.clientY - this.lastY;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) this.didDrag = true;
+    this.lastX = e.clientX; this.lastY = e.clientY;
+    this.yaw   -= dx * 0.003; this.pitch -= dy * 0.003;
+    this.pitch  = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.pitch));
+    this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
+  }
+
+  lerpAngle(a, b, t) { let d = b - a; while (d > Math.PI) d -= Math.PI*2; while (d < -Math.PI) d += Math.PI*2; return a + d * t; }
+
+  update(dt) {
+    if (this.wpTravelTarget) {
+      this.wpTravelT += 0.035;
+      const et = this.wpTravelT < 1 ? this.wpTravelT*this.wpTravelT*(3-2*this.wpTravelT) : 1;
+      this.camera.position.x = this.wpTravelFrom.x + (this.wpTravelTarget.x - this.wpTravelFrom.x)*et;
+      this.camera.position.y = this.wpTravelFrom.y + (this.wpTravelTarget.y - this.wpTravelFrom.y)*et;
+      this.camera.position.z = this.wpTravelFrom.z + (this.wpTravelTarget.z - this.wpTravelFrom.z)*et;
+      this.yaw   = this.lerpAngle(this.wpTravelFrom.yaw, this.wpTravelTarget.yaw, et);
+      this.pitch  = this.wpTravelFrom.pitch + (this.wpTravelTarget.pitch - this.wpTravelFrom.pitch)*et;
+      this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
+      if (this.wpTravelT >= 1) this.wpTravelTarget = null;
+    } else {
+      const speed = this._walkSpeed;
+      const posY = this.camera.position.y;
+      this.moveDir.set(0,0,0);
+      this.camera.getWorldDirection(this.fwd); this.fwd.y = 0; this.fwd.normalize();
+      this.rgt.crossVectors(this.fwd, new THREE.Vector3(0,1,0)).normalize();
+      if (this.keys['KeyW'] || this.keys['ArrowUp'])    this.moveDir.addScaledVector(this.fwd,  speed*dt);
+      if (this.keys['KeyS'] || this.keys['ArrowDown'])  this.moveDir.addScaledVector(this.fwd, -speed*dt);
+      if (this.keys['KeyA'] || this.keys['ArrowLeft'])  this.moveDir.addScaledVector(this.rgt, -speed*dt);
+      if (this.keys['KeyD'] || this.keys['ArrowRight']) this.moveDir.addScaledVector(this.rgt,  speed*dt);
+      this.camera.position.add(this.moveDir); this.camera.position.y = posY;
+    }
+    this.artworks.forEach(a => { if (a.isVideo && a.videoTex) a.videoTex.needsUpdate = true; });
+    this._drawMinimap();
+  }
+}
