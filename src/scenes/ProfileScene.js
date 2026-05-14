@@ -53,6 +53,7 @@ export class ProfileScene extends BaseScene {
     if (this._target.role === 'artist') {
       await this._loadGalleries();
     }
+    await this._loadTokenRank();
   }
 
   // ─── Particles (giống DashboardScene) ───────────────────────────────────────
@@ -267,6 +268,26 @@ export class ProfileScene extends BaseScene {
         </div>
       </div>
 
+      <!-- Rank & Token -->
+      <div id="pf-rank-section" class="pf-section" style="display:none">
+        <div style="display:flex;align-items:center;gap:20px">
+          <div id="pf-rank-icon" style="width:52px;height:52px;border-radius:50%;background:rgba(200,169,110,.1);border:.5px solid rgba(200,169,110,.25);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">⭐</div>
+          <div>
+            <div style="color:#c8a96e;font-size:15px;letter-spacing:.08em" id="pf-rank-name">—</div>
+            <div style="color:#7a6e5c;font-size:10px;margin-top:4px" id="pf-token-count"></div>
+          </div>
+        </div>
+        <div style="margin-top:18px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <span style="color:#5a5040;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Tiến độ lên rank</span>
+            <span style="color:#7a6e5c;font-size:9px" id="pf-rank-progress-text"></span>
+          </div>
+          <div style="height:4px;background:rgba(212,197,169,.1);border-radius:2px;overflow:hidden">
+            <div id="pf-rank-bar" style="height:100%;background:linear-gradient(90deg,rgba(200,169,110,.5),rgba(200,169,110,1));border-radius:2px;transition:width .6s;width:0%"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Gallery section (artist only) -->
       <div id="pf-gallery-section" style="display:none">
         <div style="color:#5a5040;font-size:9px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px">
@@ -467,6 +488,55 @@ export class ProfileScene extends BaseScene {
     toast.textContent = msg;
     toast.style.opacity = '1';
     setTimeout(() => { toast.style.opacity = '0'; }, 2200);
+  }
+
+  // ─── Token & Rank ────────────────────────────────────────────────────────────
+  async _loadTokenRank() {
+    const targetId = this._target?.id;
+    if (!targetId) return;
+    const FALLBACK_RANKS = [
+      { name: 'Lữ khách',      min_tokens: 0,     badge_url: null },
+      { name: 'Thám hiểm',     min_tokens: 500,   badge_url: '/badge/beginner.png' },
+      { name: 'Người sưu tầm', min_tokens: 2000,  badge_url: null },
+      { name: 'Nghệ nhân',     min_tokens: 5000,  badge_url: null },
+      { name: 'Huyền thoại',   min_tokens: 15000, badge_url: null },
+    ];
+
+    const [pfRes, ranksRes] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', targetId).maybeSingle(),
+      supabase.from('ranks').select('*').order('min_tokens', { ascending: false }),
+    ]);
+
+    const tokens = pfRes.data?.token_balance ?? 0;
+    const ranks  = (ranksRes.data?.length ? ranksRes.data : FALLBACK_RANKS)
+      .sort((a, b) => b.min_tokens - a.min_tokens);
+
+    const section = document.getElementById('pf-rank-section');
+    if (!section) return;
+    section.style.display = 'block';
+
+    document.getElementById('pf-token-count').textContent = `${tokens.toLocaleString('vi-VN')} ⭐ Ngôi Sao`;
+
+    const rank = ranks.find(r => tokens >= r.min_tokens) || ranks[ranks.length - 1];
+    document.getElementById('pf-rank-name').textContent = rank.name;
+
+    if (rank.badge_url) {
+      const icon = document.getElementById('pf-rank-icon');
+      icon.innerHTML = `<img src="${rank.badge_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
+    }
+
+    const sortedAsc = [...ranks].sort((a, b) => a.min_tokens - b.min_tokens);
+    const nextRank  = sortedAsc.find(r => r.min_tokens > tokens);
+    if (nextRank) {
+      const prevMin = rank.min_tokens;
+      const pct = Math.min(100, ((tokens - prevMin) / (nextRank.min_tokens - prevMin)) * 100);
+      document.getElementById('pf-rank-bar').style.width = pct + '%';
+      document.getElementById('pf-rank-progress-text').textContent =
+        `${tokens.toLocaleString('vi-VN')} / ${nextRank.min_tokens.toLocaleString('vi-VN')} → ${nextRank.name}`;
+    } else {
+      document.getElementById('pf-rank-bar').style.width = '100%';
+      document.getElementById('pf-rank-progress-text').textContent = 'Rank cao nhất ✦';
+    }
   }
 
   update(_dt) {

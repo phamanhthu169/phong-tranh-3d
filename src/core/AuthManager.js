@@ -55,10 +55,6 @@ export class AuthManager {
         id: profile.id,
         display_name: profile.name,
         role: profile.role,
-        location: profile.location || null,
-        website: profile.website || null,
-        bio: profile.bio || null,
-        updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
 
     if (error) console.error('Lỗi upsert profile lên Supabase:', error);

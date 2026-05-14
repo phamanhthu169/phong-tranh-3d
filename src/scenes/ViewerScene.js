@@ -21,33 +21,29 @@ export class ViewerScene extends BaseScene {
     this.artworks    = [];
     this.models3d    = [];
 
-    // --- cart ---
     this.cartItems   = [];
     this.cartIdCnt   = 0;
     this.popupArt    = null;
 
-    // --- minimap ---
     this._mmExpanded = false;
 
-    // --- sound ---
     this._soundOn = true;
     this._bgAudio = null;
 
-    // --- like ---
     this._liked = false;
+    
+    // Lighting sẽ được khởi tạo với giá trị mặc định, sau đó load từ DB
+    this._lighting = { ambientIntensity: 1.2, ambientColor: '#ffffff', hemisphereIntensity: 0.5, directionalIntensity: 1.2 };
+    this._brightnessMultiplier = 1.0; // Thêm hệ số brightness riêng
 
-    // --- settings ---
-    // (tốc độ và fov đã bị loại bỏ, chỉ còn brightness)
-    this._walkSpeed = 0.07; // mặc định, không hiển thị điều chỉnh nữa
+    this._walkSpeed = 8;
 
-    // --- chat ---
     this._chatOpen = false;
     this._unreadCount = 0;
     this._shownMsgIds = new Set();
-    this._chatUsername = ''; // sẽ được gán khi init chat, không prompt
+    this._chatUsername = '';
     this._CHAT_ROOM = 'room1';
 
-    // --- expand state (ảnh lớn & 3D mini) ---
     this._expand3d = {
       drag: false, lx: 0, ly: 0,
       yaw: 0.5, pitch: 0.3, dist: 3, center: new THREE.Vector3(),
@@ -56,6 +52,12 @@ export class ViewerScene extends BaseScene {
     this._expandImg = {
       zoom: 1, panX: 0, panY: 0, drag: false, lx: 0, ly: 0
     };
+
+    this.chests           = [];
+    this._openedChestIds  = new Set();
+    this._nearChest       = null;
+    this._chestPopupOpen  = false;
+    this._activeChest     = null;
   }
 
   async init() {
@@ -67,25 +69,22 @@ export class ViewerScene extends BaseScene {
     /* ---- scene ---- */
     this.threeScene.background = new THREE.Color(0x87ceeb);
 
-    this.ambLight  = new THREE.AmbientLight(0xffffff, 2.5);
-    this.hemiLight = new THREE.HemisphereLight(0xffe8c0, 0x3a2e20, 0.7);
-    this.dirLight  = new THREE.DirectionalLight(0xffffff, 3);
+    // Khởi tạo đèn với giá trị mặc định (sẽ được cập nhật sau khi load dữ liệu)
+    this.ambLight = new THREE.AmbientLight(this._lighting.ambientColor, this._lighting.ambientIntensity);
+    this.hemiLight = new THREE.HemisphereLight(0xffe8c0, 0x3a2e20, this._lighting.hemisphereIntensity);
+    this.dirLight = new THREE.DirectionalLight(0xffffff, this._lighting.directionalIntensity);
     this.dirLight.position.set(5, 10, 5); this.dirLight.castShadow = true;
     this.threeScene.add(this.ambLight, this.hemiLight, this.dirLight);
 
-    /* ---- load GLB phòng ---- */
+    /* ---- Multi-room state ---- */
+    this.roomModels      = [];
+    this.GAP_WIDTH       = 2.5;
+    this.ROOM_SPACING    = 0;
+    this._roomBox        = null;
+    this._roomBoxCenterX = 0;
+
+    /* ---- modelMeshes (GLB sẽ được load trong _loadRoom sau khi biết template) ---- */
     this.modelMeshes = [];
-    await new Promise(resolve => {
-      new GLTFLoader().load('/models/scene.glb', (gltf) => {
-        const model = gltf.scene; this.threeScene.add(model);
-        model.traverse(c => { if (c.isMesh) this.modelMeshes.push(c); });
-        const box    = new THREE.Box3().setFromObject(model);
-        const center = box.getCenter(new THREE.Vector3());
-        this.camera.position.set(center.x, box.min.y + 1.6, center.z);
-        resolve();
-      });
-    });
-    if (this._disposed) return;
 
     /* ---- loaders ---- */
     this.gltfLoader  = new GLTFLoader();
@@ -103,7 +102,7 @@ export class ViewerScene extends BaseScene {
     this.fwd      = new THREE.Vector3();
     this.rgt      = new THREE.Vector3();
 
-    /* ---- waypoint (giữ nguyên logic cũ) ---- */
+    /* ---- waypoint ---- */
     this.pathWaypoints  = [];
     this.currentWpIdx   = -1;
     this.wpTravelTarget = null;
@@ -121,16 +120,23 @@ export class ViewerScene extends BaseScene {
     this._on(this.renderer.domElement, 'mousedown', (e) => { if (e.button === 0) { this.isLeftDown = true; this.didDrag = false; this.lastX = e.clientX; this.lastY = e.clientY; } });
     this._on(window,                   'mouseup',   () =>  { this.isLeftDown = false; });
     this._on(this.renderer.domElement, 'mousemove', (e) => this._onMouseMove(e));
-    this._on(document,                 'keydown',   (e) => { this.keys[e.code] = true; });
+    this._on(document,                 'keydown',   (e) => {
+      this.keys[e.code] = true;
+      if (e.code === 'KeyE' && this._nearChest && !this._chestPopupOpen) {
+        this._openChestPopup(this._nearChest);
+      }
+    });
     this._on(document,                 'keyup',     (e) => { this.keys[e.code] = false; });
 
     await this._loadRoom();
+    if (this._disposed) return;
+    await this._loadChests();
     if (this._disposed) return;
     this._renderMinimapRoomChips();
 
     /* ========== KHỞI TẠO UI ========== */
     this._injectViewerCSS();
-    this._buildTopBar();               // <-- thêm top bar
+    this._buildTopBar();
     this._buildRightPanel();
     this._buildArtworkPopup();
     this._buildExpandOverlay();
@@ -139,13 +145,14 @@ export class ViewerScene extends BaseScene {
     this._buildHelpOverlay();
     this._buildSettingsPanel();
     this._buildToast();
+    this._buildChestUI();
     this._buildWaypointBar();
     this._renderProductList();
     this._renderCart();
     this._bindFeatureEvents();
 
-    // Cập nhật tên phòng/artist lên top bar (sau khi load room)
     this._updateTopBarInfo();
+    this._updateTokenDisplay();
 
     if (!localStorage.getItem('gallery_visited')) {
       setTimeout(() => {
@@ -177,8 +184,6 @@ export class ViewerScene extends BaseScene {
   }
 
   _updateTopBarInfo() {
-    // Dữ liệu đã load từ DB có thể có gallery_name / artist_name
-    // Ta lưu lại khi loadRoom nếu có, hoặc lấy từ currentRoom
     const galleryName = this._galleryName || this.manager.currentRoom?.name || 'Phòng Tranh 3D';
     const artistName  = this._artistName  || 'Artist Name';
     const gnEl = document.getElementById('gallery-name');
@@ -188,7 +193,7 @@ export class ViewerScene extends BaseScene {
   }
 
   /* ================================================================
-     CSS (bổ sung top bar)
+     CSS
   ================================================================ */
   _injectViewerCSS() {
     if (document.getElementById('vw-css')) return;
@@ -207,7 +212,6 @@ export class ViewerScene extends BaseScene {
       @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Space+Mono:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap');
       *,*::before,*::after{ margin:0; padding:0; box-sizing:border-box; }
 
-      /* TOP BAR */
       #topbar {
         position:fixed; top:0; left:0; right:0; height:54px;
         display:flex; align-items:center; justify-content:space-between;
@@ -248,14 +252,12 @@ export class ViewerScene extends BaseScene {
         display:flex; align-items:center; gap:8px; pointer-events:auto;
       }
 
-      /* LEFT COLUMN: minimap + icon buttons + chat */
       #left-column {
         position:fixed; left:14px; bottom:14px;
         display:flex; flex-direction:column; align-items:flex-start; gap:8px;
         z-index:20;
       }
 
-      /* MINI MAP */
       #minimap-wrap {
         width:96px;
         background:rgba(18,15,12,.92);
@@ -309,7 +311,6 @@ export class ViewerScene extends BaseScene {
 
       #minimap-canvas { display:block; width:100%; height:100%; }
 
-      /* ICON BUTTONS (vertical, left side) */
       .icon-btn {
         width:38px; height:38px;
         background:rgba(18,15,12,.85);
@@ -337,7 +338,6 @@ export class ViewerScene extends BaseScene {
         pointer-events:none; z-index:50;
       }
 
-      /* CHAT */
       #chat-wrap {
         position:relative;
         width:100%;
@@ -411,7 +411,6 @@ export class ViewerScene extends BaseScene {
       }
       #chat-send:hover { background:rgba(212,197,169,.15); color:var(--gold); }
 
-      /* SETTINGS PANEL (chỉ còn brightness) */
       #settings-panel {
         position:fixed; left:66px; bottom:14px;
         width:220px; background:rgba(18,15,12,.98);
@@ -431,7 +430,6 @@ export class ViewerScene extends BaseScene {
       .sp-range::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--gold); cursor:pointer; }
       .sp-val { font-family:var(--font-mono); font-size:8px; color:var(--gold); min-width:24px; text-align:right; }
 
-      /* HELP OVERLAY */
       #help-overlay {
         position:fixed; inset:0; z-index:60;
         background:rgba(12,9,6,.92); backdrop-filter:blur(10px);
@@ -470,7 +468,6 @@ export class ViewerScene extends BaseScene {
       }
       #help-close:hover { border-color:var(--gold); color:var(--gold); }
 
-      /* CONTROLS BAR (bottom center) */
       #controls-bar {
         position:fixed; bottom:14px;
         left:50%; transform:translateX(-50%);
@@ -482,7 +479,6 @@ export class ViewerScene extends BaseScene {
         z-index:15;
       }
 
-      /* LIKE animation */
       @keyframes heartPop {
         0%   { transform:scale(1); }
         40%  { transform:scale(1.4); }
@@ -491,7 +487,6 @@ export class ViewerScene extends BaseScene {
       }
       .icon-btn.liked { animation:heartPop .4s ease; color:#e85d7a !important; }
 
-      /* RIGHT PANEL (existing CSS, keep) */
       #right-panel{
         position:fixed; top:0; right:0; bottom:0; width:var(--panel-w);
         background:rgba(18,15,12,.97); border-left:.5px solid var(--border);
@@ -556,7 +551,6 @@ export class ViewerScene extends BaseScene {
 
       #product-empty{ padding:32px 16px; text-align:center; font-family:var(--font-mono); font-size:8px; letter-spacing:.16em; text-transform:uppercase; color:var(--text-dim); line-height:2.5; }
 
-      /* CART */
       #cart-section{ border-top:.5px solid var(--border); padding:12px; flex-shrink:0; }
       #cart-header-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
       #cart-label{ font-family:var(--font-head); font-size:13px; font-style:italic; color:var(--gold); letter-spacing:.06em; }
@@ -583,7 +577,6 @@ export class ViewerScene extends BaseScene {
       #checkout-btn:hover{ background:linear-gradient(135deg, rgba(200,169,110,.45) 0%, rgba(200,169,110,.2) 100%); border-color:var(--accent); color:#fff; box-shadow:0 4px 20px rgba(200,169,110,.2); }
       #checkout-btn:disabled{ opacity:.4; cursor:default; }
 
-      /* POPUP */
       #artwork-popup{
         position:fixed; z-index:30; background:rgba(18,15,12,.98);
         border:.5px solid var(--border); border-radius:var(--radius);
@@ -624,7 +617,6 @@ export class ViewerScene extends BaseScene {
       #ap-add-cart:disabled{ opacity:.5; cursor:default; }
       #ap-add-cart.added{ background:rgba(90,170,122,.15); border-color:rgba(90,170,122,.5); color:var(--green); }
 
-      /* EXPAND */
       #expand-overlay{
         position:fixed; inset:0; z-index:50; background:rgba(10,8,6,.92);
         display:none; align-items:center; justify-content:center; backdrop-filter:blur(8px);
@@ -650,7 +642,6 @@ export class ViewerScene extends BaseScene {
       }
       #expand-close:hover{ background:rgba(181,74,58,.8); border-color:var(--danger); }
 
-      /* TOAST */
       #vw-toast{
         position:fixed; bottom:54px; left:50%; transform:translateX(-50%) translateY(16px);
         background:rgba(20,17,14,.97); border:.5px solid var(--border);
@@ -663,7 +654,6 @@ export class ViewerScene extends BaseScene {
       #vw-toast.success{ border-color:var(--green); color:var(--green); }
       #vw-toast.error{ border-color:var(--danger); color:var(--danger); }
 
-      /* WAYPOINT (giữ nguyên style cũ) */
       #vw-nav{ position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(15,13,12,.94); border:.5px solid #c8a96e; border-radius:4px; padding:6px 10px; display:none; align-items:center; gap:8px; z-index:25; font-family:monospace; }
       #vw-nav.show{ display:flex; }
       .vw-arr{ background:rgba(200,169,110,.12); border:.5px solid rgba(200,169,110,.4); color:#c8a96e; font-size:14px; width:28px; height:28px; cursor:pointer; border-radius:3px; display:flex; align-items:center; justify-content:center; transition:all .2s; }
@@ -772,13 +762,12 @@ export class ViewerScene extends BaseScene {
   }
 
   _buildSettingsPanel() {
-    // Chỉ còn brightness
     const panel = document.createElement('div'); panel.id = 'settings-panel';
     panel.innerHTML = `
       <div class="sp-title">⚙ Cài đặt</div>
       <div class="sp-row">
         <span class="sp-label">Độ sáng</span>
-        <input type="range" class="sp-range" id="sp-brightness" min="0.2" max="2" step="0.1" value="1">
+        <input type="range" class="sp-range" id="sp-brightness" min="0.2" max="2" step="0.05" value="1">
         <span class="sp-val" id="sp-brightness-val">1.0</span>
       </div>
     `;
@@ -786,7 +775,6 @@ export class ViewerScene extends BaseScene {
   }
 
   _bindFeatureEvents() {
-    // ── FULLSCREEN ──
     document.getElementById('btn-fullscreen').addEventListener('click', () => {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(() => {});
@@ -800,7 +788,6 @@ export class ViewerScene extends BaseScene {
       this.camera.updateProjectionMatrix();
     });
 
-    // ── SOUND ──
     document.getElementById('btn-sound').addEventListener('click', () => {
       this._soundOn = !this._soundOn;
       const btn = document.getElementById('btn-sound');
@@ -809,7 +796,6 @@ export class ViewerScene extends BaseScene {
       if (this._bgAudio) this._bgAudio.muted = !this._soundOn;
     });
 
-    // ── LIKE ──
     document.getElementById('btn-like').addEventListener('click', () => {
       this._liked = !this._liked;
       const btn = document.getElementById('btn-like');
@@ -820,25 +806,24 @@ export class ViewerScene extends BaseScene {
       else this._toast('Đã bỏ thích', 'info', 1500);
     });
 
-    // ── SETTINGS (chỉ brightness) ──
     document.getElementById('btn-settings').addEventListener('click', () => {
       const sp = document.getElementById('settings-panel');
       sp.classList.toggle('open');
       document.getElementById('btn-settings').classList.toggle('active', sp.classList.contains('open'));
     });
+    
+    // Brightness control: nhân với giá trị ánh sáng gốc
     document.getElementById('sp-brightness').addEventListener('input', (e) => {
       const v = +e.target.value;
-      if (this.ambLight) this.ambLight.intensity = v * 2.5;
-      if (this.hemiLight) this.hemiLight.intensity = v * 0.7;
-      document.getElementById('sp-brightness-val').textContent = v.toFixed(1);
+      this._brightnessMultiplier = v;
+      document.getElementById('sp-brightness-val').textContent = v.toFixed(2);
+      this._applyLighting();
     });
 
-    // ── HELP ──
     document.getElementById('btn-help').addEventListener('click', () => {
       document.getElementById('help-overlay').classList.toggle('open');
     });
 
-    // ── MINIMAP EXPAND ──
     document.getElementById('minimap-expand-btn').addEventListener('click', () => {
       this._mmExpanded = !this._mmExpanded;
       const wrap = document.getElementById('minimap-wrap');
@@ -850,12 +835,23 @@ export class ViewerScene extends BaseScene {
       mmCanvas.width = cw; mmCanvas.height = cw;
     });
 
-    // ── CHAT ──
     this._initChat();
+  }
+  
+  // Hàm áp dụng ánh sáng với hệ số brightness
+  _applyLighting() {
+    if (this.ambLight) {
+      this.ambLight.intensity = this._lighting.ambientIntensity * this._brightnessMultiplier;
+    }
+    if (this.hemiLight) {
+      this.hemiLight.intensity = this._lighting.hemisphereIntensity * this._brightnessMultiplier;
+    }
+    if (this.dirLight) {
+      this.dirLight.intensity = this._lighting.directionalIntensity * this._brightnessMultiplier;
+    }
   }
 
   _initChat() {
-    // Sử dụng tên từ tài khoản đăng nhập, không prompt
     const authUser = this.manager.auth?.user;
     if (!this._chatUsername || this._chatUsername === '…') {
       if (authUser) {
@@ -865,13 +861,11 @@ export class ViewerScene extends BaseScene {
       }
       localStorage.setItem('chat_username', this._chatUsername);
     } else {
-      // Nếu đã có trong localStorage, dùng luôn
       this._chatUsername = localStorage.getItem('chat_username') || 'Khách';
     }
 
     document.getElementById('chat-username-tag').textContent = this._chatUsername;
 
-    // Cho phép đổi tên thủ công (vẫn giữ chức năng click)
     document.getElementById('chat-username-tag').addEventListener('click', () => {
       const n = prompt('Đổi tên hiển thị:', this._chatUsername);
       if (n && n.trim()) {
@@ -947,9 +941,6 @@ export class ViewerScene extends BaseScene {
       }).subscribe();
   }
 
-  /* ================================================================
-     MINIMAP
-  ================================================================ */
   _renderMinimapRoomChips() {
     const container = document.getElementById('minimap-rooms');
     if (!container) return;
@@ -1173,15 +1164,12 @@ export class ViewerScene extends BaseScene {
     document.getElementById('expand-3d-wrap').style.display  = 'none';
   }
 
-  /* ================================================================
-     THUMBNAIL HELPERS
-  ================================================================ */
   _renderThumb(art, kind) {
     const c = document.createElement('canvas');
     c.width = 72; c.height = 72;
     const ctx = c.getContext('2d');
     if (kind === 'model') {
-      try { this._renderModelThumb(art.object, c); } catch (e) { /* fallback */ }
+      try { this._renderModelThumb(art.object, c); } catch (e) { }
     } else if (art.sourceImage) {
       const img = art.sourceImage;
       const scale = Math.max(72/img.naturalWidth, 72/img.naturalHeight);
@@ -1427,16 +1415,117 @@ export class ViewerScene extends BaseScene {
     fly();
   }
 
+  async _loadRoomGLB(roomIndex, templateFile = 'scene.glb') {
+    return new Promise(resolve => {
+      new GLTFLoader().load(`/models/${templateFile}`, (gltf) => {
+        const model = gltf.scene;
+        if (roomIndex === 0) {
+          const box = new THREE.Box3().setFromObject(model);
+          this._roomBox        = box.clone();
+          this._roomBoxCenterX = (box.min.x + box.max.x) / 2;
+          this.ROOM_SPACING    = (box.max.x - box.min.x) + this.GAP_WIDTH;
+          const center = box.getCenter(new THREE.Vector3());
+          this.camera.position.set(center.x, box.min.y + 1.6, center.z);
+        }
+        const offset = roomIndex * this.ROOM_SPACING;
+        model.position.x += offset;
+        this.threeScene.add(model);
+        model.traverse(c => { if (c.isMesh) this.modelMeshes.push(c); });
+        this.roomModels.push({ model, offset });
+        if (roomIndex > 0) this._addRoomConnector(roomIndex);
+        resolve();
+      });
+    });
+  }
+
+  _addRoomConnector(roomIndex) {
+    const box = this._roomBox;
+    if (!box) return;
+    const prevOffset = (roomIndex - 1) * this.ROOM_SPACING;
+    const currOffset = roomIndex * this.ROOM_SPACING;
+    const gapStartX  = prevOffset + box.max.x;
+    const gapEndX    = currOffset + box.min.x;
+    const gapLen     = gapEndX - gapStartX;
+    if (gapLen <= 0) return;
+    const gapCX   = (gapStartX + gapEndX) / 2;
+    const floorY  = box.min.y;
+    const centerZ = (box.max.z + box.min.z) / 2;
+    const depthZ  = box.max.z - box.min.z;
+    const ceilY   = box.max.y;
+
+    const floorMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(gapLen, 0.15, depthZ),
+      new THREE.MeshLambertMaterial({ color: 0xc0b090 })
+    );
+    floorMesh.position.set(gapCX, floorY + 0.075, centerZ);
+    this.threeScene.add(floorMesh);
+    this.modelMeshes.push(floorMesh);
+
+    const ceilMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(gapLen, 0.15, depthZ),
+      new THREE.MeshLambertMaterial({ color: 0xe8e0d0 })
+    );
+    ceilMesh.position.set(gapCX, ceilY - 0.075, centerZ);
+    this.threeScene.add(ceilMesh);
+
+    const mat   = new THREE.MeshLambertMaterial({ color: 0x3a2a18 });
+    const doorH = Math.min(2.5, (ceilY - floorY) * 0.85);
+    const doorW = 1.4;
+    const postG = new THREE.BoxGeometry(0.14, doorH, 0.14);
+    const beamG = new THREE.BoxGeometry(0.14, 0.2, doorW + 0.28);
+
+    const lPost = new THREE.Mesh(postG, mat); lPost.position.set(gapCX, floorY + doorH / 2, centerZ - doorW / 2 - 0.07); this.threeScene.add(lPost);
+    const rPost = new THREE.Mesh(postG, mat); rPost.position.set(gapCX, floorY + doorH / 2, centerZ + doorW / 2 + 0.07); this.threeScene.add(rPost);
+    const beam  = new THREE.Mesh(beamG, mat); beam.position.set(gapCX, floorY + doorH + 0.1, centerZ); this.threeScene.add(beam);
+  }
+
+  _isNearRoomDoor(pos) {
+    if (!this._roomBox || this.roomModels.length <= 1) return false;
+    const DOOR_RANGE = 1.6;
+    for (const rm of this.roomModels) {
+      const lx = rm.offset + this._roomBox.min.x;
+      const rx = rm.offset + this._roomBox.max.x;
+      if (pos.x < lx + DOOR_RANGE || pos.x > rx - DOOR_RANGE) return true;
+    }
+    return false;
+  }
+
   async _loadRoom() {
     const { data, error } = await supabase.from('gallery').select('scene_data').eq('name', this.manager.currentRoom.id).limit(1);
     if (error || !data?.length) {
+      await this._loadRoomGLB(0, 'scene.glb');
       this._galleryName = 'Phòng Tranh 3D';
       this._artistName  = 'Artist Name';
       return;
     }
     const sd = data[0].scene_data;
 
-    // Lưu tên gallery/artist để dùng cho top bar
+    // Load GLB phòng với đúng template
+    const templateFile = sd._meta?.selectedTemplate || 'scene.glb';
+    await this._loadRoomGLB(0, templateFile);
+    if (this._disposed) return;
+
+    // Khôi phục ánh sáng từ dữ liệu đã lưu
+    if (sd.lighting) {
+      this._lighting.ambientIntensity = sd.lighting.ambientIntensity;
+      this._lighting.ambientColor = sd.lighting.ambientColor;
+      this._lighting.hemisphereIntensity = sd.lighting.hemisphereIntensity;
+      this._lighting.directionalIntensity = sd.lighting.directionalIntensity;
+      
+      this.ambLight.color.set(this._lighting.ambientColor);
+      this.ambLight.intensity = this._lighting.ambientIntensity * this._brightnessMultiplier;
+      this.hemiLight.intensity = this._lighting.hemisphereIntensity * this._brightnessMultiplier;
+      this.dirLight.intensity = this._lighting.directionalIntensity * this._brightnessMultiplier;
+    } else {
+      // Fallback giá trị mặc định nếu không có lighting trong dữ liệu
+      this._applyLighting();
+    }
+
+    const roomCount = sd._meta?.roomCount || 1;
+    for (let i = 1; i < roomCount; i++) {
+      await this._loadRoomGLB(i, templateFile);
+    }
+
     this._galleryName = sd.gallery_name || this.manager.currentRoom.name || 'Phòng Tranh 3D';
     this._artistName  = sd.artist_name  || 'Artist Name';
 
@@ -1515,7 +1604,6 @@ export class ViewerScene extends BaseScene {
       this._rooms = [{ id: 0, name: 'Phòng chính', x: 0, z: 0, w: 16, d: 16, floor: 0 }];
     }
 
-    // Cập nhật top bar sau khi có dữ liệu
     this._updateTopBarInfo();
   }
 
@@ -1622,9 +1710,195 @@ export class ViewerScene extends BaseScene {
       if (this.keys['KeyS'] || this.keys['ArrowDown'])  this.moveDir.addScaledVector(this.fwd, -speed*dt);
       if (this.keys['KeyA'] || this.keys['ArrowLeft'])  this.moveDir.addScaledVector(this.rgt, -speed*dt);
       if (this.keys['KeyD'] || this.keys['ArrowRight']) this.moveDir.addScaledVector(this.rgt,  speed*dt);
+      if (this.moveDir.lengthSq() > 0 && this.modelMeshes.length) {
+        const MARGIN = 0.5;
+        const nearDoor = this._isNearRoomDoor(this.camera.position);
+        if (!nearDoor && Math.abs(this.moveDir.x) > 1e-6) {
+          this.colDir.set(Math.sign(this.moveDir.x), 0, 0);
+          this.colRay.set(this.camera.position, this.colDir);
+          const hx = this.colRay.intersectObjects(this.modelMeshes, false);
+          if (hx.length && hx[0].distance < MARGIN) this.moveDir.x = 0;
+        }
+        if (Math.abs(this.moveDir.z) > 1e-6) {
+          this.colDir.set(0, 0, Math.sign(this.moveDir.z));
+          this.colRay.set(this.camera.position, this.colDir);
+          const hz = this.colRay.intersectObjects(this.modelMeshes, false);
+          if (hz.length && hz[0].distance < MARGIN) this.moveDir.z = 0;
+        }
+      }
       this.camera.position.add(this.moveDir); this.camera.position.y = posY;
     }
     this.artworks.forEach(a => { if (a.isVideo && a.videoTex) a.videoTex.needsUpdate = true; });
+    this._checkChestProximity();
     this._drawMinimap();
+  }
+
+  /* ══════════════════════════════════════════════ CHEST ══════════════════════════════════════════════ */
+  async _loadChests() {
+    const roomId = this.manager.currentRoom?.id;
+    if (!roomId) return;
+    const { data, error } = await supabase.from('treasure_chests').select('*').eq('room_id', roomId);
+    if (error || !data?.length) return;
+
+    const userId = this.manager.auth.profile?.id;
+    if (userId) {
+      const { data: opens } = await supabase.from('chest_opens').select('chest_id').eq('user_id', userId);
+      if (opens) opens.forEach(o => this._openedChestIds.add(o.chest_id));
+    }
+
+    const loader = new GLTFLoader();
+    for (const row of data) {
+      const chest = { id: row.id, question: row.question, answer: row.answer, token_amount: row.token_amount,
+        pos_x: row.pos_x, pos_y: row.pos_y, pos_z: row.pos_z, mesh: null };
+      this.chests.push(chest);
+      await new Promise(resolve => {
+        loader.load('/treasure/treasure_chest.glb', (gltf) => {
+          if (this._disposed) { resolve(); return; }
+          const mesh = gltf.scene;
+          const box = new THREE.Box3().setFromObject(mesh);
+          const sz = box.getSize(new THREE.Vector3());
+          const baseScale = 0.6 / Math.max(sz.x, sz.y, sz.z);
+          mesh.scale.setScalar(baseScale * (row.chest_scale > 0 ? row.chest_scale : 1.0));
+          mesh.position.set(row.pos_x, row.pos_y, row.pos_z);
+          mesh.rotation.y = row.rot_y || 0;
+          chest.mesh = mesh;
+          this.threeScene.add(mesh);
+          if (this._openedChestIds.has(row.id)) {
+            mesh.traverse(c => { if (c.isMesh) { const m = c.material.clone(); m.opacity = 0.35; m.transparent = true; c.material = m; } });
+          }
+          resolve();
+        }, null, () => resolve());
+      });
+    }
+  }
+
+  _buildChestUI() {
+    const hint = document.createElement('div');
+    hint.id = 'vw-chest-hint';
+    hint.textContent = 'Nhấn E để mở rương';
+    hint.style.cssText = 'position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(15,13,12,.94);border:.5px solid #c8a96e;border-radius:4px;padding:8px 20px;color:#c8a96e;font-family:monospace;font-size:10px;letter-spacing:.14em;display:none;z-index:25;pointer-events:none;white-space:nowrap';
+    document.body.appendChild(hint);
+    this._el(hint);
+
+    const popup = document.createElement('div');
+    popup.id = 'vw-chest-popup';
+    popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:none;align-items:center;justify-content:center';
+    popup.innerHTML = `
+      <div style="background:rgba(15,13,12,.97);border:.5px solid rgba(200,169,110,.5);border-radius:6px;padding:28px;min-width:340px;max-width:480px;font-family:monospace;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:28px">🗝</span>
+          <div>
+            <div style="color:#c8a96e;font-size:14px;letter-spacing:.06em">Rương Kho Báu</div>
+            <div id="vwc-reward" style="color:#7a6e5c;font-size:9px;letter-spacing:.08em;margin-top:2px"></div>
+          </div>
+        </div>
+        <div id="vwc-question" style="color:#d4c5a9;font-size:12px;line-height:1.7;border-left:2px solid rgba(200,169,110,.35);padding-left:12px"></div>
+        <input id="vwc-answer" type="text" placeholder="Nhập đáp án..."
+          style="width:100%;background:rgba(20,18,14,.8);border:.5px solid rgba(212,197,169,.3);color:#d4c5a9;font-family:monospace;font-size:12px;padding:8px 10px;border-radius:3px;outline:none;box-sizing:border-box">
+        <div id="vwc-msg" style="font-size:9px;letter-spacing:.08em;min-height:12px;color:#b54a3a"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="vwc-cancel" style="padding:7px 14px;font-size:11px;cursor:pointer;background:rgba(20,18,14,.85);color:#7a6e5c;border:.5px solid rgba(212,197,169,.2);border-radius:3px;font-family:monospace">Đóng</button>
+          <button id="vwc-submit" style="padding:7px 16px;font-size:11px;cursor:pointer;background:rgba(200,169,110,.18);color:#c8a96e;border:.5px solid rgba(200,169,110,.5);border-radius:3px;font-family:monospace">Mở rương ✦</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(popup);
+    this._el(popup);
+
+    document.getElementById('vwc-cancel').addEventListener('click', () => {
+      popup.style.display = 'none';
+      this._chestPopupOpen = false;
+      document.getElementById('vwc-answer').value = '';
+      document.getElementById('vwc-msg').textContent = '';
+    });
+    document.getElementById('vwc-submit').addEventListener('click', () => this._submitChestAnswer());
+    document.getElementById('vwc-answer').addEventListener('keydown', e => { if (e.key === 'Enter') this._submitChestAnswer(); });
+  }
+
+  _openChestPopup(chest) {
+    if (!this.manager.auth.isLoggedIn) { this._toast('Đăng nhập để mở rương', 'info'); return; }
+    if (this._openedChestIds.has(chest.id)) { this._toast('Bạn đã mở rương này rồi', 'info'); return; }
+    this._activeChest = chest;
+    this._chestPopupOpen = true;
+    document.getElementById('vwc-question').textContent = chest.question;
+    document.getElementById('vwc-reward').textContent = `Phần thưởng: ${chest.token_amount} ⭐ Ngôi Sao`;
+    document.getElementById('vwc-answer').value = '';
+    document.getElementById('vwc-msg').textContent = '';
+    document.getElementById('vw-chest-popup').style.display = 'flex';
+    setTimeout(() => document.getElementById('vwc-answer').focus(), 80);
+  }
+
+  async _submitChestAnswer() {
+    const input = document.getElementById('vwc-answer').value.trim();
+    const chest = this._activeChest;
+    if (!input || !chest) return;
+    if (input.toLowerCase() !== chest.answer.toLowerCase()) {
+      document.getElementById('vwc-msg').textContent = 'Đáp án chưa đúng, thử lại nhé!';
+      return;
+    }
+    const btn = document.getElementById('vwc-submit');
+    btn.textContent = '⏳...'; btn.disabled = true;
+    const userId = this.manager.auth.profile.id;
+    let { error: oe } = await supabase.from('chest_opens').insert({ chest_id: chest.id, user_id: userId });
+    if (oe?.code === '23503') {
+      // Profile chưa có trên Supabase, upsert trước rồi thử lại
+      await this.manager.auth._upsertToSupabase(this.manager.auth.profile);
+      const retry = await supabase.from('chest_opens').insert({ chest_id: chest.id, user_id: userId });
+      oe = retry.error;
+    }
+    if (oe && oe.code !== '23505') {
+      console.error('[chest] chest_opens insert error:', oe);
+      btn.textContent = 'Mở rương ✦'; btn.disabled = false;
+      this._toast(`Có lỗi xảy ra (${oe.code}: ${oe.message})`, 'error'); return;
+    }
+    const { data: pf, error: pfe } = await supabase.from('profiles').select('token_balance').eq('id', userId).single();
+    if (pfe) console.error('[chest] profiles select error:', pfe);
+    const newBal = (pf?.token_balance || 0) + chest.token_amount;
+    const { error: upe } = await supabase.from('profiles').update({ token_balance: newBal }).eq('id', userId);
+    if (upe) console.error('[chest] profiles update error:', upe);
+    if (this.manager.auth.profile) this.manager.auth.profile.token_balance = newBal;
+    this._openedChestIds.add(chest.id);
+    if (chest.mesh) {
+      chest.mesh.traverse(c => { if (c.isMesh) { const m = c.material.clone(); m.opacity = 0.35; m.transparent = true; c.material = m; } });
+    }
+    document.getElementById('vw-chest-popup').style.display = 'none';
+    this._chestPopupOpen = false;
+    this._nearChest = null;
+    const hintEl = document.getElementById('vw-chest-hint');
+    if (hintEl) hintEl.style.display = 'none';
+    this._updateTokenDisplay();
+    this._toast(`+${chest.token_amount} ⭐ Ngôi Sao! Rương đã được mở`, 'success', 4000);
+  }
+
+  _updateTokenDisplay() {
+    if (!this.manager.auth.isLoggedIn) return;
+    const balance = this.manager.auth.profile?.token_balance ?? 0;
+    let el = document.getElementById('vw-token-display');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'vw-token-display';
+      el.style.cssText = 'display:flex;align-items:center;gap:5px;color:#c8a96e;font-family:monospace;font-size:11px;letter-spacing:.06em;cursor:pointer;';
+      el.title = 'Ngôi Sao của bạn';
+      el.innerHTML = `<img src="/token/star.png" style="width:16px;height:16px;object-fit:contain"><span id="vw-token-val"></span>`;
+      el.addEventListener('click', () => this.manager.navigateTo('profile'));
+      const right = document.getElementById('topbar-right');
+      if (right) right.prepend(el);
+    }
+    const valEl = document.getElementById('vw-token-val');
+    if (valEl) valEl.textContent = balance.toLocaleString('vi-VN');
+  }
+
+  _checkChestProximity() {
+    if (!this.chests.length || this._chestPopupOpen) return;
+    const cam = this.camera.position;
+    let near = null;
+    for (const c of this.chests) {
+      if (this._openedChestIds.has(c.id)) continue;
+      const dx = cam.x - c.pos_x, dz = cam.z - c.pos_z;
+      if (dx * dx + dz * dz < 6.25) { near = c; break; }
+    }
+    this._nearChest = near;
+    const el = document.getElementById('vw-chest-hint');
+    if (el) el.style.display = near ? 'block' : 'none';
   }
 }
