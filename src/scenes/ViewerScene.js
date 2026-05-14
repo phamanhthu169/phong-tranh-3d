@@ -59,6 +59,10 @@ export class ViewerScene extends BaseScene {
     this._nearChest       = null;
     this._chestPopupOpen  = false;
     this._activeChest     = null;
+
+    this._remotePlayers       = {};
+    this._mpChannel           = null;
+    this._mpBroadcastInterval = null;
   }
 
   async init() {
@@ -104,6 +108,16 @@ export class ViewerScene extends BaseScene {
     this.fwd      = new THREE.Vector3();
     this.rgt      = new THREE.Vector3();
 
+    /* ---- character avatar ---- */
+    this._charFwd       = new THREE.Vector3();
+    this._charRay       = new THREE.Raycaster();
+    this._character     = null;
+    this._charMixer     = null;
+    this._charIdle      = null;
+    this._charWalk      = null;
+    this._charIsWalking = false;
+    this._charAngle     = Math.PI;
+
     /* ---- waypoint ---- */
     this.floorY         = 0;
     this.pathWaypoints  = [];
@@ -134,6 +148,8 @@ export class ViewerScene extends BaseScene {
 
     await this._loadRoom();
     if (this._disposed) return;
+    this._loadCharacter();
+    this._initMultiplayer();
     await this._loadChests();
     if (this._disposed) return;
     this._renderMinimapRoomChips();
@@ -184,21 +200,22 @@ export class ViewerScene extends BaseScene {
      UI: TOP BAR
   ================================================================ */
   _buildTopBar() {
-    const bar = document.createElement('div');
-    bar.id = 'topbar';
-    bar.innerHTML = `
-      <div id="logo-area">
-  <div id="vw-token-display-top" style="display:none;align-items:center;gap:5px;color:#c8a96e;font-family:monospace;font-size:11px;letter-spacing:.06em;cursor:pointer;">
-    <img src="/token/star.png" style="width:16px;height:16px;object-fit:contain">
-    <span id="vw-token-val"></span>
-  </div>
-</div>
-      <div id="gallery-info">
-        <div id="gallery-name">Phòng Tranh 3D</div>
-        <div id="artist-name">Artist Name</div>
+  const bar = document.createElement('div');
+  bar.id = 'topbar';
+  bar.innerHTML = `
+    <div id="logo-area">
+      <div id="vw-token-display-top" style="display:none; margin-top: -55px !important;align-items:center;gap:5px;color:#c8a96e;font-family:monospace;font-size:20px;letter-spacing:.06em;cursor:pointer;">
+        <img src="/token/star.png" style="width:16px;height:16px;object-fit:contain">
+        <span id="vw-token-val"></span>
       </div>
-      <div id="topbar-right"></div>
-    `;
+    </div>
+    <div id="gallery-info">
+      <span id="gallery-name">[Phòng Tranh 3D]</span>
+      <span id="gallery-separator">—</span>
+      <span id="artist-name">Artist Name</span>
+    </div>
+    <div id="topbar-right"></div>
+  `;
     document.body.appendChild(bar);
     document.querySelector('#logo-area img').addEventListener('click', () => this.manager.navigateTo('landing'));
 
@@ -210,7 +227,7 @@ export class ViewerScene extends BaseScene {
     const artistName  = this._artistName  || 'Artist Name';
     const gnEl = document.getElementById('gallery-name');
     const anEl = document.getElementById('artist-name');
-    if (gnEl) gnEl.textContent = galleryName;
+    if (gnEl) gnEl.textContent = `[${galleryName}]`;
     if (anEl) anEl.textContent = artistName;
   }
 
@@ -223,22 +240,25 @@ export class ViewerScene extends BaseScene {
     s.id = 'vw-css';
     s.textContent = `
       :root {
-        --bg: #1a1714; --surface: rgba(26,23,20,.96);
+        --bg: rgb(69, 105, 177); --surface: rgb(63, 99, 170);
         --border: rgba(212,197,169,.15); --border-hi: rgba(212,197,169,.5);
-        --gold: #d4c5a9; --gold-dim: #7a6e5c; --text-dim: #555;
-        --accent: #c8a96e; --accent2: #e8c47a; --danger: #b54a3a; --green: #5aaa7a;
+        --gold: #122F6A; --gold-dim: #122F6A; --text-dim: #555;
+        --accent: #85d4e7ef; --accent2: #7793ad;; --danger: #b54a3a; --green: #5aaa7a;
         --radius: 6px; --radius-sm: 3px;
         --font-ui: 'Nunito', sans-serif; --font-head: 'Cormorant Garamond', serif; --font-mono: 'Space Mono', monospace;
         --panel-w: 300px;
       }
       @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Space+Mono:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap');
+      
       *,*::before,*::after{ margin:0; padding:0; box-sizing:border-box; }
 
       #topbar {
-        position:fixed; top:0; left:0; right:0; height:54px;
+        position:fixed; top:0; left:0; right:0; height:120px;
         display:flex; align-items:center; justify-content:space-between;
         padding:0 18px;
-        background:linear-gradient(to bottom, rgba(20,17,14,.96) 0%, rgba(20,17,14,0) 100%);
+        background: url('/icons/gradient.svg') repeat-x top center;
+        background-size: auto 120px;
         z-index:20; pointer-events:none;
       }
       #logo-area {
@@ -257,18 +277,41 @@ export class ViewerScene extends BaseScene {
         font-family:var(--font-head); font-size:16px; font-weight:600;
         color:var(--gold); letter-spacing:.12em; font-style:italic;
       }
-      #gallery-info {
-        position:absolute; left:50%; transform:translateX(-50%);
-        display:flex; flex-direction:column; align-items:center; gap:2px;
-        pointer-events:none;
-      }
-      #gallery-name {
-        font-family:var(--font-head); font-size:17px; font-weight:400; font-style:italic;
-        color:var(--gold); letter-spacing:.1em;
-      }
-      #artist-name {
-        font-family:var(--font-mono); font-size:8px; letter-spacing:.22em;
-        text-transform:uppercase; color:var(--accent);
+      
+#gallery-info {
+  margin-top: -55px !important; 
+  margin-left: -320px !important;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  pointer-events: none;
+}
+
+#gallery-name {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: .05em;
+}
+
+#gallery-separator {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+#artist-name {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: .05em;
+}
       }
       #topbar-right {
         display:flex; align-items:center; gap:8px; pointer-events:auto;
@@ -281,23 +324,11 @@ export class ViewerScene extends BaseScene {
       }
 
       #minimap-wrap {
-        width:96px;
-        background:rgba(24, 19, 14, 0.92);
-        border:.5px solid var(--border);
-        border-radius:var(--radius);
-        overflow:hidden;
-        backdrop-filter:blur(8px);
-        transition:width .3s, height .3s;
-      }
-      #minimap-header {
-        display:flex; align-items:center; justify-content:space-between;
-        padding:5px 8px;
-        border-bottom:.5px solid var(--border);
-      }
-      #minimap-label {
-        font-family:var(--font-mono); font-size:7px; letter-spacing:.18em;
-        text-transform:uppercase; color:var(--gold-dim);
-      }
+  position: relative;
+  background: transparent;
+  border: none;
+  backdrop-filter: none;
+}
       #minimap-expand-btn {
         background:none; border:none; cursor:pointer;
         font-size:10px; color:var(--gold-dim);
@@ -326,11 +357,23 @@ export class ViewerScene extends BaseScene {
         position:relative; overflow:hidden;
         width:96px; height:96px;
         transition:all .3s cubic-bezier(.4,0,.2,1);
+        border-radius: inherit;  /* thêm dòng này */
       }
       #minimap-wrap.expanded #minimap-canvas-wrap { width:200px; height:200px; }
       #minimap-wrap.expanded { width:200px; }
       #minimap-wrap.expanded #minimap-rooms { display:flex; }
-
+      #minimap-bg-svg {
+        position:absolute; top:0; left:0;
+        width:100%; height:100%;
+        display:block;
+        object-fit:fill;
+        pointer-events:none;
+        z-index:0;
+      }
+#minimap-canvas {
+  position:relative;
+  z-index:1;
+}
       #minimap-canvas { display:block; width:100%; height:100%; }
 
       .icon-btn {
@@ -354,7 +397,7 @@ export class ViewerScene extends BaseScene {
       .icon-btn[title]:hover::after {
         content:attr(title);
         position:absolute; left:calc(100% + 10px); top:50%; transform:translateY(-50%);
-        background:rgba(18,15,12,.97); color:var(--gold); font-family:var(--font-mono);
+        background:#122F6A; color:#FFFFFF; font-family:var(--font-mono);
         font-size:7px; letter-spacing:.1em; padding:4px 9px;
         border:.5px solid var(--border); white-space:nowrap; border-radius:3px;
         pointer-events:none; z-index:50;
@@ -495,10 +538,10 @@ export class ViewerScene extends BaseScene {
       #controls-bar {
         position:fixed; bottom:14px;
         left:50%; transform:translateX(-50%);
-        background:rgba(18,15,12,.82); border:.5px solid var(--border);
+        background:#122F6A; border:.5px solid var(--border);
         border-radius:20px; padding:7px 18px;
         font-family:var(--font-mono); font-size:8px; letter-spacing:.14em;
-        text-transform:uppercase; color:var(--gold-dim);
+        text-transform:uppercase; color:#FFFFFF;
         pointer-events:none; white-space:nowrap; backdrop-filter:blur(8px);
         z-index:15;
       }
@@ -513,59 +556,93 @@ export class ViewerScene extends BaseScene {
 
 
       #right-panel{
-        position:fixed; top:0; right:0; bottom:0; width:var(--panel-w);
-        background:rgba(18,15,12,.97); border-left:.5px solid var(--border);
+        position:fixed; top: 60px; bottom: 60px; right: 20px;
+        aspect-ratio: 382 / 591;  
+        background: url('/icons/list_bg.svg') center/100% 100% no-repeat;
+        border-left: none;
+        border-radius: 0;
         display:flex; flex-direction:column; z-index:20;
-        transition:transform .35s cubic-bezier(.4,0,.2,1); backdrop-filter:blur(12px);
+        transition:transform .35s cubic-bezier(.4,0,.2,1); 
       }
-      #right-panel.collapsed{ transform:translateX(var(--panel-w)); }
+      #right-panel.collapsed{ transform:translateX(calc(var(--panel-w) + 20px)); }
       #panel-tab{
         position:absolute; left:-32px; top:50%; transform:translateY(-50%);
-        width:32px; height:72px; background:rgba(18,15,12,.95);
-        border:.5px solid var(--border); border-right:none;
+        width:32px; height:72px; background:#122F6A;
+        border:.5px solid #122F6A; border-right:none;
         border-radius:var(--radius) 0 0 var(--radius);
         display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
         cursor:pointer; transition:all .2s;
+        margin-right:-1px;
       }
-      #panel-tab:hover{ background:rgba(212,197,169,.12); }
+      #panel-tab:hover{ background:#1a3f8a; }
       #panel-tab-icon{ font-size:12px; }
       #panel-tab-text{
         font-family:var(--font-mono); font-size:6px; letter-spacing:.1em;
         writing-mode:vertical-rl; text-orientation:mixed; color:var(--gold-dim); text-transform:uppercase;
       }
-      #panel-header{ padding:16px 16px 12px; border-bottom:.5px solid var(--border); flex-shrink:0; }
-      #panel-header-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
-      #panel-title{ font-family:var(--font-head); font-size:15px; font-weight:400; font-style:italic; color:var(--gold); letter-spacing:.08em; }
-      #panel-toggle-btn{
-        width:26px; height:26px; background:rgba(212,197,169,.07);
-        border:.5px solid var(--border); border-radius:50%; cursor:pointer;
-        display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--gold-dim); transition:all .2s;
-      }
+      #panel-header{ padding:30px 16px 20px 16px; border-bottom:.5px solid var(--border); flex-shrink:0; text-align: center; }
+#panel-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+  #panel-title {
+  font-family: 'Montserrat', sans-serif;
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: .08em;
+  text-align: center;
+  text-transform: uppercase;
+}  
+  #panel-toggle-btn {
+  position: absolute;
+  right: 0;
+  width: 26px;
+  height: 26px;
+  background: rgba(212,197,169,.07);
+  border: .5px solid rgba(212,197,169,.2);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--gold-dim);
+  transition: all .2s;
+}
       #panel-toggle-btn:hover{ background:rgba(212,197,169,.15); color:var(--gold); }
-      #panel-count{ font-family:var(--font-mono); font-size:8px; letter-spacing:.14em; color:var(--text-dim); text-transform:uppercase; }
-
-      #product-list{ flex:1; overflow-y:auto; padding:10px 12px; }
-      #product-list::-webkit-scrollbar{ width:3px; }
-      #product-list::-webkit-scrollbar-thumb{ background:rgba(212,197,169,.15); border-radius:2px; }
-      #product-list::-webkit-scrollbar-track{ background:transparent; }
+#panel-count {
+  font-family: 'Montserrat', sans-serif;
+  color: #FFFFFF;
+  font-size: 8px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+      #product-list{ flex:1; overflow-y:overlay; padding: 10px 40px; }
+      #product-list::-webkit-scrollbar{ width:7px; transform: translateX(-10px);}
+      #product-list::-webkit-scrollbar-thumb{ background:rgba(255, 255, 255, 0.5); border-radius:15px; margin-right:16px; }
+      #product-list::-webkit-scrollbar-track{ background:rgba(255, 255, 255, 0.5); border-radius:15px;margin-right:16px;}
 
       .product-card{
         display:flex; align-items:stretch; gap:0;
-        background:rgba(255,255,255,.03); border:.5px solid rgba(212,197,169,.1);
+        background: url('/icons/product_bg.svg') center/cover no-repeat; border-radius: 0;
         border-radius:var(--radius); margin-bottom:8px; overflow:hidden;
         transition:border-color .2s, background .2s; cursor:pointer;
+        aspect-ratio: 308 / 128; 
+      }
       }
       .product-card:hover{ border-color:rgba(212,197,169,.3); background:rgba(212,197,169,.06); }
       .product-card.in-cart{ border-color:rgba(90,170,122,.35); background:rgba(90,170,122,.05); }
 
-      .product-thumb-wrap{ width:72px; flex-shrink:0; position:relative; overflow:hidden; }
-      .product-thumb{ width:72px; height:72px; object-fit:cover; display:block; background:#111; }
-      .product-thumb-canvas{ width:72px; height:72px; display:block; background:#111; }
-      .product-body{ flex:1; padding:8px 10px; display:flex; flex-direction:column; justify-content:space-between; min-width:0; }
-      .product-name{ font-family:var(--font-head); font-size:13px; font-weight:400; color:var(--gold); letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-      .product-artist{ font-family:var(--font-mono); font-size:7px; letter-spacing:.1em; color:var(--text-dim); text-transform:uppercase; margin-top:2px; }
-      .product-price{ font-family:var(--font-head); font-size:14px; font-weight:600; color:var(--accent); letter-spacing:.04em; margin-top:4px; }
-      .product-price.contact{ color:var(--text-dim); font-size:11px; font-family:var(--font-mono); }
+      .product-thumb-wrap{  width:72px !important; height: 72px !important; margin-top: 10px; margin-left: 14px; flex-shrink:0; }
+      .product-thumb-canvas{ width: 100%; height: 100%; display: block; object-fit: cover; border-radius: 10px;}
+      .product-body{ flex:1; padding: 14px 4px 14px 12px; display:flex; flex-direction:column; justify-content:space-between; min-width:0; }
+      .product-name{ font-family:'Montserrat', sans-serif; font-size:13px; font-weight:400; color:#FFFFFF; letter-spacing:.04em; white-space:normal; line-height:1.4; overflow:hidden; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; }
+      .product-price{ font-family:var(--font-mono); font-size:13px; font-weight:600; color:#FFFFFF; letter-spacing:.04em; margin-top:4px; }
+      .product-price.contact{ color:#FFFFFF; font-size:11px; font-family:var(--font-mono); }
       .product-actions{ flex-shrink:0; display:flex; flex-direction:column; border-left:.5px solid rgba(212,197,169,.08); }
       .product-act-btn{
         flex:1; width:36px; background:none; border:none; cursor:pointer;
@@ -576,9 +653,9 @@ export class ViewerScene extends BaseScene {
 
       #product-empty{ padding:32px 16px; text-align:center; font-family:var(--font-mono); font-size:8px; letter-spacing:.16em; text-transform:uppercase; color:var(--text-dim); line-height:2.5; }
 
-      #cart-section{ border-top:.5px solid var(--border); padding:12px; flex-shrink:0; }
+      #cart-section{ border-top:.5px solid var(--border); padding:12px 20px; flex-shrink:0; }
       #cart-header-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-      #cart-label{ font-family:var(--font-head); font-size:13px; font-style:italic; color:var(--gold); letter-spacing:.06em; }
+      #cart-label{ font-family:'Montserrat',sans-serif; font-size:13px; color:#FFFFFF; letter-spacing:.06em; }
       #cart-badge{ background:var(--danger); color:#fff; font-family:var(--font-mono); font-size:7px; border-radius:10px; padding:2px 6px; min-width:18px; text-align:center; display:none; }
       #cart-badge.show{ display:inline-block; }
       #cart-items{ max-height:120px; overflow-y:auto; margin-bottom:8px; }
@@ -586,20 +663,22 @@ export class ViewerScene extends BaseScene {
       #cart-items::-webkit-scrollbar-thumb{ background:rgba(212,197,169,.12); }
       .cart-row{ display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:.5px solid rgba(212,197,169,.06); }
       .cart-row:last-child{ border-bottom:none; }
-      .cart-row-name{ flex:1; font-size:10px; color:var(--gold); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .cart-row-price{ font-family:var(--font-mono); font-size:8px; color:var(--accent); white-space:nowrap; }
+      .cart-row-name{ flex:1; font-family:'Montserrat',sans-serif; font-size:10px; color:#FFFFFF; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .cart-row-price{ font-family:var(--font-mono); font-size:8px; color:#FFFFFF; white-space:nowrap; }
       .cart-row-rm{ background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:10px; padding:2px 3px; transition:color .2s; }
       .cart-row-rm:hover{ color:var(--danger); }
-      #cart-empty-msg{ padding:10px 0; text-align:center; font-family:var(--font-mono); font-size:8px; letter-spacing:.12em; color:var(--text-dim); text-transform:uppercase; }
+      #cart-empty-msg{ padding:10px 16px; text-align:center; font-family:'Montserrat',sans-serif; font-size:8px; letter-spacing:.12em; color:#FFFFFF; text-transform:uppercase; }
       #cart-total-row{ display:flex; justify-content:space-between; align-items:center; padding:6px 0 8px; margin-top:2px; border-top:.5px solid rgba(212,197,169,.1); }
-      #cart-total-label{ font-family:var(--font-mono); font-size:7px; letter-spacing:.16em; color:var(--gold-dim); text-transform:uppercase; }
-      #cart-total-price{ font-family:var(--font-head); font-size:15px; color:var(--gold); letter-spacing:.04em; }
-      #checkout-btn{
-        width:100%; padding:10px; background:linear-gradient(135deg, rgba(200,169,110,.25) 0%, rgba(200,169,110,.1) 100%);
-        border:.5px solid rgba(200,169,110,.5); color:var(--accent); font-family:var(--font-ui); font-size:11px;
-        font-weight:700; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; border-radius:var(--radius); transition:all .25s;
-      }
-      #checkout-btn:hover{ background:linear-gradient(135deg, rgba(200,169,110,.45) 0%, rgba(200,169,110,.2) 100%); border-color:var(--accent); color:#fff; box-shadow:0 4px 20px rgba(200,169,110,.2); }
+      #cart-total-label{ font-family:'Montserrat',sans-serif; font-size:7px; letter-spacing:.16em; color:#FFFFFF; text-transform:uppercase; }
+      #cart-total-price{ font-family:'Montserrat',sans-serif; font-size:15px; color:#FFFFFF; letter-spacing:.04em; }      
+      
+     #checkout-btn{
+  width:auto; margin-top:-4px; margin-bottom:16px; margin-left:25px;
+  padding:10px 20px; background:linear-gradient(135deg, rgba(18, 47, 106, 1), rgba(118, 170, 171, 0.89) 100%);
+  border:.5px solid rgba(255, 255, 255, 0.76); color:#FFFFFF; font-family:var(--font-ui); font-size:11px;
+  font-weight:700; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; border-radius:var(--radius); transition:all .25s;
+}
+      #checkout-btn:hover{ background:linear-gradient(135deg, rgba(18, 47, 106, 1), rgba(118, 170, 171, 0.89) 100%); border-color:var(--accent); color:#fff; box-shadow:0 4px 20px rgba(255, 255, 255, 0.79); }
       #checkout-btn:disabled{ opacity:.4; cursor:default; }
 
       #artwork-popup{
@@ -644,7 +723,7 @@ export class ViewerScene extends BaseScene {
 
       #expand-overlay{
         position:fixed; inset:0; z-index:50; background:rgba(10,8,6,.92);
-        display:none; align-items:center; justify-content:center; backdrop-filter:blur(8px);
+        display:none; align-items:center; justify-content:center; 
       }
       #expand-overlay.open{ display:flex; }
       #expand-inner{ position:relative; max-width:85vw; max-height:90vh; display:flex; flex-direction:column; align-items:center; gap:14px; }
@@ -687,7 +766,7 @@ export class ViewerScene extends BaseScene {
 
       #route-panel{
         position:fixed; left:66px; bottom:14px;
-        width:220px; background:rgba(18,15,12,.98);
+        width:220px; background:rgba(255, 255, 255, 0.76);
         border:.5px solid var(--border); border-radius:var(--radius);
         z-index:30; padding:14px; display:none; flex-direction:column; gap:14px;
         box-shadow:0 8px 32px rgba(0,0,0,.5);
@@ -695,7 +774,7 @@ export class ViewerScene extends BaseScene {
       #route-panel.open{ display:flex; }
       .rp-title{
         font-family:var(--font-head); font-size:14px; font-style:italic;
-        color:var(--gold); letter-spacing:.08em;
+        color:#76AAAB; letter-spacing:.08em;
         border-bottom:.5px solid var(--border); padding-bottom:8px;
       }
       .rp-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
@@ -730,15 +809,13 @@ export class ViewerScene extends BaseScene {
     const col = document.createElement('div'); col.id = 'left-column';
     col.innerHTML = `
       <div id="minimap-wrap">
-        <div id="minimap-header">
-          <span id="minimap-label">Bản đồ</span>
-          <button id="minimap-expand-btn" title="Mở rộng">⤢</button>
-        </div>
-        <div id="minimap-rooms"></div>
-        <div id="minimap-canvas-wrap">
-          <canvas id="minimap-canvas" width="200" height="200"></canvas>
-        </div>
-      </div>
+  <button id="minimap-expand-btn" title="Mở rộng" style="position:absolute;top:4px;right:4px;z-index:10;background:rgba(18,15,12,.6);border:.5px solid rgba(212,197,169,.3);border-radius:3px;cursor:pointer;font-size:8px;color:rgba(212,197,169,.7);width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;">⤢</button>
+  <div id="minimap-rooms"></div>
+  <div id="minimap-canvas-wrap">
+    <img id="minimap-bg-svg" src="/icons/minimap.svg" alt="">
+    <canvas id="minimap-canvas" width="200" height="200"></canvas>
+  </div>
+</div>
 
       <div class="icon-btn" id="btn-fullscreen" title="Phóng to màn hình"><img src="/icons/fullscreen.svg" style="width:18px;height:18px"></div>
       <div class="icon-btn" id="btn-sound" title="Tắt / mở âm thanh"><img src="/icons/sound.svg" style="width:18px;height:18px"></div>
@@ -1079,7 +1156,8 @@ export class ViewerScene extends BaseScene {
     const S = mmCanvas.width;
     const mmCtx = mmCanvas.getContext('2d');
     mmCtx.clearRect(0, 0, S, S);
-    mmCtx.fillStyle = 'rgba(10,8,6,.9)'; mmCtx.fillRect(0, 0, S, S);
+    mmCtx.globalCompositeOperation = 'source-over';
+
 
     const box = this._roomBox;
 if (!box) return;
@@ -1099,10 +1177,7 @@ const minZ = box.min.z, maxZ = box.max.z;
 
     const [fx1, fz1] = toMM(minX, minZ);
 const [fx2, fz2] = toMM(maxX, maxZ);
-mmCtx.fillStyle = 'rgba(90,78,62,.7)';
-mmCtx.fillRect(fx1, fz1, fx2 - fx1, fz2 - fz1);
-mmCtx.strokeStyle = 'rgba(212,197,169,.4)'; mmCtx.lineWidth = .8;
-mmCtx.strokeRect(fx1, fz1, fx2 - fx1, fz2 - fz1);
+
 
     this.artworks.forEach(a => {
       if (!a.group) return;
@@ -1113,15 +1188,17 @@ mmCtx.strokeRect(fx1, fz1, fx2 - fx1, fz2 - fz1);
     });
 
     const [cx, cy2] = toMM(this.camera.position.x, this.camera.position.z);
-    const arrowSize = this._mmExpanded ? 7 : 5;
-    mmCtx.save(); mmCtx.translate(cx, cy2); mmCtx.rotate(-this.yaw);
-    mmCtx.fillStyle = '#c8a96e';
-    mmCtx.shadowColor = 'rgba(200,169,110,.6)'; mmCtx.shadowBlur = 4;
-    mmCtx.beginPath();
-    mmCtx.moveTo(0, -arrowSize);
-    mmCtx.lineTo(arrowSize * .6, arrowSize * .6);
-    mmCtx.lineTo(-arrowSize * .6, arrowSize * .6);
-    mmCtx.closePath(); mmCtx.fill();
+const imgSize = 104;
+if (!this._playerSvg) {
+  this._playerSvg = new Image();
+  this._playerSvg.src = '/icons/player.svg';
+}
+mmCtx.save();
+mmCtx.translate(cx, cy2);
+mmCtx.rotate(-this.yaw);
+if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
+  mmCtx.drawImage(this._playerSvg, -imgSize / 2, -imgSize / 2, imgSize, imgSize);
+}
     mmCtx.restore();
   }
 
@@ -1330,8 +1407,8 @@ mmCtx.strokeRect(fx1, fz1, fx2 - fx1, fz2 - fz1);
         <div class="product-price ${meta.price?'':'contact'}">${meta.price||'Liên hệ'}</div>`;
 
       const acts = document.createElement('div'); acts.className = 'product-actions';
-      const infoBtn = document.createElement('button'); infoBtn.className='product-act-btn'; infoBtn.title='Xem thông tin'; infoBtn.innerHTML='ℹ';
-      const flyBtn = document.createElement('button'); flyBtn.className='product-act-btn'; flyBtn.title='Di chuyển đến'; flyBtn.innerHTML='⤢';
+      const infoBtn = document.createElement('button'); infoBtn.className='product-act-btn'; infoBtn.title='Xem thông tin'; infoBtn.innerHTML='<img src="/icons/info.svg" style="width:16px;height:16px">';
+      const flyBtn = document.createElement('button'); flyBtn.className='product-act-btn'; flyBtn.title='Di chuyển đến'; flyBtn.innerHTML='<img src="/icons/fullpic.svg" style="width:16px;height:16px">';
 
       infoBtn.addEventListener('click', e => { e.stopPropagation(); this._showArtworkPopup(art, i, item.kind); });
       flyBtn.addEventListener('click', e => { e.stopPropagation(); this._showExpand(art, i, item.kind); });
@@ -1872,13 +1949,15 @@ mmCtx.strokeRect(fx1, fz1, fx2 - fx1, fz2 - fz1);
     } else {
       const speed = this._walkSpeed;
       const posY = this.camera.position.y;
+      if (this.keys['ArrowLeft'])  { this.yaw += 1.5 * dt; this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ')); }
+      if (this.keys['ArrowRight']) { this.yaw -= 1.5 * dt; this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ')); }
       this.moveDir.set(0,0,0);
       this.camera.getWorldDirection(this.fwd); this.fwd.y = 0; this.fwd.normalize();
       this.rgt.crossVectors(this.fwd, new THREE.Vector3(0,1,0)).normalize();
-      if (this.keys['KeyW'] || this.keys['ArrowUp'])    this.moveDir.addScaledVector(this.fwd,  speed*dt);
-      if (this.keys['KeyS'] || this.keys['ArrowDown'])  this.moveDir.addScaledVector(this.fwd, -speed*dt);
-      if (this.keys['KeyA'] || this.keys['ArrowLeft'])  this.moveDir.addScaledVector(this.rgt, -speed*dt);
-      if (this.keys['KeyD'] || this.keys['ArrowRight']) this.moveDir.addScaledVector(this.rgt,  speed*dt);
+      if (this.keys['KeyW'] || this.keys['ArrowUp'])   this.moveDir.addScaledVector(this.fwd,  speed*dt);
+      if (this.keys['KeyS'] || this.keys['ArrowDown']) this.moveDir.addScaledVector(this.fwd, -speed*dt);
+      if (this.keys['KeyA']) this.moveDir.addScaledVector(this.rgt, -speed*dt);
+      if (this.keys['KeyD']) this.moveDir.addScaledVector(this.rgt,  speed*dt);
       if (this.moveDir.lengthSq() > 0 && this.modelMeshes.length) {
         const MARGIN = 0.5;
         const nearDoor = this._isNearRoomDoor(this.camera.position);
@@ -1900,6 +1979,84 @@ mmCtx.strokeRect(fx1, fz1, fx2 - fx1, fz2 - fz1);
     this.artworks.forEach(a => { if (a.isVideo && a.videoTex) a.videoTex.needsUpdate = true; });
     this._checkChestProximity();
     this._drawMinimap();
+    this._updateCharacter(dt);
+    this._updateRemotePlayers(dt);
+  }
+
+  _updateCharacter(dt) {
+    if (!this._character) return;
+
+    // --- Tính hướng mặt theo rawDir (local camera space), giống HTML reference ---
+    const rawDir = new THREE.Vector3();
+    if (this.keys['KeyW'] || this.keys['ArrowUp'])                rawDir.z -= 1;
+    if (this.keys['KeyS'] || this.keys['ArrowDown'])               rawDir.z += 1;
+    if (this.keys['KeyA'] || this.keys['ArrowLeft'])               rawDir.x -= 1;
+    if (this.keys['KeyD'] || this.keys['ArrowRight'])              rawDir.x += 1;
+
+    if (this.wpTravelTarget !== null) {
+      this._charAngle = this.yaw + Math.PI;
+    } else if (rawDir.lengthSq() > 0) {
+      // yaw + atan2(rawDir.x, rawDir.z): W→+π, S→0, A/←→-π/2, D/→→+π/2
+      this._charAngle = this.yaw + Math.atan2(rawDir.x, rawDir.z);
+    }
+    // else: giữ _charAngle khi thả tay
+
+    // --- Smooth rotation ---
+    let rotDelta = this._charAngle - this._character.rotation.y;
+    while (rotDelta >  Math.PI) rotDelta -= Math.PI * 2;
+    while (rotDelta < -Math.PI) rotDelta += Math.PI * 2;
+    this._character.rotation.y += rotDelta * Math.min(1, 12 * dt);
+
+    // --- Vị trí: raycast tránh xuyên tường ---
+    this._charFwd.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    this._charRay.set(this.camera.position, this._charFwd);
+    this._charRay.far = 2.0;
+    const wallHits = this.modelMeshes.length
+      ? this._charRay.intersectObjects(this.modelMeshes, false)
+      : [];
+    const wallDist  = wallHits.length ? wallHits[0].distance : Infinity;
+    const charDist  = Math.min(1.5, Math.max(0.2, wallDist - 0.35));
+
+    this._character.position.copy(this.camera.position).addScaledVector(this._charFwd, charDist);
+    this._character.position.y = this.floorY;
+
+    // --- Animation ---
+    const isMoving = rawDir.lengthSq() > 0 || this.wpTravelTarget !== null;
+    if (isMoving !== this._charIsWalking) {
+      this._charIsWalking = isMoving;
+      if (isMoving) {
+        if (this._charIdle) this._charIdle.fadeOut(0.2);
+        if (this._charWalk) this._charWalk.reset().fadeIn(0.2).play();
+      } else {
+        if (this._charWalk) this._charWalk.fadeOut(0.2);
+        if (this._charIdle) this._charIdle.reset().fadeIn(0.2).play();
+      }
+    }
+    if (this._charMixer) this._charMixer.update(dt);
+  }
+
+  _loadCharacter() {
+    this.gltfLoader.load('/character.glb', (gltf) => {
+      this._character = gltf.scene;
+      this._character.traverse(n => { if (n.isMesh) n.castShadow = true; });
+      this.threeScene.add(this._character);
+
+      if (!gltf.animations.length) return;
+      this._charMixer = new THREE.AnimationMixer(this._character);
+
+      for (const clip of gltf.animations) {
+        const n = clip.name.toLowerCase();
+        if (!this._charIdle && (n.includes('idle') || n.includes('stand'))) {
+          this._charIdle = this._charMixer.clipAction(clip);
+        }
+        if (!this._charWalk && (n.includes('walk') || n.includes('run'))) {
+          this._charWalk = this._charMixer.clipAction(clip);
+        }
+      }
+      if (!this._charIdle) this._charIdle = this._charMixer.clipAction(gltf.animations[0]);
+
+      this._charIdle.play();
+    }, undefined, (err) => console.error('[character] load error', err));
   }
 
   /* ══════════════════════════════════════════════ CHEST ══════════════════════════════════════════════ */
@@ -2065,5 +2222,188 @@ mmCtx.strokeRect(fx1, fz1, fx2 - fx1, fz2 - fz1);
     this._nearChest = near;
     const el = document.getElementById('vw-chest-hint');
     if (el) el.style.display = near ? 'block' : 'none';
+  }
+
+  /* ══════════════════════════════════════════════ MULTIPLAYER ══════════════════════════════════════════════ */
+
+  _getMyPos() {
+    return { x: this.camera.position.x, y: this.camera.position.y, z: this.camera.position.z };
+  }
+
+  _makeNameSprite(name) {
+    const W = 256, H = 56;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(4, 4, W - 8, H - 8, 8);
+    } else {
+      ctx.rect(4, 4, W - 8, H - 8);
+    }
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px Nunito, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const label = name.length > 16 ? name.slice(0, 14) + '…' : name;
+    ctx.fillText(label, W / 2, H / 2);
+    const tex = new THREE.CanvasTexture(c);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(1.4, 0.31, 1);
+    sprite.renderOrder = 999;
+    return sprite;
+  }
+
+  _spawnRemotePlayer(uid, name, pos, yaw) {
+    if (this._remotePlayers[uid]) return;
+    const safePos = pos || { x: 0, y: 0, z: 0 };
+    const safeYaw = yaw || 0;
+    const rp = {
+      name,
+      mesh: null, mixer: null, idle: null, walk: null, isWalking: false,
+      targetPos:  new THREE.Vector3(safePos.x, this.floorY, safePos.z),
+      currentPos: new THREE.Vector3(safePos.x, this.floorY, safePos.z),
+      targetYaw: safeYaw, currentYaw: safeYaw,
+      nameSprite: null,
+    };
+    this._remotePlayers[uid] = rp;
+
+    const sprite = this._makeNameSprite(name);
+    sprite.position.set(safePos.x, this.floorY + 2.2, safePos.z);
+    this.threeScene.add(sprite);
+    rp.nameSprite = sprite;
+
+    this.gltfLoader.load('/character.glb', (gltf) => {
+      if (this._disposed || !this._remotePlayers[uid]) return;
+      const mesh = gltf.scene;
+      mesh.traverse(n => { if (n.isMesh) n.castShadow = true; });
+      mesh.position.set(safePos.x, this.floorY, safePos.z);
+      mesh.rotation.y = safeYaw + Math.PI;
+      this.threeScene.add(mesh);
+      rp.mesh = mesh;
+
+      if (gltf.animations.length) {
+        const mixer = new THREE.AnimationMixer(mesh);
+        rp.mixer = mixer;
+        for (const clip of gltf.animations) {
+          const n = clip.name.toLowerCase();
+          if (!rp.idle && (n.includes('idle') || n.includes('stand'))) rp.idle = mixer.clipAction(clip);
+          if (!rp.walk && (n.includes('walk') || n.includes('run')))   rp.walk = mixer.clipAction(clip);
+        }
+        if (!rp.idle) rp.idle = mixer.clipAction(gltf.animations[0]);
+        rp.idle.play();
+      }
+    }, undefined, (err) => console.warn('[remote-player] load error', err));
+  }
+
+  _removeRemotePlayer(uid) {
+    const rp = this._remotePlayers[uid];
+    if (!rp) return;
+    if (rp.mesh)       this.threeScene.remove(rp.mesh);
+    if (rp.nameSprite) this.threeScene.remove(rp.nameSprite);
+    delete this._remotePlayers[uid];
+  }
+
+  _updateRemotePlayerTarget(uid, pos, yaw, isWalking) {
+    const rp = this._remotePlayers[uid];
+    if (!rp) return;
+    rp.targetPos.set(pos.x, this.floorY, pos.z);
+    rp.targetYaw = yaw;
+    const wasWalking = rp.isWalking;
+    rp.isWalking = !!isWalking;
+    if (rp.mixer && wasWalking !== rp.isWalking) {
+      if (rp.isWalking) {
+        if (rp.idle) rp.idle.fadeOut(0.2);
+        if (rp.walk) rp.walk.reset().fadeIn(0.2).play();
+      } else {
+        if (rp.walk) rp.walk.fadeOut(0.2);
+        if (rp.idle) rp.idle.reset().fadeIn(0.2).play();
+      }
+    }
+  }
+
+  _updateRemotePlayers(dt) {
+    const LERP = Math.min(1, 10 * dt);
+    for (const rp of Object.values(this._remotePlayers)) {
+      rp.currentPos.lerp(rp.targetPos, LERP);
+      let dy = rp.targetYaw - rp.currentYaw;
+      while (dy >  Math.PI) dy -= Math.PI * 2;
+      while (dy < -Math.PI) dy += Math.PI * 2;
+      rp.currentYaw += dy * LERP;
+      if (rp.mesh) {
+        rp.mesh.position.copy(rp.currentPos);
+        rp.mesh.rotation.y = rp.currentYaw + Math.PI;
+      }
+      if (rp.nameSprite) {
+        rp.nameSprite.position.set(rp.currentPos.x, rp.currentPos.y + 2.2, rp.currentPos.z);
+      }
+      if (rp.mixer) rp.mixer.update(dt);
+    }
+  }
+
+  _initMultiplayer() {
+    const roomId = this.manager.currentRoom?.id;
+    if (!roomId) return;
+    const profile = this.manager.auth.profile;
+    const userId  = profile?.id;
+    if (!userId) return;
+    const displayName = profile?.display_name || profile?.name || 'Khách';
+
+    this._mpChannel = supabase.channel(`viewer-room-${roomId}`, {
+      config: { presence: { key: String(userId) } }
+    });
+
+    this._mpChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = this._mpChannel.presenceState();
+        for (const [uid, presences] of Object.entries(state)) {
+          if (uid === String(userId)) continue;
+          const p = presences[0];
+          if (p && !this._remotePlayers[uid]) {
+            this._spawnRemotePlayer(uid, p.name, p.pos, p.yaw);
+          }
+        }
+      })
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        if (key === String(userId)) return;
+        const p = newPresences[0];
+        if (p && !this._remotePlayers[key]) {
+          this._spawnRemotePlayer(key, p.name, p.pos, p.yaw);
+        }
+      })
+      .on('presence', { event: 'leave' }, ({ key }) => {
+        this._removeRemotePlayer(key);
+      })
+      .on('broadcast', { event: 'mp-move' }, ({ payload }) => {
+        const { uid, pos, yaw, isWalking } = payload;
+        if (uid === String(userId)) return;
+        if (this._remotePlayers[uid]) {
+          this._updateRemotePlayerTarget(uid, pos, yaw, isWalking);
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await this._mpChannel.track({ name: displayName, pos: this._getMyPos(), yaw: this.yaw });
+        }
+      });
+
+    this._mpBroadcastInterval = setInterval(() => {
+      if (!this._mpChannel) return;
+      this._mpChannel.send({
+        type: 'broadcast',
+        event: 'mp-move',
+        payload: { uid: String(userId), pos: this._getMyPos(), yaw: this.yaw, isWalking: this._charIsWalking },
+      });
+    }, 100);
+  }
+
+  dispose() {
+    if (this._mpBroadcastInterval) { clearInterval(this._mpBroadcastInterval); this._mpBroadcastInterval = null; }
+    if (this._mpChannel) { supabase.removeChannel(this._mpChannel); this._mpChannel = null; }
+    for (const uid of Object.keys(this._remotePlayers)) this._removeRemotePlayer(uid);
+    super.dispose();
   }
 }
