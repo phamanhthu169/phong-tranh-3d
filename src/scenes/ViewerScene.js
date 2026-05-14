@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OBJLoader }  from 'three/addons/loaders/OBJLoader.js';
 import { supabase } from '../utils/supabase.js';
 import { BaseScene } from './BaseScene.js';
+import { TextEditor } from './TextEditor.js';
 
 const FRAME_MAT = new THREE.MeshLambertMaterial({ color: 0x2a2018 });
 
@@ -85,6 +86,7 @@ export class ViewerScene extends BaseScene {
 
     /* ---- modelMeshes (GLB sẽ được load trong _loadRoom sau khi biết template) ---- */
     this.modelMeshes = [];
+    this.textEditor = new TextEditor(this.threeScene, this.modelMeshes, () => {});
 
     /* ---- loaders ---- */
     this.gltfLoader  = new GLTFLoader();
@@ -103,7 +105,9 @@ export class ViewerScene extends BaseScene {
     this.rgt      = new THREE.Vector3();
 
     /* ---- waypoint ---- */
+    this.floorY         = 0;
     this.pathWaypoints  = [];
+    this.pathMarkers    = [];
     this.currentWpIdx   = -1;
     this.wpTravelTarget = null;
     this.wpTravelFrom   = null;
@@ -144,6 +148,7 @@ export class ViewerScene extends BaseScene {
     this._buildControlsBar();
     this._buildHelpOverlay();
     this._buildSettingsPanel();
+    this._buildRoutePanel();
     this._buildToast();
     this._buildChestUI();
     this._buildWaypointBar();
@@ -659,6 +664,38 @@ export class ViewerScene extends BaseScene {
       .vw-arr{ background:rgba(200,169,110,.12); border:.5px solid rgba(200,169,110,.4); color:#c8a96e; font-size:14px; width:28px; height:28px; cursor:pointer; border-radius:3px; display:flex; align-items:center; justify-content:center; transition:all .2s; }
       .vw-arr:hover{ background:rgba(200,169,110,.28); color:#fff; }
       .vw-arr:disabled{ opacity:.3; cursor:not-allowed; }
+
+      #route-panel{
+        position:fixed; left:66px; bottom:14px;
+        width:220px; background:rgba(18,15,12,.98);
+        border:.5px solid var(--border); border-radius:var(--radius);
+        z-index:30; padding:14px; display:none; flex-direction:column; gap:14px;
+        box-shadow:0 8px 32px rgba(0,0,0,.5);
+      }
+      #route-panel.open{ display:flex; }
+      .rp-title{
+        font-family:var(--font-head); font-size:14px; font-style:italic;
+        color:var(--gold); letter-spacing:.08em;
+        border-bottom:.5px solid var(--border); padding-bottom:8px;
+      }
+      .rp-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+      .rp-label{ font-family:var(--font-mono); font-size:8px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold-dim); flex:1; }
+      .rp-toggle{
+        position:relative; width:36px; height:20px; flex-shrink:0; cursor:pointer;
+      }
+      .rp-toggle input{ opacity:0; width:0; height:0; position:absolute; }
+      .rp-slider{
+        position:absolute; inset:0; background:rgba(212,197,169,.15);
+        border:.5px solid rgba(212,197,169,.2); border-radius:20px; transition:all .25s;
+      }
+      .rp-slider::before{
+        content:''; position:absolute; width:14px; height:14px;
+        left:2px; top:2px; background:var(--gold-dim); border-radius:50%; transition:all .25s;
+      }
+      .rp-toggle input:checked + .rp-slider{ background:rgba(200,169,110,.3); border-color:var(--accent); }
+      .rp-toggle input:checked + .rp-slider::before{ transform:translateX(16px); background:var(--accent); }
+      .rp-note{ font-family:var(--font-mono); font-size:7px; color:var(--text-dim); line-height:1.6; letter-spacing:.06em; }
+      #route-panel.no-waypoints .rp-row{ opacity:.35; pointer-events:none; }
     `;
     document.head.appendChild(s);
     this._el(s);
@@ -685,6 +722,7 @@ export class ViewerScene extends BaseScene {
 
       <div class="icon-btn" id="btn-fullscreen" title="Phóng to màn hình">⛶</div>
       <div class="icon-btn" id="btn-sound" title="Tắt / mở âm thanh">🔊</div>
+      <div class="icon-btn" id="btn-route" title="Lộ trình tham quan">🛤</div>
       <div class="icon-btn" id="btn-like" title="Thích phòng tranh này">♡</div>
       <div class="icon-btn" id="btn-settings" title="Cài đặt">⚙</div>
       <div class="icon-btn" id="btn-help" title="Hướng dẫn sử dụng">?</div>
@@ -774,6 +812,29 @@ export class ViewerScene extends BaseScene {
     document.body.appendChild(panel); this._el(panel);
   }
 
+  _buildRoutePanel() {
+    const panel = document.createElement('div'); panel.id = 'route-panel';
+    panel.innerHTML = `
+      <div class="rp-title">🛤 Lộ trình tham quan</div>
+      <div class="rp-row">
+        <span class="rp-label">Hiện đĩa dẫn đường</span>
+        <label class="rp-toggle">
+          <input type="checkbox" id="toggle-discs" checked>
+          <span class="rp-slider"></span>
+        </label>
+      </div>
+      <div class="rp-row">
+        <span class="rp-label">Hiện thanh điều hướng</span>
+        <label class="rp-toggle">
+          <input type="checkbox" id="toggle-nav" checked>
+          <span class="rp-slider"></span>
+        </label>
+      </div>
+      <div class="rp-note">Khi tắt đĩa, bạn vẫn dùng thanh điều hướng để di chuyển theo lộ trình.</div>
+    `;
+    document.body.appendChild(panel); this._el(panel);
+  }
+
   _bindFeatureEvents() {
     document.getElementById('btn-fullscreen').addEventListener('click', () => {
       if (!document.fullscreenElement) {
@@ -810,6 +871,33 @@ export class ViewerScene extends BaseScene {
       const sp = document.getElementById('settings-panel');
       sp.classList.toggle('open');
       document.getElementById('btn-settings').classList.toggle('active', sp.classList.contains('open'));
+      document.getElementById('route-panel').classList.remove('open');
+      document.getElementById('btn-route').classList.remove('active');
+    });
+
+    document.getElementById('btn-route').addEventListener('click', () => {
+      const rp = document.getElementById('route-panel');
+      rp.classList.toggle('open');
+      document.getElementById('btn-route').classList.toggle('active', rp.classList.contains('open'));
+      document.getElementById('settings-panel').classList.remove('open');
+      document.getElementById('btn-settings').classList.remove('active');
+      if (!this.pathWaypoints.length) rp.classList.add('no-waypoints');
+      else rp.classList.remove('no-waypoints');
+    });
+
+    document.getElementById('toggle-discs').addEventListener('change', (e) => {
+      const show = e.target.checked;
+      this.pathMarkers.forEach(m => {
+        if (m.mesh) m.mesh.visible = show;
+        if (m.line) m.line.visible = show;
+      });
+    });
+
+    document.getElementById('toggle-nav').addEventListener('change', (e) => {
+      const bar = document.getElementById('vw-nav');
+      if (!bar) return;
+      if (e.target.checked && this.pathWaypoints.length) bar.classList.add('show');
+      else bar.classList.remove('show');
     });
     
     // Brightness control: nhân với giá trị ánh sáng gốc
@@ -1424,6 +1512,7 @@ export class ViewerScene extends BaseScene {
           this._roomBox        = box.clone();
           this._roomBoxCenterX = (box.min.x + box.max.x) / 2;
           this.ROOM_SPACING    = (box.max.x - box.min.x) + this.GAP_WIDTH;
+          this.floorY          = box.min.y;
           const center = box.getCenter(new THREE.Vector3());
           this.camera.position.set(center.x, box.min.y + 1.6, center.z);
         }
@@ -1596,12 +1685,28 @@ export class ViewerScene extends BaseScene {
     if (sd.waypoints?.length) {
       this.pathWaypoints = sd.waypoints.map(wp=>({ ...wp }));
       this.currentWpIdx  = 0;
+      this._addWpDiscs(this.pathWaypoints);
       this._updateWaypointBar();
     }
     if (sd.rooms && sd.rooms.length) {
       this._rooms = sd.rooms;
     } else {
       this._rooms = [{ id: 0, name: 'Phòng chính', x: 0, z: 0, w: 16, d: 16, floor: 0 }];
+    }
+
+    if (sd.texts?.length) {
+      await this.textEditor.loadFromData(sd.texts);
+    }
+
+    if (sd.musicUrl) {
+      this._bgAudio = new Audio(sd.musicUrl);
+      this._bgAudio.loop = true;
+      this._bgAudio.volume = 0.5;
+      this._bgAudio.muted = !this._soundOn;
+      this._bgAudio.play().catch(() => {
+        const playOnFirst = () => { this._bgAudio?.play().catch(() => {}); };
+        document.addEventListener('click', playOnFirst, { once: true });
+      });
     }
 
     this._updateTopBarInfo();
@@ -1613,6 +1718,55 @@ export class ViewerScene extends BaseScene {
     const col  = new THREE.Mesh(new THREE.BoxGeometry(.9,.8,.9),    new THREE.MeshLambertMaterial({color:0xf0ece6})); col.position.set(0,.44,0);  g.add(col);
     const top  = new THREE.Mesh(new THREE.BoxGeometry(1.05,.06,1.05), new THREE.MeshLambertMaterial({color:0xddd8d0})); top.position.set(0,.87,0); g.add(top);
     g.position.copy(pos); this.threeScene.add(g); return g;
+  }
+
+  _makeWpTex(num, hovered) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+    const ctx = c.getContext('2d');
+    const grd = ctx.createRadialGradient(128, 128, 70, 128, 128, 128);
+    grd.addColorStop(0, hovered ? 'rgba(255,220,130,.4)' : 'rgba(200,169,110,.2)');
+    grd.addColorStop(1, 'rgba(200,169,110,0)');
+    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(128, 128, 128, 0, Math.PI * 2); ctx.fill();
+    const inner = ctx.createRadialGradient(115, 115, 0, 128, 128, 88);
+    inner.addColorStop(0, hovered ? 'rgba(255,235,155,.98)' : 'rgba(225,195,125,.9)');
+    inner.addColorStop(1, hovered ? 'rgba(200,155,75,.9)' : 'rgba(165,135,75,.78)');
+    ctx.fillStyle = inner; ctx.beginPath(); ctx.arc(128, 128, 88, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = hovered ? 'rgba(255,255,210,.95)' : 'rgba(255,230,160,.72)'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.arc(128, 128, 88, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#0f0d0a'; ctx.font = `bold ${num > 9 ? '58' : '66'}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(num), 128, 134);
+    return new THREE.CanvasTexture(c);
+  }
+
+  _addWpDiscs(waypoints) {
+    waypoints.forEach((wp, idx) => {
+      const fy = this.floorY;
+      const disc = new THREE.Mesh(
+        new THREE.CircleGeometry(0.55, 32),
+        new THREE.MeshBasicMaterial({ map: this._makeWpTex(idx + 1, false), transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide })
+      );
+      disc.rotation.x = -Math.PI / 2;
+      disc.position.set(wp.x, fy + 0.012, wp.z);
+      disc.renderOrder = 999;
+      disc.userData.waypointIdx = idx;
+      this.threeScene.add(disc);
+
+      let line = null;
+      if (idx > 0) {
+        const prev = waypoints[idx - 1];
+        const pts = [
+          new THREE.Vector3(prev.x, fy + 0.015, prev.z),
+          new THREE.Vector3(wp.x,   fy + 0.015, wp.z)
+        ];
+        line = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(pts),
+          new THREE.LineBasicMaterial({ color: 0xc8a96e, transparent: true, opacity: 0.55, depthTest: false })
+        );
+        line.renderOrder = 998;
+        this.threeScene.add(line);
+      }
+      this.pathMarkers.push({ mesh: disc, line });
+    });
   }
 
   _buildWaypointBar() {
@@ -1657,6 +1811,14 @@ export class ViewerScene extends BaseScene {
     this.mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
     this.mouse.y = -(e.clientY / innerHeight) * 2 + 1;
     this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    if (this.pathMarkers.length) {
+      const discHits = this.raycaster.intersectObjects(this.pathMarkers.map(m => m.mesh).filter(Boolean), false);
+      if (discHits.length) {
+        this._travelTo(discHits[0].object.userData.waypointIdx);
+        return;
+      }
+    }
 
     const aHits = this.raycaster.intersectObjects(this.artworks.map(a => a.group), true);
     if (aHits.length) {

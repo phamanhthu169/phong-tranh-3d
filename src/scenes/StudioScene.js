@@ -43,6 +43,7 @@ export class StudioScene extends BaseScene {
     this.models3d       = [];
     this.backgroundMusic = null;
     this.isMusicPlaying  = false;
+    this._musicUrl       = null;
     this.selectedSource = null;
     this.selectedItem   = null;
     this.frameMat       = new THREE.MeshLambertMaterial({ color: 0x2a2018 });
@@ -1082,6 +1083,7 @@ export class StudioScene extends BaseScene {
       this.backgroundMusic = null;
     }
     
+    this._musicUrl = storageUrl;
     this.backgroundMusic = new Audio(storageUrl);
     this.backgroundMusic.loop = true;
     this.backgroundMusic.volume = parseFloat(document.getElementById('music-volume-slider').value);
@@ -1449,7 +1451,7 @@ export class StudioScene extends BaseScene {
       },
       gallery_name: room.name,
       artist_name: this.manager.auth.user?.user_metadata?.name || 'Artist Name',
-      musicUrl: this.backgroundMusic ? this.backgroundMusic.src : null,
+      musicUrl: this._musicUrl || null,
     };
 
     const { error } = await supabase
@@ -1545,11 +1547,19 @@ export class StudioScene extends BaseScene {
     }
     
     if (sd.musicUrl) {
+      this._musicUrl = sd.musicUrl;
       this.backgroundMusic = new Audio(sd.musicUrl);
       this.backgroundMusic.loop = true;
       this.backgroundMusic.volume = 0.5;
       document.getElementById('music-track-name').textContent = `🎵 Background Music`;
       document.getElementById('music-volume-slider').value = 0.5;
+      this.backgroundMusic.play().then(() => {
+        this.isMusicPlaying = true;
+        document.getElementById('music-play-pause').textContent = '⏸';
+      }).catch(() => {
+        this.isMusicPlaying = false;
+        document.getElementById('music-play-pause').textContent = '▶';
+      });
     }
     await this._loadChests();
   }
