@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { HEADER_H } from '../core/SceneManager.js';
 
 // Bản mẫu chung — mọi màn hình đều kế thừa từ đây
 export class BaseScene {
@@ -7,8 +6,7 @@ export class BaseScene {
     this.renderer   = renderer;
     this.manager    = manager;
     this.threeScene = new THREE.Scene();
-    // chiều cao thực tế của canvas = toàn màn hình trừ header
-    this.camera     = new THREE.PerspectiveCamera(70, innerWidth / (innerHeight - HEADER_H), 0.05, 500);
+    this.camera     = new THREE.PerspectiveCamera(70, innerWidth / manager.canvasH, 0.05, 500);
 
     this._listeners = []; // danh sách event listener để dọn dẹp khi rời màn hình
     this._elements  = []; // danh sách HTML element để xoá khi rời màn hình
@@ -23,7 +21,7 @@ export class BaseScene {
 
   // gọi khi resize cửa sổ
   onResize() {
-    this.camera.aspect = innerWidth / (innerHeight - HEADER_H);
+    this.camera.aspect = innerWidth / this.manager.canvasH;
     this.camera.updateProjectionMatrix();
   }
 

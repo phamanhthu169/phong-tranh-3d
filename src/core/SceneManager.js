@@ -31,6 +31,7 @@ export class SceneManager {
     this.previousScene    = null;   // scene trước đó (để nút Back biết về đâu)
     this._currentSceneName = null;
     this.profileTarget    = null;   // set trước khi navigateTo('profile') để xem profile người khác
+    this._headerVisible   = true;
     this._header          = new Header(this);
 
     // nút Back / Forward của trình duyệt
@@ -47,6 +48,22 @@ export class SceneManager {
   register(name, SceneClass) {
     this._registry[name] = SceneClass;
     return this; // cho phép chain: manager.register(...).register(...)
+  }
+
+  // chiều cao canvas thực tế (thay đổi khi header ẩn/hiện)
+  get canvasH() { return this._headerVisible ? innerHeight - HEADER_H : innerHeight; }
+
+  _setHeaderVisible(visible) {
+    this._headerVisible = visible;
+    if (visible) {
+      this._header.show();
+      this.renderer.domElement.style.top = HEADER_H + 'px';
+    } else {
+      this._header.hide();
+      this.renderer.domElement.style.top = '0';
+    }
+    this.renderer.setSize(innerWidth, this.canvasH);
+    if (this.current) this.current.onResize();
   }
 
   // chuyển sang màn hình khác
@@ -70,6 +87,8 @@ export class SceneManager {
     }
 
     this._currentSceneName = name;
+    const hideHeader = name === 'studio' || name === 'viewer';
+    this._setHeaderVisible(!hideHeader);
     this.current = new SceneClass(this.renderer, this);
     await this.current.init();
   }
@@ -81,7 +100,7 @@ export class SceneManager {
   }
 
   _onResize() {
-    this.renderer.setSize(innerWidth, innerHeight - HEADER_H);
+    this.renderer.setSize(innerWidth, this.canvasH);
     if (this.current) this.current.onResize();
   }
 

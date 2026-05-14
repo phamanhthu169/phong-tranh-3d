@@ -140,6 +140,7 @@ export class ViewerScene extends BaseScene {
 
     /* ========== KHỞI TẠO UI ========== */
     this._injectViewerCSS();
+    this._buildLogo();
     this._buildTopBar();
     this._buildRightPanel();
     this._buildArtworkPopup();
@@ -167,6 +168,18 @@ export class ViewerScene extends BaseScene {
     }
   }
 
+  _buildLogo() {
+    const img = document.createElement('img');
+    img.src = '/icons/logo.svg';
+    img.alt = 'CREATORY';
+    img.style.cssText = 'position:fixed;top:16px;left:20px;height:32px;cursor:pointer;opacity:0.85;transition:opacity 0.2s;z-index:100;';
+    img.addEventListener('mouseenter', () => img.style.opacity = '1');
+    img.addEventListener('mouseleave', () => img.style.opacity = '0.85');
+    img.addEventListener('click', () => this.manager.navigateTo('landing'));
+    document.body.appendChild(img);
+    this._el(img);
+  }
+
   /* ================================================================
      UI: TOP BAR
   ================================================================ */
@@ -175,9 +188,11 @@ export class ViewerScene extends BaseScene {
     bar.id = 'topbar';
     bar.innerHTML = `
       <div id="logo-area">
-        <div id="logo-mark">C</div>
-        <div id="logo-text">Creatory</div>
-      </div>
+  <div id="vw-token-display-top" style="display:none;align-items:center;gap:5px;color:#c8a96e;font-family:monospace;font-size:11px;letter-spacing:.06em;cursor:pointer;">
+    <img src="/token/star.png" style="width:16px;height:16px;object-fit:contain">
+    <span id="vw-token-val"></span>
+  </div>
+</div>
       <div id="gallery-info">
         <div id="gallery-name">Phòng Tranh 3D</div>
         <div id="artist-name">Artist Name</div>
@@ -185,6 +200,8 @@ export class ViewerScene extends BaseScene {
       <div id="topbar-right"></div>
     `;
     document.body.appendChild(bar);
+    document.querySelector('#logo-area img').addEventListener('click', () => this.manager.navigateTo('landing'));
+
     this._el(bar);
   }
 
@@ -265,7 +282,7 @@ export class ViewerScene extends BaseScene {
 
       #minimap-wrap {
         width:96px;
-        background:rgba(18,15,12,.92);
+        background:rgba(24, 19, 14, 0.92);
         border:.5px solid var(--border);
         border-radius:var(--radius);
         overflow:hidden;
@@ -318,7 +335,7 @@ export class ViewerScene extends BaseScene {
 
       .icon-btn {
         width:38px; height:38px;
-        background:rgba(18,15,12,.85);
+        background:rgba(255, 255, 255, 0.85);
         border:.5px solid var(--border);
         border-radius:50%;
         display:flex; align-items:center; justify-content:center;
@@ -349,14 +366,16 @@ export class ViewerScene extends BaseScene {
         display:flex; flex-direction:column; align-items:flex-start; gap:0;
       }
       #chat-toggle-btn {
-        display:flex; align-items:center; gap:7px;
-        background:rgba(18,15,12,.9); border:.5px solid var(--border);
-        border-radius:20px; padding:7px 14px;
-        cursor:pointer; transition:all .2s; width:fit-content;
-        margin-top:2px;
-      }
-      #chat-toggle-btn:hover { border-color:var(--border-hi); }
-      #chat-icon { font-size:13px; }
+      cursor:pointer;
+      position:relative;
+      display:inline-flex;
+      margin-top:2px;
+}
+
+      #chat-toggle-btn:hover { background:#bccad8; }
+      #chat-icon { font-size:13px; color:#fff; background:#a0b4c8; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; flex-shrink:0; letter-spacing:1px; }
+      #chat-fake-input { flex:1; background:transparent; border:none; outline:none; font-family:var(--font-ui); font-size:13px; color:#555; cursor:pointer; caret-color:#555; }
+      #chat-fake-input::placeholder { color:#888; }
       #chat-label { font-family:var(--font-mono); font-size:8px; letter-spacing:.14em; color:var(--gold-dim); text-transform:uppercase; }
       #chat-unread {
         background:var(--danger); color:#fff;
@@ -437,12 +456,12 @@ export class ViewerScene extends BaseScene {
 
       #help-overlay {
         position:fixed; inset:0; z-index:60;
-        background:rgba(12,9,6,.92); backdrop-filter:blur(10px);
+        background:rgba(106, 173, 230, 0.92); backdrop-filter:blur(10px);
         display:none; align-items:center; justify-content:center;
       }
       #help-overlay.open { display:flex; }
       #help-box {
-        background:rgba(20,17,14,.99);
+        background:rgba(255, 255, 255, 0.99);
         border:.5px solid var(--border); border-radius:10px;
         padding:32px 36px; width:420px;
         display:flex; flex-direction:column; gap:18px;
@@ -490,7 +509,8 @@ export class ViewerScene extends BaseScene {
         70%  { transform:scale(.9); }
         100% { transform:scale(1); }
       }
-      .icon-btn.liked { animation:heartPop .4s ease; color:#e85d7a !important; }
+      .icon-btn.liked { animation:heartPop .4s ease; color:#e85d7a !important; background:rgba(255, 255, 255, 0.86) !important; border-color:rgba(255, 255, 255, 0.5) !important; }
+
 
       #right-panel{
         position:fixed; top:0; right:0; bottom:0; width:var(--panel-w);
@@ -720,12 +740,12 @@ export class ViewerScene extends BaseScene {
         </div>
       </div>
 
-      <div class="icon-btn" id="btn-fullscreen" title="Phóng to màn hình">⛶</div>
-      <div class="icon-btn" id="btn-sound" title="Tắt / mở âm thanh">🔊</div>
-      <div class="icon-btn" id="btn-route" title="Lộ trình tham quan">🛤</div>
-      <div class="icon-btn" id="btn-like" title="Thích phòng tranh này">♡</div>
-      <div class="icon-btn" id="btn-settings" title="Cài đặt">⚙</div>
-      <div class="icon-btn" id="btn-help" title="Hướng dẫn sử dụng">?</div>
+      <div class="icon-btn" id="btn-fullscreen" title="Phóng to màn hình"><img src="/icons/fullscreen.svg" style="width:18px;height:18px"></div>
+      <div class="icon-btn" id="btn-sound" title="Tắt / mở âm thanh"><img src="/icons/sound.svg" style="width:18px;height:18px"></div>
+      <div class="icon-btn" id="btn-route" title="Lộ trình tham quan"><img src="/icons/route.svg" style="width:18px;height:18px"></div>
+      <div class="icon-btn" id="btn-like" title="Thích phòng tranh này"><img src="/icons/heart-empty.svg" style="width:18px;height:18px"></div>
+      <div class="icon-btn" id="btn-settings" title="Cài đặt"><img src="/icons/settings.svg" style="width:18px;height:18px"></div>
+      <div class="icon-btn" id="btn-help" title="Hướng dẫn sử dụng"><img src="/icons/help.svg" style="width:18px;height:18px"></div>
 
       <div id="chat-wrap">
         <div id="chat-box">
@@ -740,8 +760,7 @@ export class ViewerScene extends BaseScene {
           </div>
         </div>
         <div id="chat-toggle-btn">
-          <span id="chat-icon">💬</span>
-          <span id="chat-label">Chat</span>
+          <img src="/icons/chat-bar.svg" style="width:220px;height:44px;display:block;pointer-events:none">
           <span id="chat-unread"></span>
         </div>
       </div>
@@ -860,7 +879,9 @@ export class ViewerScene extends BaseScene {
     document.getElementById('btn-like').addEventListener('click', () => {
       this._liked = !this._liked;
       const btn = document.getElementById('btn-like');
-      btn.innerHTML = this._liked ? '♥' : '♡';
+      btn.innerHTML = this._liked 
+  ? '<img src="/icons/heart-filled.svg" style="width:18px;height:18px">'
+  : '<img src="/icons/heart-empty.svg"  style="width:18px;height:18px">';
       btn.classList.toggle('liked', this._liked);
       btn.classList.toggle('active', this._liked);
       if (this._liked) this._toast('Đã thích phòng tranh này ♥', 'success', 2000);
@@ -1060,14 +1081,10 @@ export class ViewerScene extends BaseScene {
     mmCtx.clearRect(0, 0, S, S);
     mmCtx.fillStyle = 'rgba(10,8,6,.9)'; mmCtx.fillRect(0, 0, S, S);
 
-    const rooms = this._rooms || [{ id: 0, name: 'Phòng chính', x: 0, z: 0, w: 16, d: 16, floor: 0 }];
-    if (rooms.length === 0) return;
-
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    rooms.forEach(r => {
-      minX = Math.min(minX, r.x - r.w / 2); maxX = Math.max(maxX, r.x + r.w / 2);
-      minZ = Math.min(minZ, r.z - r.d / 2); maxZ = Math.max(maxZ, r.z + r.d / 2);
-    });
+    const box = this._roomBox;
+if (!box) return;
+const minX = box.min.x, maxX = box.max.x;
+const minZ = box.min.z, maxZ = box.max.z;
     const pad = Math.round(S * .1);
     const spanX = maxX - minX || 20, spanZ = maxZ - minZ || 20;
     const scaleX = (S - pad * 2) / spanX, scaleZ = (S - pad * 2) / spanZ;
@@ -1080,22 +1097,12 @@ export class ViewerScene extends BaseScene {
     const cFloor = Math.floor(this.camera.position.y / 5.1);
     const floorColors = ['rgba(90,78,62,.7)', 'rgba(60,78,100,.7)', 'rgba(78,100,60,.7)'];
 
-    rooms.forEach(r => {
-      if ((r.floor || 0) !== cFloor) return;
-      const [fx1, fz1] = toMM(r.x - r.w / 2, r.z - r.d / 2);
-      const [fx2, fz2] = toMM(r.x + r.w / 2, r.z + r.d / 2);
-      const rw = fx2 - fx1, rd = fz2 - fz1;
-      mmCtx.fillStyle = floorColors[r.floor || 0] || floorColors[0];
-      mmCtx.fillRect(fx1, fz1, rw, rd);
-      mmCtx.strokeStyle = 'rgba(212,197,169,.4)'; mmCtx.lineWidth = .8;
-      mmCtx.strokeRect(fx1, fz1, rw, rd);
-      if (S > 100 && rw > 20) {
-        mmCtx.fillStyle = 'rgba(212,197,169,.6)';
-        mmCtx.font = `${Math.min(8, rw * .12)}px Space Mono,monospace`;
-        mmCtx.textAlign = 'center'; mmCtx.textBaseline = 'middle';
-        mmCtx.fillText((r.name || '').substring(0, 10), fx1 + rw / 2, fz1 + rd / 2);
-      }
-    });
+    const [fx1, fz1] = toMM(minX, minZ);
+const [fx2, fz2] = toMM(maxX, maxZ);
+mmCtx.fillStyle = 'rgba(90,78,62,.7)';
+mmCtx.fillRect(fx1, fz1, fx2 - fx1, fz2 - fz1);
+mmCtx.strokeStyle = 'rgba(212,197,169,.4)'; mmCtx.lineWidth = .8;
+mmCtx.strokeRect(fx1, fz1, fx2 - fx1, fz2 - fz1);
 
     this.artworks.forEach(a => {
       if (!a.group) return;
@@ -2033,23 +2040,19 @@ export class ViewerScene extends BaseScene {
   }
 
   _updateTokenDisplay() {
-    if (!this.manager.auth.isLoggedIn) return;
-    const balance = this.manager.auth.profile?.token_balance ?? 0;
-    let el = document.getElementById('vw-token-display');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'vw-token-display';
-      el.style.cssText = 'display:flex;align-items:center;gap:5px;color:#c8a96e;font-family:monospace;font-size:11px;letter-spacing:.06em;cursor:pointer;';
-      el.title = 'Ngôi Sao của bạn';
-      el.innerHTML = `<img src="/token/star.png" style="width:16px;height:16px;object-fit:contain"><span id="vw-token-val"></span>`;
-      el.addEventListener('click', () => this.manager.navigateTo('profile'));
-      const right = document.getElementById('topbar-right');
-      if (right) right.prepend(el);
-    }
-    const valEl = document.getElementById('vw-token-val');
-    if (valEl) valEl.textContent = balance.toLocaleString('vi-VN');
+  if (!this.manager.auth.isLoggedIn) return;
+  const balance = this.manager.auth.profile?.token_balance ?? 0;
+  
+  // Dùng element mới trong logo-area thay vì topbar-right
+  const el = document.getElementById('vw-token-display-top');
+  if (el) {
+    el.style.display = 'flex';
+    el.style.marginLeft = '160px';
+    el.onclick = () => this.manager.navigateTo('profile');
   }
-
+  const valEl = document.getElementById('vw-token-val');
+  if (valEl) valEl.textContent = balance.toLocaleString('vi-VN');
+}
   _checkChestProximity() {
     if (!this.chests.length || this._chestPopupOpen) return;
     const cam = this.camera.position;

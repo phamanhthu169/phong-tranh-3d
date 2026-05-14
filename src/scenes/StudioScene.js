@@ -92,6 +92,7 @@ export class StudioScene extends BaseScene {
 
     /* ── Xây giao diện ── */
     this._injectCSS();
+    this._buildLogo();
     this._buildToolbar();
     this._buildToast();
     this._buildLightPanel();
@@ -120,6 +121,18 @@ export class StudioScene extends BaseScene {
     this._setupWaypointHover();
 
     await this.loadGallery();
+  }
+
+  _buildLogo() {
+    const img = document.createElement('img');
+    img.src = '/icons/logo.svg';
+    img.alt = 'CREATORY';
+    img.style.cssText = 'position:fixed;top:16px;left:20px;height:32px;cursor:pointer;opacity:0.85;transition:opacity 0.2s;z-index:100;';
+    img.addEventListener('mouseenter', () => img.style.opacity = '1');
+    img.addEventListener('mouseleave', () => img.style.opacity = '0.85');
+    img.addEventListener('click', () => this.manager.navigateTo('landing'));
+    document.body.appendChild(img);
+    this._el(img);
   }
 
   /* ══════════════════════════════════════════════ CSS ══════════════════════════════════════════════ */

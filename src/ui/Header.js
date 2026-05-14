@@ -9,11 +9,12 @@ export class Header {
     el.style.cssText = 'position:fixed;top:0;left:0;right:0;height:48px;background:rgba(12,10,9,0.96);border-bottom:1px solid rgba(212,197,169,0.1);display:flex;align-items:center;padding:0 24px;z-index:200;font-family:monospace;user-select:none;';
 
     // Logo
-    const logo = document.createElement('span');
-    logo.textContent = 'CREATORY';
-    logo.style.cssText = 'color:#d4c5a9;font-size:16px;font-weight:bold;letter-spacing:0.22em;cursor:pointer;transition:color 0.2s;';
-    logo.addEventListener('mouseenter', () => logo.style.color = '#c8a96e');
-    logo.addEventListener('mouseleave', () => logo.style.color = '#d4c5a9');
+    const logo = document.createElement('img');
+    logo.src = '/icons/logo.svg';
+    logo.alt = 'CREATORY';
+    logo.style.cssText = 'height:28px;cursor:pointer;opacity:0.9;transition:opacity 0.2s;display:block;';
+    logo.addEventListener('mouseenter', () => logo.style.opacity = '1');
+    logo.addEventListener('mouseleave', () => logo.style.opacity = '0.9');
     logo.addEventListener('click', () => this.manager.navigateTo('landing'));
 
     // Khu vực auth bên phải
@@ -97,6 +98,9 @@ export class Header {
       this._authArea.appendChild(registerBtn);
     }
   }
+
+  hide() { this._el.style.display = 'none'; }
+  show() { this._el.style.display = 'flex'; }
 
   dispose() {
     if (this._unsubAuth) this._unsubAuth();
