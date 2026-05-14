@@ -70,6 +70,7 @@ export class ViewerScene extends BaseScene {
     if (this._disposed) return;
 
     if (!this.manager.currentRoom) { this.manager.navigateTo('explore'); return; }
+    this._galleryName = this.manager.currentRoom.id;
 
     /* ---- scene ---- */
     this.threeScene.background = new THREE.Color(0x87ceeb);
@@ -172,6 +173,7 @@ export class ViewerScene extends BaseScene {
     this._renderProductList();
     this._renderCart();
     this._bindFeatureEvents();
+    await this._initLike();
 
     this._updateTopBarInfo();
     this._updateTokenDisplay();
@@ -953,17 +955,7 @@ export class ViewerScene extends BaseScene {
       if (this._bgAudio) this._bgAudio.muted = !this._soundOn;
     });
 
-    document.getElementById('btn-like').addEventListener('click', () => {
-      this._liked = !this._liked;
-      const btn = document.getElementById('btn-like');
-      btn.innerHTML = this._liked 
-  ? '<img src="/icons/heart-filled.svg" style="width:18px;height:18px">'
-  : '<img src="/icons/heart-empty.svg"  style="width:18px;height:18px">';
-      btn.classList.toggle('liked', this._liked);
-      btn.classList.toggle('active', this._liked);
-      if (this._liked) this._toast('Đã thích phòng tranh này ♥', 'success', 2000);
-      else this._toast('Đã bỏ thích', 'info', 1500);
-    });
+    document.getElementById('btn-like').addEventListener('click', () => this._toggleLike());
 
     document.getElementById('btn-settings').addEventListener('click', () => {
       const sp = document.getElementById('settings-panel');
@@ -1931,6 +1923,55 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     this.yaw   -= dx * 0.003; this.pitch -= dy * 0.003;
     this.pitch  = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.pitch));
     this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
+  }
+
+  // ─── Like ────────────────────────────────────────────────────────────────────
+  async _initLike() {
+    const profile = this.manager.auth.profile;
+    if (!profile || !this._galleryName) return;
+    const { data } = await supabase
+      .from('gallery_likes')
+      .select('id')
+      .eq('user_id', profile.id)
+      .eq('gallery_name', this._galleryName)
+      .maybeSingle();
+    if (this._disposed) return;
+    if (data) {
+      this._liked = true;
+      const btn = document.getElementById('btn-like');
+      if (btn) {
+        btn.innerHTML = '<img src="/icons/heart-filled.svg" style="width:18px;height:18px">';
+        btn.classList.add('liked', 'active');
+      }
+    }
+  }
+
+  async _toggleLike() {
+    const profile = this.manager.auth.profile;
+    if (!this._galleryName) return;
+    if (!profile) { this._toast('Đăng nhập để thích phòng tranh', 'info', 2000); return; }
+
+    this._liked = !this._liked;
+    const btn = document.getElementById('btn-like');
+    btn.innerHTML = this._liked
+      ? '<img src="/icons/heart-filled.svg" style="width:18px;height:18px">'
+      : '<img src="/icons/heart-empty.svg"  style="width:18px;height:18px">';
+    btn.classList.toggle('liked', this._liked);
+    btn.classList.toggle('active', this._liked);
+
+    if (this._liked) {
+      this._toast('Đã thích phòng tranh này ♥', 'success', 2000);
+      await supabase.from('gallery_likes').upsert(
+        { user_id: profile.id, gallery_name: this._galleryName },
+        { onConflict: 'user_id,gallery_name' }
+      );
+    } else {
+      this._toast('Đã bỏ thích', 'info', 1500);
+      await supabase.from('gallery_likes')
+        .delete()
+        .eq('user_id', profile.id)
+        .eq('gallery_name', this._galleryName);
+    }
   }
 
   lerpAngle(a, b, t) { let d = b - a; while (d > Math.PI) d -= Math.PI*2; while (d < -Math.PI) d += Math.PI*2; return a + d * t; }

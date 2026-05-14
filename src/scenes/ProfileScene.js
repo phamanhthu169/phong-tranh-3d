@@ -52,8 +52,10 @@ export class ProfileScene extends BaseScene {
 
     if (this._target.role === 'artist') {
       await this._loadGalleries();
+      await this._loadArtistRank();
+    } else {
+      await this._loadTokenRank();
     }
-    await this._loadTokenRank();
   }
 
   // ─── Particles (giống DashboardScene) ───────────────────────────────────────
@@ -284,6 +286,26 @@ export class ProfileScene extends BaseScene {
           </div>
           <div style="height:4px;background:rgba(212,197,169,.1);border-radius:2px;overflow:hidden">
             <div id="pf-rank-bar" style="height:100%;background:linear-gradient(90deg,rgba(200,169,110,.5),rgba(200,169,110,1));border-radius:2px;transition:width .6s;width:0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Artist Rank (hiện khi là artist) -->
+      <div id="pf-artist-rank-section" class="pf-section" style="display:none">
+        <div style="display:flex;align-items:center;gap:20px">
+          <div id="pf-artist-rank-icon" style="width:52px;height:52px;border-radius:50%;background:rgba(200,169,110,.1);border:.5px solid rgba(200,169,110,.25);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🎨</div>
+          <div>
+            <div style="color:#c8a96e;font-size:15px;letter-spacing:.08em" id="pf-artist-rank-name">—</div>
+            <div style="color:#7a6e5c;font-size:10px;margin-top:4px" id="pf-artist-like-count"></div>
+          </div>
+        </div>
+        <div style="margin-top:18px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <span style="color:#5a5040;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Tiến độ lên rank</span>
+            <span style="color:#7a6e5c;font-size:9px" id="pf-artist-rank-progress-text"></span>
+          </div>
+          <div style="height:4px;background:rgba(212,197,169,.1);border-radius:2px;overflow:hidden">
+            <div id="pf-artist-rank-bar" style="height:100%;background:linear-gradient(90deg,rgba(200,169,110,.5),rgba(200,169,110,1));border-radius:2px;transition:width .6s;width:0%"></div>
           </div>
         </div>
       </div>
@@ -536,6 +558,66 @@ export class ProfileScene extends BaseScene {
     } else {
       document.getElementById('pf-rank-bar').style.width = '100%';
       document.getElementById('pf-rank-progress-text').textContent = 'Rank cao nhất ✦';
+    }
+  }
+
+  // ─── Artist Rank (dựa trên lượt thích) ──────────────────────────────────────
+  async _loadArtistRank() {
+    const ARTIST_RANKS = [
+      { name: 'Tập sinh',     min_likes: 0 },
+      { name: 'Họa sĩ',      min_likes: 50 },
+      { name: 'Bậc thầy',    min_likes: 300 },
+      { name: 'Đại danh họa', min_likes: 1500 },
+      { name: 'Bất tử',      min_likes: 8000 },
+    ];
+
+    const artistId = this._target.name;
+
+    const { data: allGalleries } = await supabase
+      .from('gallery')
+      .select('name, scene_data');
+
+    if (this._disposed) return;
+
+    const galleryNames = (allGalleries || [])
+      .filter(row => {
+        const meta = row.scene_data?._meta || {};
+        return (meta.artistId || row.name.split(':::')[0]) === artistId && !!meta.isPublished;
+      })
+      .map(row => row.name);
+
+    let totalLikes = 0;
+    if (galleryNames.length > 0) {
+      const { count } = await supabase
+        .from('gallery_likes')
+        .select('*', { count: 'exact', head: true })
+        .in('gallery_name', galleryNames);
+      totalLikes = count ?? 0;
+    }
+
+    if (this._disposed) return;
+
+    const section = document.getElementById('pf-artist-rank-section');
+    if (!section) return;
+    section.style.display = 'block';
+
+    document.getElementById('pf-artist-like-count').textContent =
+      `${totalLikes.toLocaleString('vi-VN')} ♥ Lượt thích`;
+
+    const ranksDesc = [...ARTIST_RANKS].sort((a, b) => b.min_likes - a.min_likes);
+    const rank = ranksDesc.find(r => totalLikes >= r.min_likes) || ranksDesc[ranksDesc.length - 1];
+    document.getElementById('pf-artist-rank-name').textContent = rank.name;
+
+    const ranksAsc = [...ARTIST_RANKS].sort((a, b) => a.min_likes - b.min_likes);
+    const nextRank = ranksAsc.find(r => r.min_likes > totalLikes);
+    if (nextRank) {
+      const pct = Math.min(100, ((totalLikes - rank.min_likes) / (nextRank.min_likes - rank.min_likes)) * 100);
+      document.getElementById('pf-artist-rank-bar').style.width = pct + '%';
+      document.getElementById('pf-artist-rank-progress-text').textContent =
+        `${totalLikes.toLocaleString('vi-VN')} / ${nextRank.min_likes.toLocaleString('vi-VN')} → ${nextRank.name}`;
+    } else {
+      document.getElementById('pf-artist-rank-bar').style.width = '100%';
+      document.getElementById('pf-artist-rank-progress-text').textContent = 'Rank cao nhất ✦';
     }
   }
 
