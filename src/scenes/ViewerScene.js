@@ -70,7 +70,7 @@ export class ViewerScene extends BaseScene {
     if (this._disposed) return;
 
     if (!this.manager.currentRoom) { this.manager.navigateTo('explore'); return; }
-    this._galleryName = this.manager.currentRoom.id;
+    this._galleryDbKey = this.manager.currentRoom.id;
 
     /* ---- scene ---- */
     this.threeScene.background = new THREE.Color(0x87ceeb);
@@ -1928,12 +1928,12 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
   // ─── Like ────────────────────────────────────────────────────────────────────
   async _initLike() {
     const profile = this.manager.auth.profile;
-    if (!profile || !this._galleryName) return;
+    if (!profile || !this._galleryDbKey) return;
     const { data } = await supabase
       .from('gallery_likes')
       .select('id')
       .eq('user_id', profile.id)
-      .eq('gallery_name', this._galleryName)
+      .eq('gallery_name', this._galleryDbKey)
       .maybeSingle();
     if (this._disposed) return;
     if (data) {
@@ -1948,7 +1948,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
 
   async _toggleLike() {
     const profile = this.manager.auth.profile;
-    if (!this._galleryName) return;
+    if (!this._galleryDbKey) return;
     if (!profile) { this._toast('Đăng nhập để thích phòng tranh', 'info', 2000); return; }
 
     this._liked = !this._liked;
@@ -1962,7 +1962,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     if (this._liked) {
       this._toast('Đã thích phòng tranh này ♥', 'success', 2000);
       await supabase.from('gallery_likes').upsert(
-        { user_id: profile.id, gallery_name: this._galleryName },
+        { user_id: profile.id, gallery_name: this._galleryDbKey },
         { onConflict: 'user_id,gallery_name' }
       );
     } else {
@@ -1970,7 +1970,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       await supabase.from('gallery_likes')
         .delete()
         .eq('user_id', profile.id)
-        .eq('gallery_name', this._galleryName);
+        .eq('gallery_name', this._galleryDbKey);
     }
   }
 
