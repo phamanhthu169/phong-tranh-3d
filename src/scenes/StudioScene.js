@@ -106,7 +106,6 @@ export class StudioScene extends BaseScene {
     this._buildTemplatePanel();
     this._buildDecorPanel();
     this._buildChestPanel();
-    this._buildMusicPanel();
     this._buildWaypointElements();
     this._injectWaypointCSS();
     this._buildStudioTopBar();
@@ -212,15 +211,6 @@ export class StudioScene extends BaseScene {
       #pnb-close{background:none;border:.5px solid rgba(212,197,169,.15);color:#555;font-size:9px;cursor:pointer;border-radius:2px;padding:2px 6px;transition:all .2s}
       #pnb-close:hover{color:#d4c5a9}
       
-      #music-panel{
-        position:fixed;bottom:20px;right:20px;background:rgba(15,13,12,.94);border:.5px solid rgba(212,197,169,.25);
-        border-radius:30px;padding:8px 16px;display:flex;align-items:center;gap:12px;z-index:20;font-family:monospace;backdrop-filter:blur(4px)
-      }
-      .music-btn{background:rgba(200,169,110,.15);border:.5px solid rgba(200,169,110,.4);color:#c8a96e;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .2s}
-      .music-btn:hover{background:rgba(200,169,110,.35);color:#fff}
-      .music-volume{width:80px;-webkit-appearance:none;height:2px;background:rgba(212,197,169,.3);border-radius:1px;outline:none}
-      .music-volume::-webkit-slider-thumb{-webkit-appearance:none;width:8px;height:8px;border-radius:50%;background:#c8a96e;cursor:pointer}
-      #music-track-name{font-size:9px;color:#7a6e5c;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       
       #path-walk-hint{
         position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(15,13,12,.94);
@@ -405,13 +395,9 @@ export class StudioScene extends BaseScene {
     el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10;';
     const isPub = this.manager.currentRoom?.isPublished || false;
     el.innerHTML = `
-      <button class="tb-btn" id="btn-light">💡 Light</button>
-      <button class="tb-btn" id="btn-path">🛤 Path</button>
-      <button class="tb-btn" id="btn-template">🏛 Template</button>
       <button class="tb-btn" id="btn-decor">🎨 Decor</button>
       <button class="tb-btn" id="btn-adv-text">✏️ Adv Text</button>
       <button class="tb-btn" id="btn-chest">🗝 Rương</button>
-      <button class="tb-btn ${isPub ? 'active' : ''}" id="btn-publish">${isPub ? '🔒 Unpublish' : '🌐 Publish'}</button>
     `;
     document.body.appendChild(el); this._el(el);
   }
@@ -1250,6 +1236,54 @@ _buildStudioLeftBtns() {
       .rp-pub-btn.danger { background: rgba(181,74,58,.15); color: rgba(255,150,130,.8); border: 1px solid rgba(181,74,58,.4); }
       .rp-pub-btn.danger:hover { background: rgba(181,74,58,.3); }
       .rp-pub-info { font-size: 9px; color: rgba(255,255,255,0.3); line-height: 1.8; letter-spacing: .06em; }
+
+      /* ── Collapse/Expand right panel ── */
+      #rp-steps, #rp-body {
+        transition: transform 0.35s cubic-bezier(.4,0,.2,1), opacity 0.35s;
+      }
+      #rp-steps.rp-collapsed {
+        transform: scale(0.85) translate(calc(100% + 36px), 30px) !important;
+        opacity: 0;
+        pointer-events: none;
+      }
+      #rp-body.rp-collapsed {
+        transform: scale(0.85) translate(calc(100% + 40px), 30px) !important;
+        opacity: 0;
+        pointer-events: none;
+      }
+      #rp-toggle-tab {
+        position: fixed;
+        right: 0px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 35;
+        width: 22px;
+        height: 72px;
+        background: rgba(15,13,12,0.92);
+        border: 0.5px solid rgba(104,229,227,0.35);
+        border-right: none;
+        border-radius: 8px 0 0 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s, border-color 0.2s, right 0.35s cubic-bezier(.4,0,.2,1);
+        backdrop-filter: blur(4px);
+      }
+      #rp-toggle-tab:hover {
+        background: rgba(104,229,227,0.15);
+        border-color: rgba(104,229,227,0.7);
+      }
+      #rp-toggle-tab-arrow {
+        color: #68e5e3;
+        font-size: 13px;
+        line-height: 1;
+        transition: transform 0.35s cubic-bezier(.4,0,.2,1);
+        user-select: none;
+      }
+      #rp-toggle-tab.rp-collapsed #rp-toggle-tab-arrow {
+        transform: rotate(180deg);
+      }
     `;
     document.head.appendChild(style);
     this._el(style);
@@ -1309,6 +1343,21 @@ _buildStudioLeftBtns() {
     wrap.appendChild(body);
     document.body.appendChild(wrap);
     this._el(wrap);
+
+    // ── Toggle tab (thu gọn / mở panel phải) ──
+    const toggleTab = document.createElement('div');
+    toggleTab.id = 'rp-toggle-tab';
+    toggleTab.innerHTML = `<span id="rp-toggle-tab-arrow">&#x276E;</span>`;
+    document.body.appendChild(toggleTab);
+    this._el(toggleTab);
+
+    let rpCollapsed = false;
+    toggleTab.addEventListener('click', () => {
+      rpCollapsed = !rpCollapsed;
+      stepsBar.classList.toggle('rp-collapsed', rpCollapsed);
+      body.classList.toggle('rp-collapsed', rpCollapsed);
+      toggleTab.classList.toggle('rp-collapsed', rpCollapsed);
+    });
 
     // ── Định nghĩa nội dung mỗi bước ──
     const STEP_CONFIGS = [
@@ -2505,114 +2554,9 @@ _buildStudioLeftBtns() {
     }, null, () => this.toast(`Không load được: ${d.name}`, 'error'));
   }
 
-  /* ══════════════════════════════════════════════ MUSIC PANEL ══════════════════════════════════════════════ */
-  _buildMusicPanel() {
-    this._musicPanel = document.createElement('div');
-    this._musicPanel.id = 'music-panel';
-    this._musicPanel.innerHTML = `
-      <button id="music-play-pause" class="music-btn">▶</button>
-      <input type="range" id="music-volume-slider" class="music-volume" min="0" max="1" step="0.01" value="0.5">
-      <span id="music-track-name">🎵 Chưa có nhạc</span>
-      <label style="cursor:pointer;color:#c8a96e;font-size:12px" id="music-upload-label">📁</label>
-      <input type="file" id="music-file-input" accept="audio/*" style="display:none">
-    `;
-    document.body.appendChild(this._musicPanel);
-    this._el(this._musicPanel);
-    
-    const playPauseBtn = document.getElementById('music-play-pause');
-    const volumeSlider = document.getElementById('music-volume-slider');
-    const uploadLabel = document.getElementById('music-upload-label');
-    const fileInput = document.getElementById('music-file-input');
-    
-    playPauseBtn.addEventListener('click', () => this.toggleMusic());
-    volumeSlider.addEventListener('input', (e) => {
-      if (this.backgroundMusic) {
-        this.backgroundMusic.volume = parseFloat(e.target.value);
-      }
-    });
-    uploadLabel.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', (e) => this.loadMusicFile(e));
-  }
-
-  toggleMusic() {
-    if (!this.backgroundMusic) {
-      this.toast('Chưa có nhạc nào, hãy upload file MP3', 'info');
-      return;
-    }
-    
-    if (this.isMusicPlaying) {
-      this.backgroundMusic.pause();
-      this.isMusicPlaying = false;
-      document.getElementById('music-play-pause').textContent = '▶';
-    } else {
-      this.backgroundMusic.play().catch(e => {
-        console.log('Auto-play blocked, user interaction needed');
-        this.toast('Click play lại lần nữa', 'info');
-      });
-      this.isMusicPlaying = true;
-      document.getElementById('music-play-pause').textContent = '⏸';
-    }
-  }
-
-  async loadMusicFile(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!file.type.startsWith('audio/')) {
-      this.toast('Vui lòng chọn file nhạc (MP3, WAV, OGG)', 'error');
-      return;
-    }
-    
-    this.toast('Đang upload nhạc...', 'info', 5000);
-    const storageUrl = await this.uploadToStorage(file);
-    if (!storageUrl) {
-      this.toast('Upload nhạc thất bại', 'error');
-      return;
-    }
-    
-    if (this.backgroundMusic) {
-      this.backgroundMusic.pause();
-      this.backgroundMusic = null;
-    }
-    
-    this._musicUrl = storageUrl;
-    this.backgroundMusic = new Audio(storageUrl);
-    this.backgroundMusic.loop = true;
-    this.backgroundMusic.volume = parseFloat(document.getElementById('music-volume-slider').value);
-    
-    document.getElementById('music-track-name').textContent = `🎵 ${file.name.substring(0, 20)}`;
-    
-    this.backgroundMusic.play().then(() => {
-      this.isMusicPlaying = true;
-      document.getElementById('music-play-pause').textContent = '⏸';
-      this.toast('Nhạc đang phát', 'success');
-    }).catch(() => {
-      this.isMusicPlaying = false;
-      document.getElementById('music-play-pause').textContent = '▶';
-      this.toast('Click vào nút play để phát nhạc', 'info');
-    });
-    
-    e.target.value = '';
-  }
 
   /* ══════════════════════════════════════════════ BIND CONTROLS ══════════════════════════════════════════════ */
   _bindControls() {
-    document.getElementById('btn-publish').addEventListener('click', () => this._togglePublish());
-    document.getElementById('btn-adv-text').addEventListener('click', () => {
-      this.textEditor.togglePanel();
-    });
-
-    document.getElementById('btn-light').addEventListener('click', () => {
-      this._lightPanel.classList.toggle('open');
-      this._pathPanel.classList.remove('open');
-      this._templatePanel.classList.remove('open');
-      this._decorPanel.classList.remove('open');
-      this.textEditor.closePanel();
-      document.getElementById('btn-light').classList.toggle('active', this._lightPanel.classList.contains('open'));
-      document.getElementById('btn-path').classList.remove('active');
-      document.getElementById('btn-template').classList.remove('active');
-      document.getElementById('btn-decor').classList.remove('active');
-      document.getElementById('btn-adv-text').classList.remove('active');
-    });
 
     document.getElementById('amb-intensity').addEventListener('input', (e) => { this.ambLight.intensity = +e.target.value; document.getElementById('amb-val').textContent = (+e.target.value).toFixed(2); });
     document.getElementById('amb-color').addEventListener('input', (e) => { this.ambLight.color.set(e.target.value); });
@@ -2670,32 +2614,6 @@ _buildStudioLeftBtns() {
       ['title', 'artist', 'year', 'desc', 'price'].forEach(k => { this.selectedItem.data.meta[k] = document.getElementById('pop-' + k).value; });
       document.getElementById('hud-name').textContent = this.selectedItem.data.meta.title || (this.selectedItem.type === 'model' ? `Model #${this.selectedItem.index + 1}` : `Tác phẩm #${this.selectedItem.index + 1}`);
       this._infoPopup.style.display = 'none'; this.toast('Đã lưu thông tin', 'success');
-    });
-
-    document.getElementById('btn-path').addEventListener('click', () => {
-      this._pathPanel.classList.toggle('open');
-      this._lightPanel.classList.remove('open');
-      this._templatePanel.classList.remove('open');
-      this._decorPanel.classList.remove('open');
-      this.textEditor.closePanel();
-      document.getElementById('btn-path').classList.toggle('active', this._pathPanel.classList.contains('open'));
-      document.getElementById('btn-light').classList.remove('active');
-      document.getElementById('btn-template').classList.remove('active');
-      document.getElementById('btn-decor').classList.remove('active');
-      document.getElementById('btn-adv-text').classList.remove('active');
-    });
-
-    document.getElementById('btn-template').addEventListener('click', () => {
-      this._templatePanel.classList.toggle('open');
-      this._lightPanel.classList.remove('open');
-      this._pathPanel.classList.remove('open');
-      this._decorPanel.classList.remove('open');
-      this.textEditor.closePanel();
-      document.getElementById('btn-template').classList.toggle('active', this._templatePanel.classList.contains('open'));
-      document.getElementById('btn-light').classList.remove('active');
-      document.getElementById('btn-path').classList.remove('active');
-      document.getElementById('btn-decor').classList.remove('active');
-      document.getElementById('btn-adv-text').classList.remove('active');
     });
 
     document.getElementById('btn-decor').addEventListener('click', () => {
