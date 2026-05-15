@@ -49,7 +49,9 @@ export class StudioScene extends BaseScene {
     this.frameMat       = new THREE.MeshLambertMaterial({ color: 0x2a2018 });
     this.gltfLoader     = new GLTFLoader();
     this.objLoader      = new OBJLoader();
-    this.mode           = 'walk';
+    this.mode           = 'select';
+    this._undoStack     = [];
+    this._redoStack     = [];
     this.chests          = [];
     this._chestPlacingMode = false;
     this._pendingChestPos  = null;
@@ -108,14 +110,16 @@ export class StudioScene extends BaseScene {
     this._buildWaypointElements();
     this._injectWaypointCSS();
     this._buildStudioTopBar();
+    this._buildSaveSuccessModal();
+    this._buildSecondaryToolbar()
     this._buildMinimap();  
     this._buildStudioLeftBtns();
     this._bindControls();
 
     /* ── Sự kiện ── */
     this._on(this.renderer.domElement, 'click',     (e) => this._onCanvasClick(e));
-    this._on(this.renderer.domElement, 'mousedown', (e) => { if (e.button === 0) { this.isLeftDown = true; this.didDrag = false; this.lastX = e.clientX; this.lastY = e.clientY; } });
-    this._on(window,                   'mouseup',   (e) => { if (e.button === 0) this.isLeftDown = false; });
+    this._on(this.renderer.domElement, 'mousedown', (e) => { if (e.button === 0) { this.isLeftDown = true; this.didDrag = false; this.lastX = e.clientX; this.lastY = e.clientY; if (this.selectedItem && ['translate', 'rotate', 'scale'].includes(this.mode)) this._saveUndoState(); } });
+    this._on(window, 'mouseup', (e) => { if (e.button === 0) { this.isLeftDown = false; if (this.didDrag && this.selectedItem && ['translate', 'rotate', 'scale'].includes(this.mode)) this._triggerAutosave(); } });
     this._on(this.renderer.domElement, 'mousemove', (e) => this._onMouseMove(e));
     this._on(document,                 'keydown',   (e) => { this.keys[e.code] = true; });
     this._on(document,                 'keyup',     (e) => { this.keys[e.code] = false; });
@@ -169,6 +173,20 @@ export class StudioScene extends BaseScene {
       .pp-btn.danger:hover{background:rgba(181,74,58,.15)}
       .pp-sep{border:none;border-top:.5px solid rgba(212,197,169,.1);margin:2px 0}
       #wp-list{display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto;margin-top:4px}
+
+      /* ── Save-success modal (hiện khi bấm Preview) ── */
+      #save-success-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);z-index:10000;display:none;align-items:center;justify-content:center;animation:ssOverlayIn .25s ease}
+      #save-success-overlay.open{display:flex}
+      @keyframes ssOverlayIn{from{opacity:0}to{opacity:1}}
+      #save-success-card{background:rgba(15,13,12,.97);border:1px solid rgba(200,169,110,.45);border-radius:10px;padding:36px 48px;display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 16px 48px rgba(0,0,0,.6);animation:ssCardIn .3s cubic-bezier(.34,1.56,.64,1);font-family:monospace;min-width:320px;text-align:center}
+      @keyframes ssCardIn{from{transform:scale(.78);opacity:0}to{transform:scale(1);opacity:1}}
+      #save-success-icon{font-size:40px;line-height:1;animation:ssIconBounce .5s cubic-bezier(.34,1.56,.64,1) .1s both}
+      @keyframes ssIconBounce{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+      #save-success-title{color:#c8a96e;font-size:13px;letter-spacing:.2em;text-transform:uppercase;font-weight:700}
+      #save-success-msg{color:rgba(212,197,169,.7);font-size:10px;letter-spacing:.1em;line-height:1.7}
+      #save-success-progress-wrap{width:100%;height:2px;background:rgba(212,197,169,.12);border-radius:2px;overflow:hidden;margin-top:4px}
+      #save-success-progress{height:100%;width:100%;background:linear-gradient(90deg,#c8a96e,#f0d090);border-radius:2px;transform-origin:left;animation:ssProgress 1.6s linear forwards}
+      @keyframes ssProgress{from{transform:scaleX(1)}to{transform:scaleX(0)}}
       .wp-item{display:flex;align-items:center;gap:6px;background:rgba(212,197,169,.04);border:.5px solid rgba(212,197,169,.12);border-radius:2px;padding:5px 8px;cursor:grab;transition:all .2s}
       .wp-item:active{cursor:grabbing}
       .wp-item:hover,.wp-item.active{border-color:#c8a96e;background:rgba(200,169,110,.08)}
@@ -381,7 +399,6 @@ export class StudioScene extends BaseScene {
       <button class="tb-btn" id="btn-back">← Back</button>
       <button class="tb-btn active" id="btn-walk">🚶 Walk</button>
       <button class="tb-btn" id="btn-place">📌 Place</button>
-      <button class="tb-btn" id="btn-select">✦ Select</button>
       <button class="tb-btn" id="btn-light">💡 Light</button>
       <button class="tb-btn" id="btn-path">🛤 Path</button>
       <button class="tb-btn" id="btn-template">🏛 Template</button>
@@ -405,6 +422,42 @@ export class StudioScene extends BaseScene {
     this._toastEl.textContent = msg; this._toastEl.className = 'show ' + type;
     clearTimeout(this._toastEl._t);
     this._toastEl._t = setTimeout(() => { this._toastEl.className = ''; }, duration);
+  }
+
+  /* ══════════════════════════════════════════════ SAVE SUCCESS MODAL ══════════════════════════════════════════════ */
+  _buildSaveSuccessModal() {
+    const overlay = document.createElement('div');
+    overlay.id = 'save-success-overlay';
+    overlay.innerHTML = `
+      <div id="save-success-card">
+        <div id="save-success-icon">✅</div>
+        <div id="save-success-title">Đã lưu thành công!</div>
+        <div id="save-success-msg">
+          Phòng tranh của bạn đã được lưu.<br>
+          Đang mở chế độ xem trước…
+        </div>
+        <div id="save-success-progress-wrap">
+          <div id="save-success-progress"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    this._el(overlay);
+  }
+
+  async _showSaveSuccessModal() {
+    const overlay = document.getElementById('save-success-overlay');
+    if (!overlay) return;
+    // Reset animation bằng cách clone và thay thế progress bar
+    const prog = overlay.querySelector('#save-success-progress');
+    if (prog) {
+      const fresh = prog.cloneNode(true);
+      prog.parentNode.replaceChild(fresh, prog);
+    }
+    overlay.classList.add('open');
+    // Chờ animation progress bar chạy xong (1.6s) + buffer nhỏ
+    await new Promise(resolve => setTimeout(resolve, 1750));
+    overlay.classList.remove('open');
   }
 
   _isRoomNameValid() {
@@ -484,10 +537,15 @@ roomNameInput.addEventListener('blur', function() {
     // Nút Save
     document.getElementById('btn-studio-save').addEventListener('click', () => this.saveGallery());
 
-    // Nút Preview — mở viewer trong tab mới
-    document.getElementById('btn-studio-preview').addEventListener('click', () => {
-      const roomId = this.manager.currentRoom?.id;
-      if (roomId) window.open(`/viewer?room=${roomId}`, '_blank');
+    // Nút Preview — lưu → modal thông báo → chuyển sang PreviewScene
+    document.getElementById('btn-studio-preview').addEventListener('click', async () => {
+      if (!this._isRoomNameValid()) return;
+      // 1. Lưu phòng
+      await this.saveGallery();
+      // 2. Hiện modal "Đã lưu thành công"
+      await this._showSaveSuccessModal();
+      // 3. Chuyển sang PreviewScene (cùng tab, chỉ artist xem được)
+      this.manager.navigateTo('preview');
     });
   }
 
@@ -495,6 +553,228 @@ roomNameInput.addEventListener('blur', function() {
     if (!this._autosaveEnabled) return;
     clearTimeout(this._autosaveTimer);
     this._autosaveTimer = setTimeout(() => this.saveGallery(), 3000);
+  }
+
+_buildSecondaryToolbar() {
+  // CSS
+  const style = document.createElement('style');
+  style.textContent = `
+      #studio-secondary-toolbar {
+      position: fixed;
+      top: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 0 10px;
+      z-index: 26;
+      background: url('/studio/toolbarbg.svg') no-repeat center center;
+      background-size: 100% 100%;
+      border: none;
+      box-shadow: none;
+      border-radius: 0;
+      justify-content: space-evenly;  
+    }
+    .stb2-btn {
+      width: 36px; height: 36px;
+      border-radius: 8px; border: none; background: transparent;
+      color: rgba(100,120,150,0.3);
+      display: flex; align-items: center; justify-content: center;
+      cursor: not-allowed; font-size: 18px; pointer-events: none;
+      transition: background 0.15s, color 0.15s;
+      position: relative; outline: none;
+    }
+    .stb2-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+    .stb2-btn.on { color: #a8bce0; pointer-events: auto; cursor: pointer; }
+    .stb2-btn.on:hover { background: rgba(255,255,255,0.13); color: #fff; }
+    .stb2-btn.activated { color: #c8a96e; background: rgba(200,169,110,0.2); pointer-events: auto; cursor: pointer; }
+    .stb2-btn.activated:hover { background: rgba(200,169,110,0.35); color: #f0d090; }
+    .stb2-sep {
+      width: 1px; height: 22px;
+      background: rgba(255,255,255,0.12);
+      margin: 0 6px; flex-shrink: 0;
+    }
+    .stb2-tooltip {
+      position: absolute; bottom: calc(100% + 8px); left: 50%;
+      transform: translateX(-50%);
+      background: #111827; color: #e5e9f2;
+      font-size: 11px; font-family: monospace;
+      white-space: nowrap; padding: 4px 10px;
+      border-radius: 6px; pointer-events: none;
+      opacity: 0; transition: opacity 0.15s;
+      border: 0.5px solid rgba(255,255,255,0.12);
+    }
+    .stb2-btn.on:hover .stb2-tooltip,
+    .stb2-btn.activated:hover .stb2-tooltip { opacity: 1; }
+  `;
+  document.head.appendChild(style);
+  this._el(style);
+
+  const icon = (paths) => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths}</svg>`;
+
+  const ICONS = {
+    trash:   icon('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>'),
+    move:    icon('<path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>'),
+    rotate:  icon('<path d="M20 7A9 9 0 1 0 21 12"/><polyline points="21 3 21 7 17 7"/>'),
+    scale:   icon('<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>'),
+    undo:    icon('<path d="M3 10h11a4 4 0 0 1 0 8h-4"/><polyline points="3 10 7 6 3 2 3 10"/>'),
+    redo:    icon('<path d="M21 10H10a4 4 0 0 0 0 8h4"/><polyline points="21 10 17 6 21 2 21 10"/>'),
+    select:  icon('<path d="M4 4l6 18 3-7 7-3z"/><line x1="16" y1="16" x2="22" y2="22"/>'),
+  };
+
+  const bar = document.createElement('div');
+  bar.id = 'studio-secondary-toolbar';
+  const tmpImg = new Image();
+  tmpImg.src = '/studio/toolbarbg.svg';
+  tmpImg.onload = () => {
+    const ratio = tmpImg.naturalWidth / tmpImg.naturalHeight;
+    bar.style.height = '44px';
+    bar.style.width = (44 * ratio) + 'px';
+  };
+
+  const makeBtn = (id, iconHtml, tooltip) => {
+    const btn = document.createElement('button');
+    btn.className = 'stb2-btn';
+    btn.id = id;
+    btn.innerHTML = iconHtml + `<span class="stb2-tooltip">${tooltip}</span>`;
+    return btn;
+  };
+
+  const sep = () => {
+    const d = document.createElement('div');
+    d.className = 'stb2-sep';
+    return d;
+  };
+
+  // Nhóm 1: Select + Delete
+  const btnSelect = makeBtn('stb2-select', ICONS.select, 'Chọn (Select)');
+  btnSelect.classList.add('activated');
+  bar.appendChild(btnSelect);
+  bar.appendChild(makeBtn('stb2-delete', ICONS.trash, 'Xoá vật thể'));
+
+  bar.appendChild(sep());
+
+  // Nhóm 2: Transform (OFF until object selected)
+  bar.appendChild(makeBtn('stb2-translate', ICONS.move,   'Di dời'));
+  bar.appendChild(makeBtn('stb2-rotate',    ICONS.rotate, 'Xoay'));
+  bar.appendChild(makeBtn('stb2-scale',     ICONS.scale,  'Điều chỉnh kích thước'));
+
+  bar.appendChild(sep());
+
+  // Nhóm 3: Undo/Redo (always on)
+  const btnUndo = makeBtn('stb2-undo', ICONS.undo, 'Hoàn tác');
+  const btnRedo = makeBtn('stb2-redo', ICONS.redo, 'Làm lại');
+  btnUndo.classList.add('on');
+  btnRedo.classList.add('on');
+  bar.appendChild(btnUndo);
+  bar.appendChild(btnRedo);
+
+  document.body.appendChild(bar);
+  this._el(bar);
+
+  // --- Bind events ---
+  document.getElementById('stb2-delete').addEventListener('click', () => {
+    document.getElementById('th-remove')?.click();
+  });
+
+  document.getElementById('stb2-undo').addEventListener('click', () => this._undo());
+  document.getElementById('stb2-redo').addEventListener('click', () => this._redo());
+
+  ['stb2-select', 'stb2-translate', 'stb2-rotate', 'stb2-scale'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      this._activateSecondaryBtn(id);
+      const modeMap = { 'stb2-select': 'select', 'stb2-translate': 'translate', 'stb2-rotate': 'rotate', 'stb2-scale': 'scale' };
+      this.mode = modeMap[id];
+    });
+  });
+}
+
+  _saveUndoState() {
+    const obj = this.getSelObj();
+    if (!obj || !this.selectedItem) return;
+    this._undoStack.push({ type: this.selectedItem.type, index: this.selectedItem.index, position: obj.position.clone(), rotation: obj.rotation.clone(), scale: obj.scale.clone() });
+    if (this._undoStack.length > 50) this._undoStack.shift();
+    this._redoStack = [];
+  }
+
+  _getObjByState(state) {
+    if (state.type === 'artwork') return this.artworks[state.index]?.group;
+    if (state.type === 'model') return this.models3d[state.index]?.object;
+    if (state.type === 'chest') return this.chests[state.index]?.mesh;
+    if (state.type === 'text') return this.textEditor.texts[state.index]?.group;
+    return null;
+  }
+
+  _undo() {
+    const state = this._undoStack.pop();
+    if (!state) { this.toast('Không có gì để hoàn tác', 'info'); return; }
+    if (state.type === 'delete-artwork') {
+      this.artworks.splice(state.index, 0, state.data);
+      this.threeScene.add(state.data.group);
+      this._redoStack.push({ type: 'restore-artwork', index: state.index, data: state.data });
+      this.toast('Hoàn tác xoá tranh ✓', 'success'); return;
+    }
+    if (state.type === 'delete-model') {
+      this.models3d.splice(state.index, 0, state.data);
+      this.threeScene.add(state.data.object);
+      if (state.data.light) this.threeScene.add(state.data.light);
+      if (state.data.pedestal) this.threeScene.add(state.data.pedestal);
+      this._redoStack.push({ type: 'restore-model', index: state.index, data: state.data });
+      this.toast('Hoàn tác xoá model ✓', 'success'); return;
+    }
+    const obj = this._getObjByState(state);
+    if (!obj) return;
+    this._redoStack.push({ type: state.type, index: state.index, position: obj.position.clone(), rotation: obj.rotation.clone(), scale: obj.scale.clone() });
+    obj.position.copy(state.position); obj.rotation.copy(state.rotation); obj.scale.copy(state.scale);
+    this.toast('Hoàn tác ✓', 'success');
+  }
+
+  _redo() {
+    const state = this._redoStack.pop();
+    if (!state) { this.toast('Không có gì để làm lại', 'info'); return; }
+    if (state.type === 'restore-artwork') {
+      this.threeScene.remove(state.data.group);
+      this.artworks.splice(state.index, 1);
+      this._undoStack.push({ type: 'delete-artwork', index: state.index, data: state.data });
+      this.toast('Làm lại xoá tranh ✓', 'success'); return;
+    }
+    if (state.type === 'restore-model') {
+      this.threeScene.remove(state.data.object);
+      if (state.data.light) this.threeScene.remove(state.data.light);
+      if (state.data.pedestal) this.threeScene.remove(state.data.pedestal);
+      this.models3d.splice(state.index, 1);
+      this._undoStack.push({ type: 'delete-model', index: state.index, data: state.data });
+      this.toast('Làm lại xoá model ✓', 'success'); return;
+    }
+    const obj = this._getObjByState(state);
+    if (!obj) return;
+    this._undoStack.push({ type: state.type, index: state.index, position: obj.position.clone(), rotation: obj.rotation.clone(), scale: obj.scale.clone() });
+    obj.position.copy(state.position); obj.rotation.copy(state.rotation); obj.scale.copy(state.scale);
+    this.toast('Làm lại ✓', 'success');
+  }
+
+  _setTransformButtonsEnabled(enabled) {
+    ['stb2-delete', 'stb2-translate', 'stb2-rotate', 'stb2-scale'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.classList.remove('on', 'activated');
+      if (enabled) btn.classList.add('on');
+    });
+    if (!enabled) {
+      const sel = document.getElementById('stb2-select');
+      if (sel) { sel.classList.remove('on'); sel.classList.add('activated'); }
+      if (['translate', 'rotate', 'scale'].includes(this.mode)) this.mode = 'select';
+    }
+  }
+
+  _activateSecondaryBtn(activeId) {
+    ['stb2-select', 'stb2-translate', 'stb2-rotate', 'stb2-scale'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (!btn || (!btn.classList.contains('on') && !btn.classList.contains('activated'))) return;
+      btn.classList.remove('activated', 'on');
+      btn.classList.add(id === activeId ? 'activated' : 'on');
+    });
   }
 
   _buildMinimap() {
@@ -805,6 +1085,7 @@ _buildStudioLeftBtns() {
         } else {
           this.toast('Đang upload...', 'info', 10000);
           const storageUrl = await this.uploadToStorage(file);
+          if (!storageUrl) { this.toast('Upload thất bại, ảnh sẽ không được lưu', 'error'); continue; }
           const img = new Image();
           img.onload = () => {
             const nw = img.naturalWidth, nh = img.naturalHeight;
@@ -876,22 +1157,12 @@ _buildStudioLeftBtns() {
     this._hud = document.createElement('div');
     this._hud.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(15,13,12,.95);border:1px solid rgba(212,197,169,.2);border-radius:4px;padding:10px 14px;display:none;flex-direction:column;gap:8px;z-index:20;font-family:monospace;min-width:320px;';
     this._hud.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span id="hud-name" style="color:#d4c5a9;font-size:11px;font-style:italic"></span>
-        <button id="hud-close" style="background:none;border:none;color:#555;cursor:pointer;font-size:14px">✕</button>
-      </div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap">
-        <button class="hud-btn" id="th-up">↑</button>
-        <button class="hud-btn" id="th-down">↓</button>
-        <button class="hud-btn" id="th-left">←</button>
-        <button class="hud-btn" id="th-right">→</button>
-        <button class="hud-btn" id="th-rot-l">↺</button>
-        <button class="hud-btn" id="th-rot-r">↻</button>
-        <button class="hud-btn" id="th-scale-up">＋</button>
-        <button class="hud-btn" id="th-scale-dn">－</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span id="hud-name" style="color:#d4c5a9;font-size:11px;font-style:italic;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         <button class="hud-btn" id="th-info">📝 Info</button>
-        <button class="hud-btn danger" id="th-remove">🗑</button>
+        <button id="hud-close" style="background:none;border:none;color:#555;cursor:pointer;font-size:14px;flex-shrink:0">✕</button>
       </div>
+      <button id="th-remove" style="display:none"></button>
     `;
     document.body.appendChild(this._hud); this._el(this._hud);
   }
@@ -899,6 +1170,7 @@ _buildStudioLeftBtns() {
   getSelObj() {
     if (!this.selectedItem) return null;
     if (this.selectedItem.type === 'chest') return this.selectedItem.data.mesh;
+    if (this.selectedItem.type === 'text') return this.selectedItem.data.group;
     return this.selectedItem.type === 'artwork' ? this.selectedItem.data.group : this.selectedItem.data.object;
   }
 
@@ -906,12 +1178,15 @@ _buildStudioLeftBtns() {
     this.selectedItem = { type, data, index };
     this._hud.style.display = 'flex';
     const infoBtn = document.getElementById('th-info');
-    if (infoBtn) infoBtn.style.display = type === 'chest' ? 'none' : '';
+    if (infoBtn) infoBtn.style.display = (type === 'chest' || type === 'text') ? 'none' : '';
     if (type === 'chest') {
       document.getElementById('hud-name').textContent = `🗝 Rương #${index + 1} · ⭐ ${data.token_amount}`;
+    } else if (type === 'text') {
+      document.getElementById('hud-name').textContent = `📝 "${data.data.content.substring(0, 25)}"`;
     } else {
       document.getElementById('hud-name').textContent = data.meta?.title || (type === 'model' ? `Model #${index + 1}` : `Tác phẩm #${index + 1}`);
     }
+    this._setTransformButtonsEnabled(true);
   }
 
   deselectItem() {
@@ -919,6 +1194,7 @@ _buildStudioLeftBtns() {
     this.selectedItem = null;
     this._hud.style.display = 'none';
     if (this._infoPopup) this._infoPopup.style.display = 'none';
+    this._setTransformButtonsEnabled(false);
   }
 
   /* ══════════════════════════════════════════════ INFO POPUP ══════════════════════════════════════════════ */
@@ -954,7 +1230,13 @@ _buildStudioLeftBtns() {
 
   place3DModel(object, pos, storageUrl, name, meta = {}, scaleVec = null) {
     if (scaleVec) { object.scale.copy(scaleVec); }
-    else { const box = new THREE.Box3().setFromObject(object); const sz = box.getSize(new THREE.Vector3()); object.scale.setScalar(1.2 / Math.max(sz.x, sz.y, sz.z)); }
+    else {
+      const box = new THREE.Box3().setFromObject(object);
+      const sz = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(sz.x, sz.y, sz.z);
+      if (maxDim > 0.001 && isFinite(maxDim)) { object.scale.setScalar(1.5 / maxDim); }
+      else { object.scale.set(1, 1, 1); }
+    }
     object.position.copy(pos); object.position.y = .88; this.threeScene.add(object);
     const pl = new THREE.PointLight(0xfff0dd, 1.5, 4); pl.position.set(pos.x, pos.y + 2, pos.z); this.threeScene.add(pl);
     const ped = this.makePedestal(new THREE.Vector3(pos.x, 0, pos.z));
@@ -1591,12 +1873,10 @@ document.getElementById('btn-back').addEventListener('click', () => {
 });
     document.getElementById('btn-walk').addEventListener('click', () => this.setMode('walk'));
     document.getElementById('btn-place').addEventListener('click', () => this.setMode('place'));
-    document.getElementById('btn-select').addEventListener('click', () => this.setMode('select'));
     document.getElementById('btn-save').addEventListener('click', () => this.saveGallery());
     document.getElementById('btn-publish').addEventListener('click', () => this._togglePublish());
     document.getElementById('btn-adv-text').addEventListener('click', () => {
       this.textEditor.togglePanel();
-      this.setMode('walk');
     });
 
     document.getElementById('btn-light').addEventListener('click', () => {
@@ -1617,27 +1897,42 @@ document.getElementById('btn-back').addEventListener('click', () => {
     document.getElementById('hemi-intensity').addEventListener('input', (e) => { this.hemiLight.intensity = +e.target.value; document.getElementById('hemi-val').textContent = (+e.target.value).toFixed(2); });
     document.getElementById('dir-intensity').addEventListener('input', (e) => { this.dirLight.intensity = +e.target.value; document.getElementById('dir-val').textContent = (+e.target.value).toFixed(2); });
 
-    const MS = 0.1, RS = Math.PI / 24, SS = 0.1;
     document.getElementById('hud-close').addEventListener('click', () => this.deselectItem());
-    document.getElementById('th-up').addEventListener('click', () => { const o = this.getSelObj(); if (o) o.position.y += MS; });
-    document.getElementById('th-down').addEventListener('click', () => { const o = this.getSelObj(); if (o) o.position.y -= MS; });
-    document.getElementById('th-left').addEventListener('click', () => { const o = this.getSelObj(); if (o) o.position.addScaledVector(new THREE.Vector3(-1, 0, 0).applyEuler(o.rotation), MS); });
-    document.getElementById('th-right').addEventListener('click', () => { const o = this.getSelObj(); if (o) o.position.addScaledVector(new THREE.Vector3(1, 0, 0).applyEuler(o.rotation), MS); });
-    document.getElementById('th-rot-l').addEventListener('click', () => { const o = this.getSelObj(); if (o) o.rotation.y += RS; });
-    document.getElementById('th-rot-r').addEventListener('click', () => { const o = this.getSelObj(); if (o) o.rotation.y -= RS; });
-    document.getElementById('th-scale-up').addEventListener('click', () => { const o = this.getSelObj(); if (o) { const s = o.scale; s.setScalar(s.x + SS); } });
-    document.getElementById('th-scale-dn').addEventListener('click', () => { const o = this.getSelObj(); if (o) { const s = o.scale; s.setScalar(Math.max(.05, s.x - SS)); } });
     document.getElementById('th-remove').addEventListener('click', () => {
       if (!this.selectedItem) return;
       if (this.selectedItem.type === 'chest') {
         const id = this.selectedItem.data.id;
-        this.selectedItem = null;
-        this._hud.style.display = 'none';
+        this.deselectItem();
         this._deleteChest(id);
         return;
       }
-      if (this.selectedItem.type === 'artwork') { this.threeScene.remove(this.selectedItem.data.group); this.artworks.splice(this.selectedItem.index, 1); this.toast('Đã xoá tranh', 'info'); }
-      else { this.threeScene.remove(this.selectedItem.data.object); this.threeScene.remove(this.selectedItem.data.light); this.threeScene.remove(this.selectedItem.data.pedestal); this.models3d.splice(this.selectedItem.index, 1); this.toast('Đã xoá model', 'info'); }
+      if (this.selectedItem.type === 'text') {
+        const idx = this.selectedItem.index;
+        this.deselectItem();
+        this.textEditor.removeTextAtIndex(idx);
+        return;
+      }
+      if (this.selectedItem.type === 'artwork') {
+        const idx = this.selectedItem.index;
+        const aw = this.selectedItem.data;
+        this._undoStack.push({ type: 'delete-artwork', index: idx, data: aw });
+        if (this._undoStack.length > 50) this._undoStack.shift();
+        this._redoStack = [];
+        this.threeScene.remove(aw.group);
+        this.artworks.splice(idx, 1);
+        this.toast('Đã xoá tranh — Ctrl+Z để hoàn tác', 'info');
+      } else {
+        const idx = this.selectedItem.index;
+        const md = this.selectedItem.data;
+        this._undoStack.push({ type: 'delete-model', index: idx, data: md });
+        if (this._undoStack.length > 50) this._undoStack.shift();
+        this._redoStack = [];
+        this.threeScene.remove(md.object);
+        this.threeScene.remove(md.light);
+        this.threeScene.remove(md.pedestal);
+        this.models3d.splice(idx, 1);
+        this.toast('Đã xoá model — Ctrl+Z để hoàn tác', 'info');
+      }
       this.deselectItem();
     });
 
@@ -1747,6 +2042,7 @@ document.getElementById('btn-back').addEventListener('click', () => {
       if (this.selectedSource.type === 'model3d') {
         const hits = this.raycaster.intersectObjects(this.modelMeshes, true); if (!hits.length) return;
         this.place3DModel(this.selectedSource.object.clone(), hits[0].point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null);
+        this._triggerAutosave();
         this.toast('Model đặt thành công ✓', 'success'); return;
       }
       const hits = this.raycaster.intersectObjects(this.modelMeshes, true); if (!hits.length) return;
@@ -1755,6 +2051,7 @@ document.getElementById('btn-back').addEventListener('click', () => {
       pt.add(n.clone().multiplyScalar(.05));
       if (this.selectedSource.isVideo) this.selectedSource.videoEl.play();
       this.placeArtwork(this.selectedSource, pt, [0, Math.atan2(n.x, n.z), 0]);
+      this._triggerAutosave();
       this.toast('Đã đặt tranh ✓', 'success'); return;
     }
 
@@ -1803,6 +2100,15 @@ document.getElementById('btn-back').addEventListener('click', () => {
         }
       }
 
+      if (this.textEditor?.texts.length) {
+        const tHits = this.raycaster.intersectObjects(this.textEditor.texts.map(t => t.group), true);
+        if (tHits.length) {
+          let h = tHits[0].object; while (h.parent && !this.textEditor.texts.find(t => t.group === h)) h = h.parent;
+          const idx = this.textEditor.texts.findIndex(t => t.group === h);
+          if (idx !== -1) { this.selectItem('text', this.textEditor.texts[idx], idx); return; }
+        }
+      }
+
       this.deselectItem();
     }
   }
@@ -1816,6 +2122,39 @@ document.getElementById('btn-back').addEventListener('click', () => {
     const dx = e.clientX - this.lastX, dy = e.clientY - this.lastY;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) this.didDrag = true;
     this.lastX = e.clientX; this.lastY = e.clientY;
+
+    if (this.selectedItem && (this.mode === 'translate' || this.mode === 'rotate' || this.mode === 'scale')) {
+      const obj = this.getSelObj();
+      if (obj) {
+        const isWall = this.selectedItem.type === 'artwork' || this.selectedItem.type === 'text';
+        if (this.mode === 'rotate') {
+          if (isWall) {
+            obj.rotation.z -= dx * 0.012; // spin on wall plane
+          } else {
+            obj.rotation.y -= dx * 0.012;
+          }
+        } else if (this.mode === 'scale') {
+          const f = Math.max(0.92, Math.min(1.08, 1 - dy * 0.006));
+          const curScale = (isFinite(obj.scale.x) && obj.scale.x > 0) ? obj.scale.x : 1;
+          const maxScale = (this.selectedItem.type === 'model' || this.selectedItem.type === 'chest') ? 30 : 10;
+          obj.scale.setScalar(Math.max(0.05, Math.min(maxScale, curScale * f)));
+        } else { // translate
+          if (isWall) {
+            // Dùng trục ngang của tường (chỉ Y-rotation, bỏ qua Z-rotation của user) để movement luôn nằm trong mặt phẳng tường
+            const wallH = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, obj.rotation.y, 0, 'YXZ'));
+            obj.position.addScaledVector(wallH, dx * 0.012);
+            obj.position.y -= dy * 0.012;
+          } else {
+            this.camera.getWorldDirection(this.fwd); this.fwd.y = 0; this.fwd.normalize();
+            this.rgt.crossVectors(this.fwd, new THREE.Vector3(0, 1, 0)).normalize();
+            obj.position.addScaledVector(this.rgt, dx * 0.012);
+            obj.position.addScaledVector(this.fwd, -dy * 0.012);
+          }
+        }
+        return;
+      }
+    }
+
     this.yaw -= dx * 0.003; this.pitch -= dy * 0.003;
     this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
     this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
@@ -1902,7 +2241,9 @@ document.getElementById('btn-back').addEventListener('click', () => {
         x: a.group.position.x,
         y: a.group.position.y,
         z: a.group.position.z,
+        rx: a.group.rotation.x,
         ry: a.group.rotation.y,
+        rz: a.group.rotation.z,
         sx: a.group.scale.x,
         sy: a.group.scale.y,
         sz: a.group.scale.z,
@@ -1998,11 +2339,11 @@ document.getElementById('btn-back').addEventListener('click', () => {
         const sv  = a.sx ? new THREE.Vector3(a.sx, a.sy, a.sz) : null;
         if (a.isVideo) {
           const vid = document.createElement('video'); vid.src = a.storageUrl; vid.loop = true; vid.muted = true; vid.playsInline = true; vid.crossOrigin = 'anonymous';
-          vid.addEventListener('loadeddata', () => { const tex = new THREE.VideoTexture(vid); tex.minFilter = THREE.LinearFilter; this.placeArtwork({ isVideo: true, texture: tex, videoEl: vid, storageUrl: a.storageUrl }, pos, [0, a.ry || 0, 0], a.meta || {}, sv); vid.play(); });
+          vid.addEventListener('loadeddata', () => { const tex = new THREE.VideoTexture(vid); tex.minFilter = THREE.LinearFilter; this.placeArtwork({ isVideo: true, texture: tex, videoEl: vid, storageUrl: a.storageUrl }, pos, [a.rx || 0, a.ry || 0, a.rz || 0], a.meta || {}, sv); vid.play(); });
         } else {
           const tex = await new Promise(resolve => new THREE.TextureLoader().load(a.storageUrl, resolve, undefined, () => resolve(null)));
           if (!tex) continue;
-          this.placeArtwork({ texture: tex, storageUrl: a.storageUrl, naturalWidth: a.naturalWidth || 1, naturalHeight: a.naturalHeight || 1 }, pos, [0, a.ry || 0, 0], a.meta || {}, sv);
+          this.placeArtwork({ texture: tex, storageUrl: a.storageUrl, naturalWidth: a.naturalWidth || 1, naturalHeight: a.naturalHeight || 1 }, pos, [a.rx || 0, a.ry || 0, a.rz || 0], a.meta || {}, sv);
         }
       }
     }

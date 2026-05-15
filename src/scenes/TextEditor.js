@@ -383,16 +383,7 @@ export class TextEditor {
         </div>
       </div>
       
-      <!-- Position controls -->
-      <div class="te-section" id="position-controls" style="display: none;">
-        <div class="te-section-title">📍 Position</div>
-        <div class="te-row">
-          <button class="te-tool-btn" id="te-move-up">⬆️ Lên</button>
-          <button class="te-tool-btn" id="te-move-down">⬇️ Xuống</button>
-          <button class="te-tool-btn" id="te-move-left">⬅️ Trái</button>
-          <button class="te-tool-btn" id="te-move-right">➡️ Phải</button>
-        </div>
-      </div>
+      <div id="position-controls" style="display:none;"></div>
       
       <!-- Action buttons -->
       <div class="te-row" style="gap: 8px; margin-top: 5px;">
@@ -500,11 +491,6 @@ export class TextEditor {
     // Clear all
     document.getElementById('te-clear-all')?.addEventListener('click', () => this.clearAllTexts());
     
-    // Position controls
-    document.getElementById('te-move-up')?.addEventListener('click', () => this.moveSelectedText(0, 0.05, 0));
-    document.getElementById('te-move-down')?.addEventListener('click', () => this.moveSelectedText(0, -0.05, 0));
-    document.getElementById('te-move-left')?.addEventListener('click', () => this.moveSelectedText(-0.05, 0, 0));
-    document.getElementById('te-move-right')?.addEventListener('click', () => this.moveSelectedText(0.05, 0, 0));
   }
   
   /**
@@ -951,20 +937,6 @@ export class TextEditor {
       return true;
     }
     
-    // Nếu đang ở chế độ select và click vào text
-    const textHits = raycaster.intersectObjects(this.texts.map(t => t.group), true);
-    if (textHits.length) {
-      let hitObj = textHits[0].object;
-      while (hitObj.parent && !this.texts.find(t => t.group === hitObj)) {
-        hitObj = hitObj.parent;
-      }
-      const idx = this.texts.findIndex(t => t.group === hitObj);
-      if (idx !== -1) {
-        this.selectTextForEdit(idx);
-        return true;
-      }
-    }
-    
     return false;
   }
   
@@ -1344,10 +1316,12 @@ export class TextEditor {
    */
   getSaveData() {
     return this.texts.map(t => ({
-      x: t.data.position.x,
-      y: t.data.position.y,
-      z: t.data.position.z,
-      rotation: t.data.rotation,
+      x: t.group.position.x,
+      y: t.group.position.y,
+      z: t.group.position.z,
+      rotY: t.group.rotation.y,
+      rotZ: t.group.rotation.z,
+      scale: t.group.scale.x,
       normalX: t.data.normal.x,
       normalY: t.data.normal.y,
       normalZ: t.data.normal.z,
@@ -1373,7 +1347,9 @@ export class TextEditor {
         t.content, t.styles, pos, normal
       );
       this.scene.add(group);
-      
+      if (t.rotZ) group.rotation.z = t.rotZ;
+      if (t.scale && t.scale !== 1) group.scale.setScalar(t.scale);
+
       this.texts.push({
         group: group,
         plane: plane,

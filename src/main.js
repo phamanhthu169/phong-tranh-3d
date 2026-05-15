@@ -8,6 +8,8 @@ import { ExploreScene }    from './scenes/ExploreScene.js';
 import { ViewerScene }     from './scenes/ViewerScene.js';
 import { ProfileScene }    from './scenes/ProfileScene.js';
 import { ForumScene }      from './scenes/ForumScene.js';
+import { PreviewScene } from './scenes/PreviewScene.js';
+
 
 const manager = new SceneManager();
 
@@ -20,7 +22,8 @@ manager
   .register('explore',   ExploreScene)
   .register('viewer',    ViewerScene)
   .register('profile',   ProfileScene)
-  .register('forum',     ForumScene);
+  .register('forum',     ForumScene)
+  .register('preview', PreviewScene);
 
 // Chờ auth xác định trạng thái trước khi mở scene đầu tiên
 // (tránh nhấp nháy khi đã đăng nhập mà bị redirect về login)

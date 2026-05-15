@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Header }      from '../ui/Header.js';
 import { AuthManager } from './AuthManager.js';
 
+
 export const HEADER_H = 48; // chiều cao header — dùng chung toàn app
 
 export class SceneManager {
@@ -87,7 +88,7 @@ export class SceneManager {
     }
 
     this._currentSceneName = name;
-    const hideHeader = name === 'studio' || name === 'viewer';
+    const hideHeader = name === 'studio' || name === 'viewer' || name === 'preview';
     this._setHeaderVisible(!hideHeader);
     this.current = new SceneClass(this.renderer, this);
     await this.current.init();
