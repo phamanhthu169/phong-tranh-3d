@@ -8,7 +8,7 @@ export class ForumScene extends BaseScene {
     await this.manager.auth.ready();
     if (this._disposed) return;
 
-    this.threeScene.background = new THREE.Color(0x0a0910);
+    this.threeScene.background = new THREE.Color(0xffffff);
     this.camera.position.set(0, 0, 5);
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.2));
     this._createParticles();
@@ -30,7 +30,7 @@ export class ForumScene extends BaseScene {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     this._particles = new THREE.Points(
       geo,
-      new THREE.PointsMaterial({ color: 0x9070d0, size: 0.03, transparent: true, opacity: 0.12 })
+      new THREE.PointsMaterial({ color: 0xcccccc, size: 0.03, transparent: true, opacity: 0.5 })
     );
     this.threeScene.add(this._particles);
   }
@@ -58,21 +58,21 @@ export class ForumScene extends BaseScene {
           margin-bottom: 28px;
         }
         .fr-title {
-          color: #d4c5a9;
+          color: #1a1a1a;
           font-size: 11px;
           letter-spacing: .28em;
           text-transform: uppercase;
         }
         .fr-sub {
-          color: #3a3228;
+          color: #888;
           font-size: 9px;
           letter-spacing: .12em;
           margin-top: 4px;
         }
         .fr-back {
           background: none;
-          border: 1px solid rgba(212,197,169,.15);
-          color: #5a5040;
+          border: 1px solid rgba(0,0,0,.1);
+          color: #555;
           font-family: monospace;
           font-size: 10px;
           letter-spacing: .06em;
@@ -81,14 +81,15 @@ export class ForumScene extends BaseScene {
           cursor: pointer;
           transition: all .2s;
         }
-        .fr-back:hover { border-color: rgba(212,197,169,.35); color: #8a7a60; }
+        .fr-back:hover { border-color: rgba(0,0,0,.25); color: #222; }
 
         .fr-compose {
-          background: rgba(15,13,12,.95);
-          border: 1px solid rgba(212,197,169,.14);
+          background: #ffffff;
+          border: 1px solid rgba(0,0,0,.1);
           border-radius: 8px;
           padding: 20px;
           margin-bottom: 24px;
+          box-shadow: 0 2px 8px rgba(0,0,0,.06);
         }
         .fr-compose-head {
           display: flex;
@@ -107,16 +108,16 @@ export class ForumScene extends BaseScene {
           flex-shrink: 0;
         }
         .fr-compose-name {
-          color: #8a7a60;
+          color: #555;
           font-size: 11px;
           letter-spacing: .06em;
         }
         .fr-textarea {
           width: 100%;
-          background: rgba(212,197,169,.04);
-          border: 1px solid rgba(212,197,169,.12);
+          background: rgba(0,0,0,.03);
+          border: 1px solid rgba(0,0,0,.1);
           border-radius: 4px;
-          color: #d4c5a9;
+          color: #1a1a1a;
           font-family: monospace;
           font-size: 13px;
           padding: 12px;
@@ -127,8 +128,8 @@ export class ForumScene extends BaseScene {
           line-height: 1.7;
           transition: border-color .2s;
         }
-        .fr-textarea:focus { border-color: rgba(200,169,110,.38); }
-        .fr-textarea::placeholder { color: #3a3228; }
+        .fr-textarea:focus { border-color: rgba(200,169,110,.5); }
+        .fr-textarea::placeholder { color: #aaa; }
         .fr-compose-foot {
           display: flex;
           align-items: center;
@@ -137,7 +138,7 @@ export class ForumScene extends BaseScene {
           margin-top: 12px;
         }
         .fr-char {
-          color: #2e2a24;
+          color: #aaa;
           font-size: 9px;
           letter-spacing: .06em;
         }
@@ -160,34 +161,35 @@ export class ForumScene extends BaseScene {
         .fr-btn.gold:disabled { opacity: .45; cursor: default; }
 
         .fr-not-logged {
-          background: rgba(15,13,12,.85);
-          border: 1px solid rgba(212,197,169,.1);
+          background: #f8f8f8;
+          border: 1px solid rgba(0,0,0,.08);
           border-radius: 6px;
           padding: 14px 20px;
           margin-bottom: 24px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          color: #4a4038;
+          color: #555;
           font-size: 11px;
           letter-spacing: .06em;
         }
 
         .fr-divider {
           border: none;
-          border-top: 1px solid rgba(212,197,169,.06);
+          border-top: 1px solid rgba(0,0,0,.06);
           margin: 6px 0 20px;
         }
 
         .fr-post-card {
-          background: rgba(15,13,12,.93);
-          border: 1px solid rgba(212,197,169,.1);
+          background: #ffffff;
+          border: 1px solid rgba(0,0,0,.08);
           border-radius: 8px;
           padding: 20px 20px 16px;
           margin-bottom: 14px;
           transition: border-color .2s;
+          box-shadow: 0 1px 4px rgba(0,0,0,.05);
         }
-        .fr-post-card:hover { border-color: rgba(212,197,169,.2); }
+        .fr-post-card:hover { border-color: rgba(0,0,0,.18); }
 
         .fr-author-row {
           display: flex;
@@ -212,7 +214,7 @@ export class ForumScene extends BaseScene {
           cursor: pointer;
           transition: color .15s;
         }
-        .fr-author-name:hover { color: #e0c880; text-decoration: underline; }
+        .fr-author-name:hover { color: #a07840; text-decoration: underline; }
         .fr-role-badge {
           display: inline-block;
           padding: 1px 7px;
@@ -221,19 +223,19 @@ export class ForumScene extends BaseScene {
           text-transform: uppercase;
           border-radius: 2px;
           border: 1px solid rgba(200,169,110,.22);
-          color: #7a6a50;
+          color: #888;
           background: rgba(200,169,110,.05);
           margin-left: 6px;
         }
         .fr-time {
-          color: #2e2a24;
+          color: #aaa;
           font-size: 9px;
           letter-spacing: .05em;
           margin-left: auto;
           white-space: nowrap;
         }
         .fr-content {
-          color: #c8bca8;
+          color: #1a1a1a;
           font-size: 13px;
           line-height: 1.78;
           margin-bottom: 14px;
@@ -248,7 +250,7 @@ export class ForumScene extends BaseScene {
         .fr-act {
           background: none;
           border: none;
-          color: #4a4038;
+          color: #666;
           font-family: monospace;
           font-size: 10px;
           letter-spacing: .06em;
@@ -265,7 +267,7 @@ export class ForumScene extends BaseScene {
 
         .fr-comments {
           margin-top: 16px;
-          border-top: 1px solid rgba(212,197,169,.07);
+          border-top: 1px solid rgba(0,0,0,.06);
           padding-top: 14px;
         }
         .fr-comment {
@@ -276,11 +278,11 @@ export class ForumScene extends BaseScene {
         .fr-c-avatar {
           width: 26px; height: 26px;
           border-radius: 50%;
-          background: rgba(200,169,110,.07);
-          border: 1px solid rgba(200,169,110,.16);
+          background: rgba(0,0,0,.05);
+          border: 1px solid rgba(0,0,0,.1);
           display: flex; align-items: center; justify-content: center;
           font-size: 10px;
-          color: #c8a96e;
+          color: #888;
           flex-shrink: 0;
           margin-top: 1px;
         }
@@ -299,11 +301,11 @@ export class ForumScene extends BaseScene {
         }
         .fr-c-author:hover { text-decoration: underline; }
         .fr-c-time {
-          color: #2a2620;
+          color: #aaa;
           font-size: 9px;
         }
         .fr-c-text {
-          color: #7a6e5c;
+          color: #333;
           font-size: 12px;
           line-height: 1.65;
           white-space: pre-wrap;
@@ -316,18 +318,18 @@ export class ForumScene extends BaseScene {
         }
         .fr-c-input {
           flex: 1;
-          background: rgba(212,197,169,.04);
-          border: 1px solid rgba(212,197,169,.1);
+          background: rgba(0,0,0,.03);
+          border: 1px solid rgba(0,0,0,.1);
           border-radius: 3px;
-          color: #d4c5a9;
+          color: #1a1a1a;
           font-family: monospace;
           font-size: 12px;
           padding: 7px 10px;
           outline: none;
           transition: border-color .2s;
         }
-        .fr-c-input:focus { border-color: rgba(200,169,110,.32); }
-        .fr-c-input::placeholder { color: #2e2a24; }
+        .fr-c-input:focus { border-color: rgba(200,169,110,.5); }
+        .fr-c-input::placeholder { color: #aaa; }
         .fr-c-send {
           padding: 7px 14px;
           background: rgba(200,169,110,.1);
@@ -346,14 +348,14 @@ export class ForumScene extends BaseScene {
 
         .fr-empty {
           text-align: center;
-          color: #3a3228;
+          color: #888;
           font-size: 11px;
           letter-spacing: .1em;
           padding: 70px 20px;
         }
         .fr-loading-txt {
           text-align: center;
-          color: #3a3228;
+          color: #888;
           font-size: 10px;
           letter-spacing: .1em;
           padding: 24px;
@@ -364,8 +366,8 @@ export class ForumScene extends BaseScene {
         }
         .fr-load-more-btn {
           background: none;
-          border: 1px solid rgba(212,197,169,.15);
-          color: #4a4038;
+          border: 1px solid rgba(0,0,0,.1);
+          color: #555;
           font-family: monospace;
           font-size: 10px;
           letter-spacing: .08em;
@@ -374,14 +376,14 @@ export class ForumScene extends BaseScene {
           cursor: pointer;
           transition: all .2s;
         }
-        .fr-load-more-btn:hover { border-color: rgba(212,197,169,.35); color: #8a7a60; }
+        .fr-load-more-btn:hover { border-color: rgba(0,0,0,.25); color: #222; }
 
         .fr-toast {
           position: fixed;
           bottom: 32px;
           left: 50%;
           transform: translateX(-50%);
-          background: rgba(12,10,9,.98);
+          background: rgba(255,255,255,.98);
           border: 1px solid rgba(106,170,122,.4);
           color: #6aaa7a;
           padding: 10px 24px;
@@ -394,6 +396,7 @@ export class ForumScene extends BaseScene {
           z-index: 9999;
           pointer-events: none;
           white-space: nowrap;
+          box-shadow: 0 2px 12px rgba(0,0,0,.1);
         }
       </style>
 

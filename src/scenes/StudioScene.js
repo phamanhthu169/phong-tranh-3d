@@ -544,17 +544,18 @@ export class StudioScene extends BaseScene {
     // Tạo đĩa tròn dưới sàn
     const disc = new THREE.Mesh(
       new THREE.CircleGeometry(0.55, 32),
-      new THREE.MeshBasicMaterial({ 
-        map: this.makeWpTex(idx + 1, false), 
-        transparent: true, 
+      new THREE.MeshBasicMaterial({
+        map: this.makeWpTex(idx + 1, false),
+        transparent: true,
         depthWrite: false,
-        depthTest: false,
-        side: THREE.DoubleSide 
+        side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1
       })
     );
     disc.rotation.x = -Math.PI / 2;
     disc.position.set(wx, floorY + 0.012, wz);
-    disc.renderOrder = 999;
     disc.userData.waypointIdx = idx;
     disc.userData.isWpDisc = true;
     this.threeScene.add(disc);
@@ -569,9 +570,8 @@ export class StudioScene extends BaseScene {
       ];
       line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(points),
-        new THREE.LineBasicMaterial({ color: 0xc8a96e, transparent: true, opacity: 0.55, depthTest: false })
+        new THREE.LineBasicMaterial({ color: 0xc8a96e, transparent: true, opacity: 0.55 })
       );
-      line.renderOrder = 998;
       this.threeScene.add(line);
     }
     

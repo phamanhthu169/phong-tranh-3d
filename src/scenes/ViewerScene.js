@@ -1694,6 +1694,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     this._galleryName = sd.gallery_name || this.manager.currentRoom.name || 'Phòng Tranh 3D';
     this._artistName  = sd.artist_name  || 'Artist Name';
 
+    this._trackView();
+
     if (sd.artworks?.length) {
       for (const a of sd.artworks) {
         if (!a.storageUrl) continue;
@@ -1819,11 +1821,10 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       const fy = this.floorY;
       const disc = new THREE.Mesh(
         new THREE.CircleGeometry(0.55, 32),
-        new THREE.MeshBasicMaterial({ map: this._makeWpTex(idx + 1, false), transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide })
+        new THREE.MeshBasicMaterial({ map: this._makeWpTex(idx + 1, false), transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })
       );
       disc.rotation.x = -Math.PI / 2;
       disc.position.set(wp.x, fy + 0.012, wp.z);
-      disc.renderOrder = 999;
       disc.userData.waypointIdx = idx;
       this.threeScene.add(disc);
 
@@ -1836,9 +1837,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
         ];
         line = new THREE.Line(
           new THREE.BufferGeometry().setFromPoints(pts),
-          new THREE.LineBasicMaterial({ color: 0xc8a96e, transparent: true, opacity: 0.55, depthTest: false })
+          new THREE.LineBasicMaterial({ color: 0xc8a96e, transparent: true, opacity: 0.55 })
         );
-        line.renderOrder = 998;
         this.threeScene.add(line);
       }
       this.pathMarkers.push({ mesh: disc, line });
@@ -1925,6 +1925,29 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
   }
 
+  // ─── View tracking ───────────────────────────────────────────────────────────
+  async _trackView() {
+    if (!this._galleryDbKey) return;
+    const sessionKey = `viewed_${this._galleryDbKey}`;
+    if (sessionStorage.getItem(sessionKey)) return;
+    sessionStorage.setItem(sessionKey, '1');
+
+    const { data } = await supabase
+      .from('gallery_stats')
+      .select('views')
+      .eq('gallery_name', this._galleryDbKey)
+      .maybeSingle();
+
+    if (data) {
+      await supabase.from('gallery_stats')
+        .update({ views: (data.views || 0) + 1 })
+        .eq('gallery_name', this._galleryDbKey);
+    } else {
+      await supabase.from('gallery_stats')
+        .insert({ gallery_name: this._galleryDbKey, views: 1 });
+    }
+  }
+
   // ─── Like ────────────────────────────────────────────────────────────────────
   async _initLike() {
     const profile = this.manager.auth.profile;
@@ -1951,27 +1974,45 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     if (!this._galleryDbKey) return;
     if (!profile) { this._toast('Đăng nhập để thích phòng tranh', 'info', 2000); return; }
 
-    this._liked = !this._liked;
+    const newLiked = !this._liked;
+    this._liked = newLiked;
     const btn = document.getElementById('btn-like');
-    btn.innerHTML = this._liked
+    btn.innerHTML = newLiked
       ? '<img src="/icons/heart-filled.svg" style="width:18px;height:18px">'
       : '<img src="/icons/heart-empty.svg"  style="width:18px;height:18px">';
-    btn.classList.toggle('liked', this._liked);
-    btn.classList.toggle('active', this._liked);
+    btn.classList.toggle('liked', newLiked);
+    btn.classList.toggle('active', newLiked);
 
-    if (this._liked) {
-      this._toast('Đã thích phòng tranh này ♥', 'success', 2000);
-      await supabase.from('gallery_likes').upsert(
+    let error;
+    if (newLiked) {
+      const res = await supabase.from('gallery_likes').upsert(
         { user_id: profile.id, gallery_name: this._galleryDbKey },
         { onConflict: 'user_id,gallery_name' }
       );
+      error = res.error;
     } else {
-      this._toast('Đã bỏ thích', 'info', 1500);
-      await supabase.from('gallery_likes')
+      const res = await supabase.from('gallery_likes')
         .delete()
         .eq('user_id', profile.id)
         .eq('gallery_name', this._galleryDbKey);
+      error = res.error;
     }
+
+    if (error) {
+      // Revert UI nếu DB thất bại
+      this._liked = !newLiked;
+      btn.innerHTML = !newLiked
+        ? '<img src="/icons/heart-filled.svg" style="width:18px;height:18px">'
+        : '<img src="/icons/heart-empty.svg"  style="width:18px;height:18px">';
+      btn.classList.toggle('liked', !newLiked);
+      btn.classList.toggle('active', !newLiked);
+      console.error('[like] error:', error);
+      this._toast('Không thể lưu lượt thích', 'error', 2500);
+      return;
+    }
+
+    if (newLiked) this._toast('Đã thích phòng tranh này ♥', 'success', 2000);
+    else this._toast('Đã bỏ thích', 'info', 1500);
   }
 
   lerpAngle(a, b, t) { let d = b - a; while (d > Math.PI) d -= Math.PI*2; while (d < -Math.PI) d += Math.PI*2; return a + d * t; }

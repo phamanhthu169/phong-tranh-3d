@@ -4,7 +4,7 @@ import { BaseScene } from './BaseScene.js';
 // Màn hình chào — trang đầu tiên người dùng thấy
 export class LandingScene extends BaseScene {
   async init() {
-    this.threeScene.background = new THREE.Color(0x0d0b09);
+    this.threeScene.background = new THREE.Color(0xffffff);
     this.camera.position.set(0, 0, 6);
 
     // Ánh sáng
@@ -32,12 +32,12 @@ export class LandingScene extends BaseScene {
     cv.width  = 1024; cv.height = 256;
     const ctx = cv.getContext('2d');
 
-    ctx.fillStyle = '#d4c5a9';
+    ctx.fillStyle = '#1a1a1a';
     ctx.font      = 'bold 88px serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('Phong Tranh 3D', 512, 105);
 
-    ctx.fillStyle = '#7a6e5c';
+    ctx.fillStyle = '#666666';
     ctx.font      = '30px monospace';
     ctx.fillText('Tạo & Khám phá phòng tranh ảo', 512, 190);
 
@@ -58,11 +58,11 @@ export class LandingScene extends BaseScene {
     const draw = (hovered) => {
       const ctx = cv.getContext('2d');
       ctx.clearRect(0, 0, 512, 128);
-      ctx.fillStyle   = hovered ? 'rgba(200,169,110,0.18)' : 'rgba(20,18,14,0.92)';
+      ctx.fillStyle   = hovered ? 'rgba(200,169,110,0.12)' : 'rgba(30,30,30,0.88)';
       ctx.strokeStyle = hovered ? '#c8a96e' : color;
       ctx.lineWidth   = 3;
       ctx.beginPath(); ctx.roundRect(4, 4, 504, 120, 6); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = hovered ? '#ffffff' : color;
+      ctx.fillStyle = hovered ? '#333333' : color;
       ctx.font      = 'bold 46px monospace';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(label, 256, 64);
@@ -97,7 +97,7 @@ export class LandingScene extends BaseScene {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     this._particles = new THREE.Points(
       geo,
-      new THREE.PointsMaterial({ color: 0xc8a96e, size: 0.035, transparent: true, opacity: 0.35 })
+      new THREE.PointsMaterial({ color: 0xcccccc, size: 0.035, transparent: true, opacity: 0.6 })
     );
     this.threeScene.add(this._particles);
   }

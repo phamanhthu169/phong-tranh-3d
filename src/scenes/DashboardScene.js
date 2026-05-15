@@ -11,7 +11,7 @@ export class DashboardScene extends BaseScene {
     if (!this.manager.auth.isLoggedIn) { this.manager.navigateTo('login'); return; }
     if (!this.manager.auth.isArtist)  { this.manager.navigateTo('landing'); return; }
 
-    this.threeScene.background = new THREE.Color(0x0d0b09);
+    this.threeScene.background = new THREE.Color(0xffffff);
     this.camera.position.set(0, 0, 5);
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.2));
     this._createParticles();
@@ -26,7 +26,7 @@ export class DashboardScene extends BaseScene {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     this._particles = new THREE.Points(
       geo,
-      new THREE.PointsMaterial({ color: 0xc8a96e, size: 0.03, transparent: true, opacity: 0.2 })
+      new THREE.PointsMaterial({ color: 0xcccccc, size: 0.03, transparent: true, opacity: 0.5 })
     );
     this.threeScene.add(this._particles);
   }
@@ -36,11 +36,11 @@ export class DashboardScene extends BaseScene {
     overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;font-family:monospace;padding:36px 40px;box-sizing:border-box;`;
     overlay.innerHTML = `
       <style>
-        .db-card{background:rgba(15,13,12,.95);border:1px solid rgba(212,197,169,.15);border-radius:6px;padding:20px;display:flex;flex-direction:column;gap:12px;transition:border-color .2s}
-        .db-card:hover{border-color:rgba(212,197,169,.32)}
+        .db-card{background:#ffffff;border:1px solid rgba(0,0,0,.1);border-radius:6px;padding:20px;display:flex;flex-direction:column;gap:12px;transition:border-color .2s;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+        .db-card:hover{border-color:rgba(0,0,0,.25)}
         .db-badge{display:inline-block;padding:2px 9px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;border-radius:2px}
         .db-badge.pub{background:rgba(106,170,122,.15);border:1px solid rgba(106,170,122,.35);color:#6aaa7a}
-        .db-badge.draft{background:rgba(212,197,169,.05);border:1px solid rgba(212,197,169,.18);color:#5a5040}
+        .db-badge.draft{background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#777}
         .db-btn{padding:6px 14px;font-size:10px;cursor:pointer;font-family:monospace;letter-spacing:.08em;border-radius:3px;transition:all .2s;border:1px solid}
         .db-btn.edit{background:rgba(200,169,110,.12);border-color:rgba(200,169,110,.4);color:#c8a96e}
         .db-btn.edit:hover{background:rgba(200,169,110,.28)}
@@ -50,18 +50,18 @@ export class DashboardScene extends BaseScene {
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">
         <div>
-          <div style="color:#d4c5a9;font-size:17px;font-weight:bold;letter-spacing:.2em;text-transform:uppercase">Phòng tranh của tôi</div>
-          <div id="db-artist" style="color:#5a5040;font-size:10px;letter-spacing:.1em;margin-top:5px"></div>
+          <div style="color:#1a1a1a;font-size:17px;font-weight:bold;letter-spacing:.2em;text-transform:uppercase">Phòng tranh của tôi</div>
+          <div id="db-artist" style="color:#666;font-size:10px;letter-spacing:.1em;margin-top:5px"></div>
         </div>
         <button id="db-new-btn" style="background:rgba(200,169,110,.15);border:1px solid rgba(200,169,110,.5);color:#c8a96e;font-family:monospace;font-size:11px;letter-spacing:.1em;padding:10px 22px;border-radius:3px;cursor:pointer;transition:background .2s;">
           ＋ Tạo phòng mới
         </button>
       </div>
 
-      <div id="db-loading" style="color:#3a3228;font-size:11px;letter-spacing:.1em;text-align:center;padding:60px">Đang tải...</div>
+      <div id="db-loading" style="color:#888;font-size:11px;letter-spacing:.1em;text-align:center;padding:60px">Đang tải...</div>
       <div id="db-empty" style="display:none;text-align:center;padding:80px 0">
-        <div style="color:#3a3228;font-size:13px;letter-spacing:.1em">Chưa có phòng nào</div>
-        <div style="color:#2a2220;font-size:10px;margin-top:8px">Nhấn "Tạo phòng mới" để bắt đầu</div>
+        <div style="color:#888;font-size:13px;letter-spacing:.1em">Chưa có phòng nào</div>
+        <div style="color:#aaa;font-size:10px;margin-top:8px">Nhấn "Tạo phòng mới" để bắt đầu</div>
       </div>
       <div id="db-grid" style="display:none;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px"></div>
     `;
@@ -110,10 +110,10 @@ export class DashboardScene extends BaseScene {
     const card = document.createElement('div');
     card.className = 'db-card';
     card.innerHTML = `
-      <div style="color:#d4c5a9;font-size:13px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${roomName}</div>
+      <div style="color:#1a1a1a;font-size:13px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${roomName}</div>
       <div style="display:flex;align-items:center;gap:8px">
         <span class="db-badge ${isPublished ? 'pub' : 'draft'}">${isPublished ? '✓ Đã publish' : '✎ Draft'}</span>
-        <span style="color:#2e2a24;font-size:9px">${date}</span>
+        <span style="color:#999;font-size:9px">${date}</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:2px">
         <button class="db-btn edit">✎ Chỉnh sửa</button>

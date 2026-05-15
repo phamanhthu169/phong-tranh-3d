@@ -5,10 +5,12 @@ import { supabase } from '../utils/supabase.js';
 
 export class ExploreScene extends BaseScene {
   async init() {
-    this.threeScene.background = new THREE.Color(0x0d0b09);
+    this.threeScene.background = new THREE.Color(0xffffff);
     this.camera.position.set(0, 0, 5);
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.2));
     this._createParticles();
+    this._sortMode = 'date';
+    this._rooms = [];
     this._buildOverlay();
     await this._loadPublished();
   }
@@ -20,7 +22,7 @@ export class ExploreScene extends BaseScene {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     this._particles = new THREE.Points(
       geo,
-      new THREE.PointsMaterial({ color: 0xc8a96e, size: 0.03, transparent: true, opacity: 0.2 })
+      new THREE.PointsMaterial({ color: 0xcccccc, size: 0.03, transparent: true, opacity: 0.5 })
     );
     this.threeScene.add(this._particles);
   }
@@ -30,44 +32,66 @@ export class ExploreScene extends BaseScene {
     overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;font-family:monospace;padding:36px 40px;box-sizing:border-box;`;
     overlay.innerHTML = `
       <style>
-        .ex-card{background:rgba(15,13,12,.95);border:1px solid rgba(212,197,169,.15);border-radius:6px;overflow:hidden;cursor:pointer;transition:all .25s;display:flex;flex-direction:column}
-        .ex-card:hover{border-color:rgba(212,197,169,.4);transform:translateY(-2px)}
-        .ex-thumb{height:140px;background:rgba(20,18,14,1);display:flex;align-items:center;justify-content:center;font-size:36px;border-bottom:1px solid rgba(212,197,169,.08)}
+        .ex-card{background:#ffffff;border:1px solid rgba(0,0,0,.1);border-radius:6px;overflow:hidden;cursor:pointer;transition:all .25s;display:flex;flex-direction:column;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+        .ex-card:hover{border-color:rgba(0,0,0,.25);transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.1)}
+        .ex-thumb{height:140px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:36px;border-bottom:1px solid rgba(0,0,0,.06)}
         .ex-body{padding:14px;display:flex;flex-direction:column;gap:6px}
-        .ex-name{color:#d4c5a9;font-size:12px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .ex-artist{color:#5a5040;font-size:9px;letter-spacing:.1em}
-        .ex-date{color:#2e2a24;font-size:8px;margin-top:2px}
+        .ex-name{color:#1a1a1a;font-size:12px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .ex-artist{color:#666;font-size:9px;letter-spacing:.1em}
+        .ex-date{color:#999;font-size:8px;margin-top:2px}
+        .ex-stats{display:flex;gap:12px;margin-top:2px}
+        .ex-stat{color:#777;font-size:9px;letter-spacing:.05em;display:flex;align-items:center;gap:4px}
+        .ex-stat-icon{font-size:10px;line-height:1}
         .ex-enter{display:inline-block;margin-top:6px;padding:5px 12px;font-size:9px;letter-spacing:.1em;text-transform:uppercase;background:rgba(200,169,110,.1);border:1px solid rgba(200,169,110,.35);color:#c8a96e;border-radius:2px;transition:background .2s}
         .ex-card:hover .ex-enter{background:rgba(200,169,110,.22)}
+        .ex-sort-btn{padding:5px 14px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.12);color:#555;border-radius:2px;cursor:pointer;transition:all .2s;font-family:monospace}
+        .ex-sort-btn:hover{color:#c8a96e;border-color:rgba(200,169,110,.4)}
+        .ex-sort-btn.active{color:#c8a96e;border-color:rgba(200,169,110,.5);background:rgba(200,169,110,.1)}
       </style>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="color:#d4c5a9;font-size:17px;font-weight:bold;letter-spacing:.2em;text-transform:uppercase">Khám phá</div>
-          <div style="color:#3a3228;font-size:10px;letter-spacing:.1em;margin-top:5px">Phòng tranh đã được publish</div>
+          <div style="color:#1a1a1a;font-size:17px;font-weight:bold;letter-spacing:.2em;text-transform:uppercase">Khám phá</div>
+          <div style="color:#888;font-size:10px;letter-spacing:.1em;margin-top:5px">Phòng tranh đã được publish</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="color:#888;font-size:9px;letter-spacing:.08em;margin-right:2px">Sắp xếp:</span>
+          <button class="ex-sort-btn active" data-sort="date">Mới nhất</button>
+          <button class="ex-sort-btn" data-sort="likes">Thích nhiều nhất</button>
+          <button class="ex-sort-btn" data-sort="views">Xem nhiều nhất</button>
         </div>
       </div>
 
-      <div id="ex-loading" style="color:#3a3228;font-size:11px;letter-spacing:.1em;text-align:center;padding:60px">Đang tải...</div>
+      <div id="ex-loading" style="color:#888;font-size:11px;letter-spacing:.1em;text-align:center;padding:60px">Đang tải...</div>
       <div id="ex-empty" style="display:none;text-align:center;padding:80px 0">
-        <div style="color:#3a3228;font-size:13px;letter-spacing:.1em">Chưa có phòng nào được publish</div>
+        <div style="color:#888;font-size:13px;letter-spacing:.1em">Chưa có phòng nào được publish</div>
       </div>
       <div id="ex-grid" style="display:none;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px"></div>
     `;
+
+    overlay.querySelectorAll('.ex-sort-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        overlay.querySelectorAll('.ex-sort-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this._sortMode = btn.dataset.sort;
+        this._renderGrid();
+      });
+    });
 
     document.body.appendChild(overlay);
     this._el(overlay);
   }
 
   async _loadPublished() {
-    const { data } = await supabase
-      .from('gallery')
-      .select('name, created_at, scene_data')
-      .order('created_at', { ascending: false });
+    const [galleryRes, likesRes, statsRes] = await Promise.all([
+      supabase.from('gallery').select('name, created_at, scene_data').order('created_at', { ascending: false }),
+      supabase.from('gallery_likes').select('gallery_name'),
+      supabase.from('gallery_stats').select('gallery_name, views'),
+    ]);
 
     document.getElementById('ex-loading').style.display = 'none';
 
-    const rooms = (data || []).filter(row =>
+    const rooms = (galleryRes.data || []).filter(row =>
       row.name.includes(':::') && row.scene_data?._meta?.isPublished === true
     );
 
@@ -76,17 +100,48 @@ export class ExploreScene extends BaseScene {
       return;
     }
 
+    const likesMap = {};
+    (likesRes.data || []).forEach(l => {
+      likesMap[l.gallery_name] = (likesMap[l.gallery_name] || 0) + 1;
+    });
+
+    const viewsMap = {};
+    (statsRes.data || []).forEach(s => {
+      viewsMap[s.gallery_name] = s.views || 0;
+    });
+
+    this._rooms = rooms.map(row => ({
+      row,
+      likes: likesMap[row.name] || 0,
+      views: viewsMap[row.name] || 0,
+      date: new Date(row.created_at).getTime(),
+    }));
+
     const grid = document.getElementById('ex-grid');
     grid.style.display = 'grid';
-    rooms.forEach(row => this._addCard(grid, row));
+    this._renderGrid();
   }
 
-  _addCard(grid, row) {
-    const meta      = row.scene_data?._meta || {};
-    const roomName  = meta.roomName  || 'Phòng chưa đặt tên';
-    const artistId  = meta.artistId  || row.name.split(':::')[0] || '—';
-    const date      = new Date(row.created_at).toLocaleDateString('vi-VN');
-    const artCount  = row.scene_data?.artworks?.length || 0;
+  _renderGrid() {
+    const grid = document.getElementById('ex-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const sorted = [...this._rooms].sort((a, b) => {
+      if (this._sortMode === 'likes') return b.likes - a.likes;
+      if (this._sortMode === 'views') return b.views - a.views;
+      return b.date - a.date;
+    });
+
+    sorted.forEach(({ row, likes, views }) => this._addCard(grid, row, likes, views));
+  }
+
+  _addCard(grid, row, likes = 0, views = 0) {
+    const meta     = row.scene_data?._meta || {};
+    const roomName = meta.roomName || 'Phòng chưa đặt tên';
+    const artistId = meta.artistId || row.name.split(':::')[0] || '—';
+    const date     = new Date(row.created_at).toLocaleDateString('vi-VN');
+    const artCount = row.scene_data?.artworks?.length || 0;
 
     const card = document.createElement('div');
     card.className = 'ex-card';
@@ -96,6 +151,10 @@ export class ExploreScene extends BaseScene {
         <div class="ex-name">${roomName}</div>
         <div class="ex-artist">${artistId}</div>
         <div class="ex-date">${date}${artCount ? ' · ' + artCount + ' tác phẩm' : ''}</div>
+        <div class="ex-stats">
+          <span class="ex-stat"><span class="ex-stat-icon">♥</span> ${likes.toLocaleString('vi-VN')}</span>
+          <span class="ex-stat"><span class="ex-stat-icon">👁</span> ${views.toLocaleString('vi-VN')}</span>
+        </div>
         <span class="ex-enter">Vào xem →</span>
       </div>
     `;
