@@ -248,7 +248,7 @@ export class ViewerScene extends BaseScene {
       :root {
         --bg: rgb(69, 105, 177); --surface: rgb(63, 99, 170);
         --border: rgba(212,197,169,.15); --border-hi: rgba(212,197,169,.5);
-        --gold: #122F6A; --gold-dim: #122F6A; --text-dim: #555;
+        --gold: #ffffff; --gold-dim: #ffffff; --text-dim: #555;
         --accent: #85d4e7ef; --accent2: #7793ad;; --danger: #b54a3a; --green: #5aaa7a;
         --radius: 6px; --radius-sm: 3px;
         --font-ui: 'Nunito', sans-serif; --font-head: 'Cormorant Garamond', serif; --font-mono: 'Space Mono', monospace;
