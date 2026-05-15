@@ -140,12 +140,16 @@ export class ViewerScene extends BaseScene {
     this._on(window,                   'mouseup',   () =>  { this.isLeftDown = false; });
     this._on(this.renderer.domElement, 'mousemove', (e) => this._onMouseMove(e));
     this._on(document,                 'keydown',   (e) => {
+      if (this._isTyping()) return;
       this.keys[e.code] = true;
       if (e.code === 'KeyE' && this._nearChest && !this._chestPopupOpen) {
         this._openChestPopup(this._nearChest);
       }
     });
-    this._on(document,                 'keyup',     (e) => { this.keys[e.code] = false; });
+    this._on(document,                 'keyup',     (e) => {
+      if (this._isTyping()) { this.keys = {}; return; }
+      this.keys[e.code] = false;
+    });
 
     await this._loadRoom();
     if (this._disposed) return;
@@ -1030,17 +1034,15 @@ export class ViewerScene extends BaseScene {
   }
 
   _initChat() {
+    this._CHAT_ROOM = this._galleryDbKey;
+
     const authUser = this.manager.auth?.user;
-    if (!this._chatUsername || this._chatUsername === '…') {
-      if (authUser) {
-        this._chatUsername = authUser.user_metadata?.name || authUser.email || 'Người dùng';
-      } else {
-        this._chatUsername = 'Khách';
-      }
-      localStorage.setItem('chat_username', this._chatUsername);
+    if (authUser) {
+      this._chatUsername = authUser.name || authUser.display_name || authUser.email || 'Người dùng';
     } else {
       this._chatUsername = localStorage.getItem('chat_username') || 'Khách';
     }
+    localStorage.setItem('chat_username', this._chatUsername);
 
     document.getElementById('chat-username-tag').textContent = this._chatUsername;
 
@@ -1111,12 +1113,17 @@ export class ViewerScene extends BaseScene {
   }
 
   _subscribeChat() {
-    supabase.channel('chat-viewer-v1')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: msg }) => {
-        if (!msg || msg.room !== this._CHAT_ROOM) return;
-        if (this._shownMsgIds.has(msg.id)) { this._shownMsgIds.delete(msg.id); return; }
-        this._appendMsg(msg.username, msg.content, msg.username === this._chatUsername);
-      }).subscribe();
+    supabase.channel(`chat-${this._CHAT_ROOM}-${Date.now()}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `room=eq.${this._CHAT_ROOM}` },
+        ({ new: msg }) => {
+          if (!msg) return;
+          if (this._shownMsgIds.has(msg.id)) { this._shownMsgIds.delete(msg.id); return; }
+          this._appendMsg(msg.username, msg.content, msg.username === this._chatUsername);
+        }
+      ).subscribe((status, err) => {
+        if (err) console.error('[Chat] Realtime error:', err);
+      });
   }
 
   _renderMinimapRoomChips() {
@@ -1133,7 +1140,7 @@ export class ViewerScene extends BaseScene {
         document.querySelectorAll('.mm-room-chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
         const fy = (r.floor || 0) * 5.1;
-        this.camera.position.set(r.x, fy + 1.7, r.z + r.d / 4);
+        this.camera.position.set(r.x, fy + 1.9, r.z + r.d / 4);
         this.yaw = 0; this.pitch = 0;
         this._toast('Đến: ' + r.name, 'info', 1800);
       });
@@ -1590,7 +1597,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
           this.ROOM_SPACING    = (box.max.x - box.min.x) + this.GAP_WIDTH;
           this.floorY          = box.min.y;
           const center = box.getCenter(new THREE.Vector3());
-          this.camera.position.set(center.x, box.min.y + 1.6, center.z);
+          this.camera.position.set(center.x, box.min.y + 1.9, center.z);
         }
         const offset = roomIndex * this.ROOM_SPACING;
         model.position.x += offset;
@@ -2075,13 +2082,13 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     if (this.keys['KeyA'] || this.keys['ArrowLeft'])               rawDir.x -= 1;
     if (this.keys['KeyD'] || this.keys['ArrowRight'])              rawDir.x += 1;
 
-    if (this.wpTravelTarget !== null) {
-      this._charAngle = this.yaw + Math.PI;
-    } else if (rawDir.lengthSq() > 0) {
+    if (rawDir.lengthSq() > 0 && this.wpTravelTarget === null) {
       // yaw + atan2(rawDir.x, rawDir.z): W→+π, S→0, A/←→-π/2, D/→→+π/2
       this._charAngle = this.yaw + Math.atan2(rawDir.x, rawDir.z);
+    } else {
+      // Khi đứng yên hoặc di chuyển waypoint: luôn xoay theo hướng camera
+      this._charAngle = this.yaw + Math.PI;
     }
-    // else: giữ _charAngle khi thả tay
 
     // --- Smooth rotation ---
     let rotDelta = this._charAngle - this._character.rotation.y;
@@ -2480,6 +2487,13 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
         payload: { uid: String(userId), pos: this._getMyPos(), yaw: this.yaw, isWalking: this._charIsWalking },
       });
     }, 100);
+  }
+
+  _isTyping() {
+    const el = document.activeElement;
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
   }
 
   dispose() {
