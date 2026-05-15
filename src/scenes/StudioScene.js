@@ -46,7 +46,7 @@ export class StudioScene extends BaseScene {
     this._musicUrl       = null;
     this.selectedSource = null;
     this.selectedItem   = null;
-    this.frameMat       = new THREE.MeshLambertMaterial({ color: 0x2a2018 });
+    this.frameMat       = new THREE.MeshLambertMaterial({ color: 0x182D58 });
     this.gltfLoader     = new GLTFLoader();
     this.objLoader      = new OBJLoader();
     this.mode           = 'select';
@@ -144,8 +144,13 @@ export class StudioScene extends BaseScene {
 
   /* ══════════════════════════════════════════════ CSS ══════════════════════════════════════════════ */
   _injectCSS() {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap';
+    document.head.appendChild(link);
     const style = document.createElement('style');
     style.textContent = `
+      @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap');
       *{box-sizing:border-box}
       .tb-btn{padding:7px 14px;font-size:12px;cursor:pointer;background:rgba(20,18,14,.85);color:#d4c5a9;border:1px solid rgba(212,197,169,.3);border-radius:3px;font-family:monospace;letter-spacing:.06em;transition:all .2s}
       .tb-btn:hover,.tb-btn.active{background:rgba(200,169,110,.25);border-color:#c8a96e;color:#fff}
@@ -380,8 +385,12 @@ export class StudioScene extends BaseScene {
         box-shadow:0 8px 32px rgba(0,0,0,.5);
       }
       #studio-settings-panel.open { display:flex; }
-      #ssp-title { font-family:monospace; font-size:10px; letter-spaci
-    `;
+      #ssp-title { font-family:monospace; font-size:10px; letter-spacing:.1em; color:#c8a96e; }
+      .stb2-btn .btn-icon.active { display: none; }
+      .stb2-btn .btn-icon.normal { display: inline-flex; }
+      .stb2-btn.activated .btn-icon.normal { display: none; }
+      .stb2-btn.activated .btn-icon.active { display: inline-flex; }
+  `;
     document.head.appendChild(style);
     this._el(style);
   }
@@ -396,16 +405,12 @@ export class StudioScene extends BaseScene {
     el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10;';
     const isPub = this.manager.currentRoom?.isPublished || false;
     el.innerHTML = `
-      <button class="tb-btn" id="btn-back">← Back</button>
-      <button class="tb-btn active" id="btn-walk">🚶 Walk</button>
-      <button class="tb-btn" id="btn-place">📌 Place</button>
       <button class="tb-btn" id="btn-light">💡 Light</button>
       <button class="tb-btn" id="btn-path">🛤 Path</button>
       <button class="tb-btn" id="btn-template">🏛 Template</button>
       <button class="tb-btn" id="btn-decor">🎨 Decor</button>
       <button class="tb-btn" id="btn-adv-text">✏️ Adv Text</button>
       <button class="tb-btn" id="btn-chest">🗝 Rương</button>
-      <button class="tb-btn" id="btn-save">💾 Save</button>
       <button class="tb-btn ${isPub ? 'active' : ''}" id="btn-publish">${isPub ? '🔒 Unpublish' : '🌐 Publish'}</button>
     `;
     document.body.appendChild(el); this._el(el);
@@ -562,8 +567,8 @@ _buildSecondaryToolbar() {
       #studio-secondary-toolbar {
       position: fixed;
       top: 72px;
-      left: 50%;
-      transform: translateX(-50%);
+      left: 200px;
+      transform: none;
       display: flex;
       align-items: center;
       gap: 0;
@@ -578,18 +583,16 @@ _buildSecondaryToolbar() {
     }
     .stb2-btn {
       width: 36px; height: 36px;
-      border-radius: 8px; border: none; background: transparent;
-      color: rgba(100,120,150,0.3);
-      display: flex; align-items: center; justify-content: center;
-      cursor: not-allowed; font-size: 18px; pointer-events: none;
-      transition: background 0.15s, color 0.15s;
-      position: relative; outline: none;
+      border: none; background: transparent;
+      background-size: contain; background-repeat: no-repeat; background-position: center;
+      cursor: not-allowed; pointer-events: none; opacity: 0.3;
+      transition: opacity 0.15s;
+      position: relative; outline: none; font-size: 0;
     }
-    .stb2-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; }
-    .stb2-btn.on { color: #a8bce0; pointer-events: auto; cursor: pointer; }
-    .stb2-btn.on:hover { background: rgba(255,255,255,0.13); color: #fff; }
-    .stb2-btn.activated { color: #c8a96e; background: rgba(200,169,110,0.2); pointer-events: auto; cursor: pointer; }
-    .stb2-btn.activated:hover { background: rgba(200,169,110,0.35); color: #f0d090; }
+    .stb2-btn.on { pointer-events: auto; cursor: pointer; opacity: 0.7; }
+    .stb2-btn.on:hover { opacity: 1; }
+    .stb2-btn.activated { pointer-events: auto; cursor: pointer; opacity: 1; transform: scale(1.2); }
+    .stb2-btn.activated:hover { opacity: 1; transform: scale(1.35); }
     .stb2-sep {
       width: 1px; height: 22px;
       background: rgba(255,255,255,0.12);
@@ -611,17 +614,22 @@ _buildSecondaryToolbar() {
   document.head.appendChild(style);
   this._el(style);
 
-  const icon = (paths) => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths}</svg>`;
+// Helper để tạo img element từ SVG file
+const makeIconImg = (src) => `<img src="/studio/${src}" style="width:18px;height:18px;">`;
 
-  const ICONS = {
-    trash:   icon('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>'),
-    move:    icon('<path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>'),
-    rotate:  icon('<path d="M20 7A9 9 0 1 0 21 12"/><polyline points="21 3 21 7 17 7"/>'),
-    scale:   icon('<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>'),
-    undo:    icon('<path d="M3 10h11a4 4 0 0 1 0 8h-4"/><polyline points="3 10 7 6 3 2 3 10"/>'),
-    redo:    icon('<path d="M21 10H10a4 4 0 0 0 0 8h4"/><polyline points="21 10 17 6 21 2 21 10"/>'),
-    select:  icon('<path d="M4 4l6 18 3-7 7-3z"/><line x1="16" y1="16" x2="22" y2="22"/>'),
-  };
+// Định nghĩa các icon (sử dụng file SVG)
+const ICON_FILES = {
+  select: 'select.svg',
+  delete: 'delete.svg',
+  move: 'move.svg',
+  moveActive: 'moveactivated.svg',
+  rotate: 'rotate.svg',
+  rotateActive: 'rotateactivated.svg',
+  scale: 'scale.svg',
+  scaleActive: 'scaleactivated.svg',
+  undo: 'undo.svg',
+  redo: 'redo.svg',
+};
 
   const bar = document.createElement('div');
   bar.id = 'studio-secondary-toolbar';
@@ -633,13 +641,25 @@ _buildSecondaryToolbar() {
     bar.style.width = (44 * ratio) + 'px';
   };
 
-  const makeBtn = (id, iconHtml, tooltip) => {
-    const btn = document.createElement('button');
-    btn.className = 'stb2-btn';
-    btn.id = id;
-    btn.innerHTML = iconHtml + `<span class="stb2-tooltip">${tooltip}</span>`;
-    return btn;
-  };
+// Nút có 2 trạng thái (normal + active) — dùng 1 img duy nhất, đổi src khi click
+const makeBtn = (id, normalIcon, activeIcon, tooltip) => {
+  const btn = document.createElement('button');
+  btn.className = 'stb2-btn';
+  btn.id = id;
+  btn.dataset.normalIcon = normalIcon;
+  btn.dataset.activeIcon = activeIcon;
+  btn.innerHTML = `<img src="/studio/${normalIcon}" style="width:18px;height:18px;"><span class="stb2-tooltip">${tooltip}</span>`;
+  return btn;
+};
+
+// Nút chỉ 1 trạng thái (undo/redo/delete)
+const makeSimpleBtn = (id, iconFile, tooltip) => {
+  const btn = document.createElement('button');
+  btn.className = 'stb2-btn';
+  btn.id = id;
+  btn.innerHTML = `${makeIconImg(iconFile)}<span class="stb2-tooltip">${tooltip}</span>`;
+  return btn;
+};
 
   const sep = () => {
     const d = document.createElement('div');
@@ -648,27 +668,27 @@ _buildSecondaryToolbar() {
   };
 
   // Nhóm 1: Select + Delete
-  const btnSelect = makeBtn('stb2-select', ICONS.select, 'Chọn (Select)');
-  btnSelect.classList.add('activated');
-  bar.appendChild(btnSelect);
-  bar.appendChild(makeBtn('stb2-delete', ICONS.trash, 'Xoá vật thể'));
+const btnSelect = makeBtn('stb2-select', 'select.svg', 'select.svg', 'Chọn (Select)');
+btnSelect.classList.add('activated');
+bar.appendChild(btnSelect);
+bar.appendChild(makeSimpleBtn('stb2-delete', 'delete.svg', 'Xoá vật thể'));
 
-  bar.appendChild(sep());
+bar.appendChild(sep());
 
-  // Nhóm 2: Transform (OFF until object selected)
-  bar.appendChild(makeBtn('stb2-translate', ICONS.move,   'Di dời'));
-  bar.appendChild(makeBtn('stb2-rotate',    ICONS.rotate, 'Xoay'));
-  bar.appendChild(makeBtn('stb2-scale',     ICONS.scale,  'Điều chỉnh kích thước'));
+// Nhóm 2: Transform (OFF until object selected)
+bar.appendChild(makeBtn('stb2-translate', 'move.svg', 'moveactivated.svg', 'Di dời'));
+bar.appendChild(makeBtn('stb2-rotate', 'rotate.svg', 'rotateactivated.svg', 'Xoay'));
+bar.appendChild(makeBtn('stb2-scale', 'scale.svg', 'scaleactivated.svg', 'Điều chỉnh kích thước'));
 
-  bar.appendChild(sep());
+bar.appendChild(sep());
 
-  // Nhóm 3: Undo/Redo (always on)
-  const btnUndo = makeBtn('stb2-undo', ICONS.undo, 'Hoàn tác');
-  const btnRedo = makeBtn('stb2-redo', ICONS.redo, 'Làm lại');
-  btnUndo.classList.add('on');
-  btnRedo.classList.add('on');
-  bar.appendChild(btnUndo);
-  bar.appendChild(btnRedo);
+// Nhóm 3: Undo/Redo (always on)
+const btnUndo = makeSimpleBtn('stb2-undo', 'undo.svg', 'Hoàn tác');
+const btnRedo = makeSimpleBtn('stb2-redo', 'redo.svg', 'Làm lại');
+btnUndo.classList.add('on');
+btnRedo.classList.add('on');
+bar.appendChild(btnUndo);
+bar.appendChild(btnRedo);
 
   document.body.appendChild(bar);
   this._el(bar);
@@ -681,13 +701,25 @@ _buildSecondaryToolbar() {
   document.getElementById('stb2-undo').addEventListener('click', () => this._undo());
   document.getElementById('stb2-redo').addEventListener('click', () => this._redo());
 
-  ['stb2-select', 'stb2-translate', 'stb2-rotate', 'stb2-scale'].forEach(id => {
-    document.getElementById(id).addEventListener('click', () => {
-      this._activateSecondaryBtn(id);
-      const modeMap = { 'stb2-select': 'select', 'stb2-translate': 'translate', 'stb2-rotate': 'rotate', 'stb2-scale': 'scale' };
-      this.mode = modeMap[id];
+  const iconNormal = { 'stb2-select': 'select.svg', 'stb2-translate': 'move.svg', 'stb2-rotate': 'rotate.svg', 'stb2-scale': 'scale.svg' };
+  const iconActive = { 'stb2-select': 'select.svg', 'stb2-translate': 'moveactivated.svg', 'stb2-rotate': 'rotateactivated.svg', 'stb2-scale': 'scaleactivated.svg' };
+  const modeMap = { 'stb2-select': 'select', 'stb2-translate': 'translate', 'stb2-rotate': 'rotate', 'stb2-scale': 'scale' };
+
+['stb2-select', 'stb2-translate', 'stb2-rotate', 'stb2-scale'].forEach(id => {
+  document.getElementById(id).addEventListener('click', () => {
+    // Reset tất cả về icon normal
+    ['stb2-select', 'stb2-translate', 'stb2-rotate', 'stb2-scale'].forEach(otherId => {
+      const img = document.querySelector(`#${otherId} img`);
+      if (img) img.src = `/studio/${iconNormal[otherId]}`;
     });
+    // Set icon active cho nút được bấm
+    const img = document.querySelector(`#${id} img`);
+    if (img) img.src = `/studio/${iconActive[id]}`;
+
+    this._activateSecondaryBtn(id);
+    this.mode = modeMap[id];
   });
+});
 }
 
   _saveUndoState() {
@@ -755,11 +787,19 @@ _buildSecondaryToolbar() {
   }
 
   _setTransformButtonsEnabled(enabled) {
+    const iconNormal = { 'stb2-translate': 'move.svg', 'stb2-rotate': 'rotate.svg', 'stb2-scale': 'scale.svg' };
     ['stb2-delete', 'stb2-translate', 'stb2-rotate', 'stb2-scale'].forEach(id => {
       const btn = document.getElementById(id);
       if (!btn) return;
       btn.classList.remove('on', 'activated');
-      if (enabled) btn.classList.add('on');
+      if (enabled) {
+        btn.classList.add('on');
+      } else {
+        if (iconNormal[id]) {
+          const img = btn.querySelector('img');
+          if (img) img.src = `/studio/${iconNormal[id]}`;
+        }
+      }
     });
     if (!enabled) {
       const sel = document.getElementById('stb2-select');
@@ -769,11 +809,16 @@ _buildSecondaryToolbar() {
   }
 
   _activateSecondaryBtn(activeId) {
+    const iconNormal = { 'stb2-select': 'select.svg', 'stb2-translate': 'move.svg', 'stb2-rotate': 'rotate.svg', 'stb2-scale': 'scale.svg' };
+    const iconActive = { 'stb2-select': 'select.svg', 'stb2-translate': 'moveactivated.svg', 'stb2-rotate': 'rotateactivated.svg', 'stb2-scale': 'scaleactivated.svg' };
     ['stb2-select', 'stb2-translate', 'stb2-rotate', 'stb2-scale'].forEach(id => {
       const btn = document.getElementById(id);
       if (!btn || (!btn.classList.contains('on') && !btn.classList.contains('activated'))) return;
       btn.classList.remove('activated', 'on');
-      btn.classList.add(id === activeId ? 'activated' : 'on');
+      const isActive = id === activeId;
+      btn.classList.add(isActive ? 'activated' : 'on');
+      const img = btn.querySelector('img');
+      if (img) img.src = `/studio/${isActive ? iconActive[id] : iconNormal[id]}`;
     });
   }
 
@@ -1035,26 +1080,339 @@ _buildStudioLeftBtns() {
     document.body.appendChild(this._lightPanel); this._el(this._lightPanel);
   }
 
-  /* ══════════════════════════════════════════════ PANEL PHẢI (upload) ══════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════ PANEL PHẢI — 5 BƯỚC ══════════════════════════════════════════════ */
   _buildRightPanel() {
-    const panel = document.createElement('div');
-    panel.style.cssText = 'position:fixed;right:50px;top:70px;bottom:14px;width:140px;background:rgba(15,13,12,.97);border:1px solid rgba(212,197,169,.15);border-radius:8px;display:flex;flex-direction:column;z-index:10;overflow-y:auto;font-family:monospace;';
-    panel.innerHTML = `
-      <div style="color:#d4c5a9;font-size:13px;font-style:italic;padding:12px 12px 8px;border-bottom:1px solid rgba(212,197,169,.1)">Tác phẩm</div>
-      <div style="color:#555;font-size:9px;letter-spacing:.15em;text-transform:uppercase;padding:9px 12px 4px">Upload ảnh / video</div>
-      <div id="uz-img" style="margin:5px 10px;padding:10px 5px;text-align:center;cursor:pointer;background:rgba(20,18,14,.6);color:#e8d8ff;border:1px solid rgba(200,150,255,.4);font-size:10px;letter-spacing:.1em;text-transform:uppercase;line-height:1.8;border-radius:2px">+ JPG · PNG · MP4</div>
-      <input type="file" id="fi-img" accept="image/*,video/*" multiple style="display:none">
-      <div id="uw-img" style="padding:3px 10px"></div>
-      <div style="color:#555;font-size:9px;letter-spacing:.15em;text-transform:uppercase;padding:9px 12px 4px;border-top:1px solid rgba(212,197,169,.08)">Upload 3D model</div>
-      <div id="uz-3d" style="margin:5px 10px;padding:10px 5px;text-align:center;cursor:pointer;background:rgba(20,18,14,.6);color:#d8f0e8;border:1px solid rgba(100,200,150,.4);font-size:10px;letter-spacing:.1em;text-transform:uppercase;line-height:1.8;border-radius:2px">+ GLB · GLTF · OBJ</div>
-      <input type="file" id="fi-3d" accept=".glb,.gltf,.obj" multiple style="display:none">
-      <div id="uw-3d" style="padding:3px 10px"></div>
-      <div style="color:#555;font-size:9px;letter-spacing:.08em;text-transform:uppercase;padding:10px 12px;line-height:2;border-top:1px solid rgba(212,197,169,.08);margin-top:auto">Chọn file<br>→ Place<br>→ click tường/sàn</div>
+    // CSS cho panel
+    const style = document.createElement('style');
+    style.textContent = `
+      #right-panel-5step {
+        display: flex; flex-direction: column;
+        font-family: monospace; pointer-events: none;
+        transform: scale(0.97);
+        transform-origin: top right;
+      }
+      /* ── Thanh bước ── */
+      #rp-steps {
+        display: flex; align-items: stretch;
+        background: url('/panelstudio/stepbar.svg') no-repeat center center;
+        background-size: 100% 100%;
+        pointer-events: auto; flex-shrink: 0;
+        width: 478px; height: 93px;
+        padding: 0 8px; gap: 4px;
+        position: fixed; right: 16px; top: 60px; z-index: 30;
+        transform: scale(0.85) translate(-20px, 30px);
+        transform-origin: top right;
+      }
+      .rp-step {
+        flex: 1; display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        padding: 4px 6px; cursor: pointer;
+        border-right: 1px solid rgba(255,255,255,0.1);
+        transition: background 0.2s; gap: 2px;
+        height: 84px; box-sizing: border-box;
+      }
+      .rp-step:last-child { border-right: none; }
+      .rp-step:hover { background: rgba(255,255,255,0.08); }
+      .rp-step.active { background: rgba(255,255,255,0.18); border-radius: 16px; }
+      .rp-step-num { color: rgba(255,255,255,0.5); font-size: 12px; letter-spacing: .1em; font-family: 'Montserrat', sans-serif !important; font-weight: 700; }
+      .rp-step.active .rp-step-num { color: #68e5e3; }
+      .rp-step-label { color: #fff; font-size: 12px; text-align: center; line-height: 1.3; font-weight: 700; font-family: 'Montserrat', sans-serif !important; }
+      .rp-step.active .rp-step-label { color: #fff; }
+      /* ── Body panel ── */
+      #rp-body {
+        margin-top: 0; flex: none;
+        background: url('/panelstudio/steppanel.svg') no-repeat center center;
+        background-size: 100% 100%;
+        width: 470px; height: 560px;
+        display: flex; flex-direction: column; overflow: hidden;
+        pointer-events: auto;
+        position: fixed; right: 20px; top: 100px; z-index: 29;
+        transform: scale(0.85) translate(-20px, 30px);
+        transform-origin: top right;
+      }
+      /* ── Sub-tabs ── */
+      #rp-subtabs {
+        display: flex; justify-content: space-between;
+        padding: 0 30px 0 30px;
+        margin-top: 50px;    
+        border-bottom: 1.5px solid rgba(255,255,255,0.1);
+        flex-shrink: 0; gap: 0;
+        flex-wrap: wrap; min-height: 52px;
+      }
+      .rp-subtab {
+        width: 93px; height: 40px;
+        padding: 8px 10px; font-size: 10px; color: rgba(255,255,255,0.45);
+        cursor: pointer; border-bottom: 2px solid transparent;
+        transition: all 0.2s; white-space: nowrap; letter-spacing: .03em;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .rp-subtab:hover { color: rgba(255,255,255,0.8); }
+      .rp-subtab.active { color: #fff; border-bottom-color: #68e5e3; }
+      /* ── Content ── */
+      #rp-content {
+        flex: 1; overflow-y: auto; padding: 16px 30px 30px 30px;
+        padding-top: 0px;
+      }
+      #rp-content::-webkit-scrollbar { width: 3px; }
+      #rp-content::-webkit-scrollbar-thumb { background: rgba(104,229,227,0.3); border-radius: 2px; }
+      .rp-pane { display: none; flex-direction: column; gap: 10px; box-sizing: border-box; }
+      .rp-pane.active { display: flex; }
+      /* ── Placeholder panes ── */
+      .rp-placeholder {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        height: 200px; color: rgba(255,255,255,0.2); font-size: 11px; gap: 8px; letter-spacing: .1em;
+      }
+      .rp-placeholder-icon { font-size: 32px; opacity: 0.3; }
+      /* ── Light controls (bước 02 - đèn) ── */
+      .rp-lp-row { display: flex; align-items: center; gap: 8px; }
+      .rp-lp-label { color: rgba(255,255,255,0.5); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; flex-shrink: 0; width: 80px; }
+      .rp-lp-val { color: #fff; font-size: 9px; width: 28px; text-align: right; flex-shrink: 0; }
+      .rp-lp-range { flex: 1; -webkit-appearance: none; height: 2px; background: rgba(255,255,255,0.15); border-radius: 1px; outline: none; cursor: pointer; }
+      .rp-lp-range::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #68e5e3; cursor: pointer; }
+      .rp-lp-color { width: 28px; height: 20px; border: none; border-radius: 4px; cursor: pointer; background: none; padding: 0; }
+      .rp-section-title { color: rgba(255,255,255,0.35); font-size: 8px; letter-spacing: .15em; text-transform: uppercase; margin-bottom: 2px; margin-top: 4px; }
+      /* ── Upload (bước 03) ── */
+      .rp-upload-btn {
+        padding: 10px; text-align: center; cursor: pointer;
+        background: rgba(255,255,255,0.06); border: 1px dashed rgba(255,255,255,0.2);
+        border-radius: 8px; color: rgba(255,255,255,0.6); font-size: 10px;
+        letter-spacing: .08em; transition: all 0.2s; line-height: 1.8;
+      }
+      .rp-upload-btn:hover { background: rgba(104,229,227,0.1); border-color: rgba(104,229,227,0.4); color: #68e5e3; }
+      /* ── SVG action buttons (step 02) ── */
+      .rp-action-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+      .rp-svg-btn {
+        display: block; width: 422px; height: 43.25px;
+        max-width: 100%;
+        background-size: 100% 100%; background-repeat: no-repeat; background-position: center; background-color: transparent;
+        border: none; cursor: pointer; outline: none;
+        transition: filter 0.2s, transform 0.15s;
+        flex-shrink: 0;
+      }
+      .rp-svg-btn:hover { filter: brightness(1.12); transform: scaleY(1.03); }
+      .rp-svg-btn:active { filter: brightness(0.9); transform: scaleY(0.97); }
+      .rp-svg-btn-picture { background-image: url('/panelstudio/picture.svg'); }
+      .rp-svg-btn-video   { background-image: url('/panelstudio/video.svg'); }
+      .rp-svg-btn-3dmodel { background-image: url('/panelstudio/3dmodel.svg'); }
+      .rp-svg-btn-text    { background-image: url('/panelstudio/text.svg'); }
+      /* ── Text editor inline panel ── */
+      #rp-text-inline { display: none; margin-top: 6px; }
+      #rp-text-inline.open { display: block; }
+      .rp-thumb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
+      /* ── Music controls ── */
+      .rp-music-row { display: flex; align-items: center; gap: 10px; }
+      .rp-music-btn { background: rgba(104,229,227,0.15); border: 1px solid rgba(104,229,227,0.35); color: #68e5e3; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all 0.2s; flex-shrink: 0; }
+      .rp-music-btn:hover { background: rgba(104,229,227,0.3); }
+      .rp-music-name { font-size: 9px; color: rgba(255,255,255,0.4); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .rp-music-vol { width: 70px; -webkit-appearance: none; height: 2px; background: rgba(255,255,255,0.15); border-radius: 1px; outline: none; }
+      .rp-music-vol::-webkit-slider-thumb { -webkit-appearance: none; width: 8px; height: 8px; border-radius: 50%; background: #68e5e3; cursor: pointer; }
+      /* ── Decor thumbs ── */
+      .rp-decor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+      .rp-decor-item { aspect-ratio: 1; border-radius: 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-size: 20px; }
+      .rp-decor-item:hover { background: rgba(104,229,227,0.12); border-color: rgba(104,229,227,0.4); }
+      /* ── Path (bước 04) ── */
+      .rp-wp-item { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px 8px; cursor: pointer; transition: all 0.2s; }
+      .rp-wp-item:hover { background: rgba(104,229,227,0.08); border-color: rgba(104,229,227,0.3); }
+      .rp-wp-num { color: #68e5e3; font-size: 9px; min-width: 18px; font-weight: bold; }
+      .rp-wp-lbl { color: rgba(255,255,255,0.6); font-size: 9px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .rp-wp-del { background: rgba(220,60,60,0.5); color: #fff; border: none; font-size: 7px; cursor: pointer; padding: 2px 5px; border-radius: 3px; }
+      /* ── Template grid ── */
+      .rp-tpl-card {
+        display: flex; flex-direction: column; gap: 6px;
+        cursor: pointer; border-radius: 10px;
+        border: 1.5px solid transparent;
+        overflow: hidden; transition: all 0.2s;
+        background: url('/panelstudio/templatebg.svg') no-repeat center center;
+        background-size: cover;
+        width: 191px; height: 191px;
+        flex-shrink: 0;
+        padding: 10px 14px 14px 14px;
+        box-sizing: border-box;
+      }
+      .rp-tpl-card:hover { border-color: rgba(104,229,227,0.5); filter: brightness(1.1); }
+      .rp-tpl-card.active { border-color: rgba(104,229,227,0.9); filter: brightness(1.15); outline: 2px solid rgba(104,229,227,0.6); outline-offset: 1px; }
+      .rp-tpl-name {
+        color: #fff; font-size: 10px; font-weight: 600;
+        font-family: 'Montserrat', sans-serif;
+        text-align: center; letter-spacing: .04em;
+        flex-shrink: 0;
+      }
+      .rp-tpl-thumb {
+        width: 100%; flex: 1;
+        object-fit: cover; border-radius: 6px;
+        background: transparent;
+        min-height: 0;
+      }
+      /* ── Publish (bước 05) ── */
+      .rp-pub-btn { padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer; font-family: monospace; font-size: 11px; letter-spacing: .08em; transition: all 0.2s; width: 100%; }
+      .rp-pub-btn.primary { background: linear-gradient(90deg, #122F6A, #235CD0); color: #fff; border: 1px solid rgba(104,229,227,0.4); }
+      .rp-pub-btn.primary:hover { filter: brightness(1.15); }
+      .rp-pub-btn.danger { background: rgba(181,74,58,.15); color: rgba(255,150,130,.8); border: 1px solid rgba(181,74,58,.4); }
+      .rp-pub-btn.danger:hover { background: rgba(181,74,58,.3); }
+      .rp-pub-info { font-size: 9px; color: rgba(255,255,255,0.3); line-height: 1.8; letter-spacing: .06em; }
     `;
-    document.body.appendChild(panel); this._el(panel);
+    document.head.appendChild(style);
+    this._el(style);
 
-    document.getElementById('uz-img').addEventListener('click', () => document.getElementById('fi-img').click());
-    document.getElementById('uz-3d').addEventListener('click', () => document.getElementById('fi-3d').click());
+    // ── Hidden file inputs (giữ nguyên để logic upload hoạt động) ──
+    const fiImg = document.createElement('input');
+    fiImg.type = 'file'; fiImg.id = 'fi-img'; fiImg.accept = 'image/*,video/*'; fiImg.multiple = true; fiImg.style.display = 'none';
+    document.body.appendChild(fiImg); this._el(fiImg);
+
+    const fi3d = document.createElement('input');
+    fi3d.type = 'file'; fi3d.id = 'fi-3d'; fi3d.accept = '.glb,.gltf,.obj'; fi3d.multiple = true; fi3d.style.display = 'none';
+    document.body.appendChild(fi3d); this._el(fi3d);
+
+    // ── Hidden upload zones (giữ id để code cũ không bị lỗi) ──
+    const uwImg = document.createElement('div'); uwImg.id = 'uw-img'; uwImg.style.display = 'none';
+    document.body.appendChild(uwImg); this._el(uwImg);
+    const uw3d = document.createElement('div'); uw3d.id = 'uw-3d'; uw3d.style.display = 'none';
+    document.body.appendChild(uw3d); this._el(uw3d);
+
+    // ── Wrapper chính ──
+    const wrap = document.createElement('div');
+    wrap.id = 'right-panel-5step';
+
+    const STEPS = [
+      { num: '01', label: 'Xây phòng' },
+      { num: '02', label: 'Thêm tác phẩm' },
+      { num: '03', label: 'Chỉnh sửa phòng' },
+      { num: '04', label: 'Lộ trình tham quan' },
+      { num: '05', label: 'Xuất bản & chia sẻ' },
+    ];
+
+    // ── Thanh bước ──
+    const stepsBar = document.createElement('div');
+    stepsBar.id = 'rp-steps';
+    STEPS.forEach((s, i) => {
+      const btn = document.createElement('div');
+      btn.className = 'rp-step' + (i === 1 ? ' active' : '');
+      btn.dataset.step = i;
+      btn.innerHTML = `<span class="rp-step-num">${s.num}</span><span class="rp-step-label">${s.label.replace('\n', '<br>')}</span>`;
+      stepsBar.appendChild(btn);
+    });
+    wrap.appendChild(stepsBar);
+
+    // ── Body ──
+    const body = document.createElement('div');
+    body.id = 'rp-body';
+
+    // Sub-tabs bar
+    const subtabsBar = document.createElement('div');
+    subtabsBar.id = 'rp-subtabs';
+    body.appendChild(subtabsBar);
+
+    // Content area
+    const content = document.createElement('div');
+    content.id = 'rp-content';
+    body.appendChild(content);
+    wrap.appendChild(body);
+    document.body.appendChild(wrap);
+    this._el(wrap);
+
+    // ── Định nghĩa nội dung mỗi bước ──
+    const STEP_CONFIGS = [
+      // Bước 01: Xây phòng
+      {
+        subtabs: ['Template'],
+        panes: ['pane-template'],
+      },
+      // Bước 02: Thêm tác phẩm
+      {
+        subtabs: ['Thêm tác phẩm'],
+        panes: ['pane-artwork'],
+      },
+      // Bước 03: Chỉnh sửa phòng
+      {
+        subtabs: ['Âm thanh', 'Đồ decor', 'Ánh sáng', 'Path đường'],
+        panes: ['pane-music', 'pane-decor', 'pane-light', 'pane-path'],
+      },
+      // Bước 04: Lộ trình tham quan
+      {
+        subtabs: ['Waypoints', 'Rương kho báu'],
+        panes: ['pane-waypoints', 'pane-chest'],
+      },
+      // Bước 05: Xuất bản & chia sẻ
+      {
+        subtabs: ['Xuất bản'],
+        panes: ['pane-publish'],
+      },
+    ];
+
+    let currentStep = 1; // bước 02
+
+    const STEP_WITH_SUBTABS = 2; // chỉ step 03 (index 2) mới hiện subtabs
+
+    const renderStep = (stepIdx) => {
+      currentStep = stepIdx;
+      document.querySelectorAll('.rp-step').forEach((el, i) => el.classList.toggle('active', i === stepIdx));
+      const cfg = STEP_CONFIGS[stepIdx];
+      const showSubtabs = stepIdx === STEP_WITH_SUBTABS;
+
+      // Hiện/ẩn thanh subtabs tuỳ step
+      subtabsBar.style.display = showSubtabs ? 'flex' : 'none';
+
+      // Render subtabs (chỉ khi là step có subtabs)
+      subtabsBar.innerHTML = '';
+      if (showSubtabs) {
+        cfg.subtabs.forEach((label, i) => {
+  const tab = document.createElement('div');
+  tab.className = 'rp-subtab' + (i === 0 ? ' active' : '');
+  tab.dataset.pane = cfg.panes[i];
+
+  const svgMap = {
+    'Âm thanh': 'sound.svg',
+    'Đồ decor': 'decor.svg',
+    'Ánh sáng': 'light.svg',
+    'Path đường': 'sound.svg',
+  };
+
+  if (svgMap[label]) {
+    tab.innerHTML = '';
+    tab.style.backgroundImage = `url('/panelstudio/${svgMap[label]}')`;
+    tab.style.backgroundSize = '100% 100%';
+    tab.style.backgroundRepeat = 'no-repeat';
+    tab.style.backgroundPosition = 'center';
+  } else {
+    tab.textContent = label;
+  }
+
+  subtabsBar.appendChild(tab);
+});
+      }
+
+      // Render panes
+      content.innerHTML = '';
+      cfg.panes.forEach((paneId, i) => {
+        const pane = document.createElement('div');
+        pane.className = 'rp-pane' + (i === 0 ? ' active' : '');
+        pane.id = paneId;
+        content.appendChild(pane);
+        this._fillPane(paneId, pane);
+      });
+
+      // Subtab click (chỉ khi có subtabs)
+      if (showSubtabs) {
+        subtabsBar.querySelectorAll('.rp-subtab').forEach(tab => {
+          tab.addEventListener('click', () => {
+            subtabsBar.querySelectorAll('.rp-subtab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            content.querySelectorAll('.rp-pane').forEach(p => p.classList.remove('active'));
+            document.getElementById(tab.dataset.pane)?.classList.add('active');
+          });
+        });
+      }
+    };
+
+    stepsBar.querySelectorAll('.rp-step').forEach(btn => {
+      btn.addEventListener('click', () => renderStep(+btn.dataset.step));
+    });
+
+    renderStep(1); // mặc định mở bước 02
+
+    // File input listeners (giữ nguyên)
+    document.getElementById('uz-img')?.addEventListener('click', () => document.getElementById('fi-img').click());
+    document.getElementById('uz-3d')?.addEventListener('click', () => document.getElementById('fi-3d').click());
 
     document.getElementById('fi-img').addEventListener('change', async (e) => {
       const wrap = document.getElementById('uw-img');
@@ -1150,6 +1508,376 @@ _buildStudioLeftBtns() {
 
   selectSource(src) {
     this.selectedSource = src;
+  }
+  /* ══════════════════════════════════════════════ FILL PANE ══════════════════════════════════════════════ */
+  _fillPane(paneId, pane) {
+    switch (paneId) {
+
+      // ── Bước 01: Template ──
+      case 'pane-template':
+        pane.style.paddingTop = '30px'; 
+        pane.innerHTML = `<div class="rp-section-title">Chọn mẫu phòng</div>`;
+        const tplList = document.createElement('div');
+        tplList.id = 'rp-template-list';
+        tplList.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;justify-content:center;';
+        pane.appendChild(tplList);
+        this._loadRpTemplateList(tplList);
+        break;
+
+      // ── Bước 02: Âm thanh ──
+      case 'pane-music':
+        pane.style.background = "url('/panelstudio/subtabbg.svg') no-repeat center center";
+        pane.style.backgroundSize = '100% 100%';
+        pane.style.width = '418px';
+        pane.style.minHeight = '409.81px';
+        pane.style.borderRadius = '17px';
+        pane.style.padding = '20px';
+        pane.style.boxSizing = 'border-box';
+        pane.innerHTML = `
+          <div class="rp-section-title">Nhạc nền</div>
+          <div class="rp-music-row">
+            <button class="rp-music-btn" id="rp-music-play">▶</button>
+            <span class="rp-music-name" id="rp-music-name">Chưa có nhạc</span>
+            <input type="range" class="rp-music-vol" id="rp-music-vol" min="0" max="1" step="0.01" value="0.5">
+          </div>
+          <div class="rp-upload-btn" id="rp-music-upload">+ Upload nhạc (MP3 · WAV · OGG)</div>
+          <input type="file" id="rp-fi-music" accept="audio/*" style="display:none">
+        `;
+        pane.querySelector('#rp-music-upload').addEventListener('click', () => pane.querySelector('#rp-fi-music').click());
+        pane.querySelector('#rp-fi-music').addEventListener('change', (e) => this._handleMusicUpload(e));
+        pane.querySelector('#rp-music-play').addEventListener('click', () => {
+          if (!this.backgroundMusic) return;
+          if (this.isMusicPlaying) { this.backgroundMusic.pause(); this.isMusicPlaying = false; pane.querySelector('#rp-music-play').textContent = '▶'; }
+          else { this.backgroundMusic.play(); this.isMusicPlaying = true; pane.querySelector('#rp-music-play').textContent = '⏸'; }
+        });
+        pane.querySelector('#rp-music-vol').addEventListener('input', (e) => { if (this.backgroundMusic) this.backgroundMusic.volume = +e.target.value; });
+        // Sync trạng thái hiện tại
+        if (this._musicUrl) { pane.querySelector('#rp-music-name').textContent = '🎵 Background Music'; }
+        if (this.isMusicPlaying) { pane.querySelector('#rp-music-play').textContent = '⏸'; }
+        break;
+
+      // ── Bước 02: Đồ trang trí ──
+      case 'pane-decor':
+        pane.style.background = "url('/panelstudio/subtabbg.svg') no-repeat center center";
+        pane.style.backgroundSize = '100% 100%';
+        pane.style.width = '418px';
+        pane.style.minHeight = '409.81px';
+        pane.style.borderRadius = '17px';
+        pane.style.padding = '20px';
+        pane.style.boxSizing = 'border-box';
+        pane.innerHTML = `<div class="rp-section-title">Thêm đồ trang trí</div>`;
+        const decorGrid = document.createElement('div');
+        decorGrid.className = 'rp-decor-grid';
+        decorGrid.id = 'rp-decor-grid';
+        pane.appendChild(decorGrid);
+        this._loadRpDecorList(decorGrid);
+        break;
+
+      // ── Bước 02: Đèn ──
+      case 'pane-light':
+        pane.style.background = "url('/panelstudio/subtabbg.svg') no-repeat center center";
+        pane.style.backgroundSize = '100% 100%';
+        pane.style.width = '418px';
+        pane.style.minHeight = '409.81px';
+        pane.style.borderRadius = '17px';
+        pane.style.padding = '20px';
+        pane.style.boxSizing = 'border-box';
+        pane.innerHTML = `
+          <div class="rp-section-title">Ánh sáng</div>
+          <div class="rp-lp-row"><span class="rp-lp-label">Ambient</span><input type="range" class="rp-lp-range" id="rp-amb-intensity" min="0" max="2" step="0.01" value="1.2"><span class="rp-lp-val" id="rp-amb-val">1.20</span></div>
+          <div class="rp-lp-row"><span class="rp-lp-label">Màu ambient</span><input type="color" class="rp-lp-color" id="rp-amb-color" value="#ffffff"></div>
+          <div class="rp-lp-row"><span class="rp-lp-label">Hemisphere</span><input type="range" class="rp-lp-range" id="rp-hemi-intensity" min="0" max="1.5" step="0.01" value="0.5"><span class="rp-lp-val" id="rp-hemi-val">0.50</span></div>
+          <div class="rp-lp-row"><span class="rp-lp-label">Directional</span><input type="range" class="rp-lp-range" id="rp-dir-intensity" min="0" max="3" step="0.01" value="1.2"><span class="rp-lp-val" id="rp-dir-val">1.20</span></div>
+        `;
+        pane.querySelector('#rp-amb-intensity').addEventListener('input', (e) => { this.ambLight.intensity = +e.target.value; pane.querySelector('#rp-amb-val').textContent = (+e.target.value).toFixed(2); });
+        pane.querySelector('#rp-amb-color').addEventListener('input', (e) => { this.ambLight.color.set(e.target.value); });
+        pane.querySelector('#rp-hemi-intensity').addEventListener('input', (e) => { this.hemiLight.intensity = +e.target.value; pane.querySelector('#rp-hemi-val').textContent = (+e.target.value).toFixed(2); });
+        pane.querySelector('#rp-dir-intensity').addEventListener('input', (e) => { this.dirLight.intensity = +e.target.value; pane.querySelector('#rp-dir-val').textContent = (+e.target.value).toFixed(2); });
+        break;
+
+      // ── Bước 03: Path đường ──
+      case 'pane-path':
+        pane.style.background = "url('/panelstudio/subtabbg.svg') no-repeat center center";
+        pane.style.backgroundSize = '100% 100%';
+        pane.style.width = '418px';
+        pane.style.minHeight = '409.81px';
+        pane.style.borderRadius = '17px';
+        pane.style.padding = '20px';
+        pane.style.boxSizing = 'border-box';
+        pane.innerHTML = `
+          <div class="rp-section-title">Lộ trình đường đi (<span id="rp-path-wp-count">0</span> điểm)</div>
+          <div style="display:flex;gap:8px;margin-bottom:6px;">
+            <div class="rp-upload-btn" id="rp-path-add" style="flex:1;padding:8px;">＋ Thêm điểm hiện tại</div>
+            <div class="rp-upload-btn" id="rp-path-walk" style="flex:1;padding:8px;">▶ Đi theo lộ trình</div>
+          </div>
+          <div id="rp-wp-list" style="display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto;"></div>
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <div class="rp-upload-btn" id="rp-path-auto" style="flex:1;padding:6px;font-size:9px;">✦ Tự tạo lộ trình</div>
+            <div class="rp-upload-btn" id="rp-path-clear" style="flex:1;padding:6px;font-size:9px;color:rgba(220,100,100,0.8);border-color:rgba(220,100,100,0.3);">✕ Xoá hết</div>
+          </div>
+        `;
+        pane.querySelector('#rp-path-add').addEventListener('click', () => {
+          this.addWaypoint(this.camera.position.x, this.camera.position.y, this.camera.position.z, this.yaw, this.pitch, '');
+          this.currentWpIdx = this.pathWaypoints.length - 1;
+          this.updateNavBar?.();
+          this.toast(`Đã thêm điểm ${this.pathWaypoints.length}`, 'success');
+          this._renderRpWpList(pane);
+          pane.querySelector('#rp-path-wp-count').textContent = this.pathWaypoints.length;
+        });
+        pane.querySelector('#rp-path-walk').addEventListener('click', () => {
+          if (!this.pathWaypoints.length) { this.toast('Chưa có điểm dừng nào', 'error'); return; }
+          this.travelToWaypoint(0);
+          const navBar = document.getElementById('path-nav-bar');
+          if (navBar) navBar.classList.add('show');
+        });
+        pane.querySelector('#rp-path-auto').addEventListener('click', () => {
+          this.autoGeneratePath?.();
+          this._renderRpWpList(pane);
+          pane.querySelector('#rp-path-wp-count').textContent = this.pathWaypoints.length;
+        });
+        pane.querySelector('#rp-path-clear').addEventListener('click', () => {
+          this.clearWaypoints?.();
+          this._renderRpWpList(pane);
+          pane.querySelector('#rp-path-wp-count').textContent = 0;
+          this.toast('Đã xoá hết điểm', 'info');
+        });
+        this._renderRpWpList(pane);
+        pane.querySelector('#rp-path-wp-count').textContent = this.pathWaypoints.length;
+        break;
+
+      // ── Bước 02: Thêm tác phẩm (4 nút SVG) ──
+      case 'pane-artwork': 
+       pane.style.paddingTop = '30px';
+       {
+        const btnsWrap = document.createElement('div');
+        btnsWrap.className = 'rp-action-btns';
+        btnsWrap.style.marginTop = '30px';
+
+        // Nút thêm ảnh
+        const btnPicture = document.createElement('button');
+        btnPicture.className = 'rp-svg-btn rp-svg-btn-picture';
+        btnPicture.title = 'Thêm ảnh';
+        btnPicture.addEventListener('click', () => document.getElementById('fi-img').click());
+        btnsWrap.appendChild(btnPicture);
+
+        // Nút thêm video
+        const btnVideo = document.createElement('button');
+        btnVideo.className = 'rp-svg-btn rp-svg-btn-video';
+        btnVideo.title = 'Thêm video';
+        btnVideo.addEventListener('click', () => {
+          const fi = document.getElementById('fi-img');
+          fi.accept = 'video/*';
+          fi.click();
+          fi.addEventListener('change', () => { fi.accept = 'image/*,video/*'; }, { once: true });
+        });
+        btnsWrap.appendChild(btnVideo);
+
+        // Nút thêm model 3D
+        const btnModel = document.createElement('button');
+        btnModel.className = 'rp-svg-btn rp-svg-btn-3dmodel';
+        btnModel.title = 'Thêm model 3D';
+        btnModel.addEventListener('click', () => document.getElementById('fi-3d').click());
+        btnsWrap.appendChild(btnModel);
+
+        // Nút thêm text
+        const btnText = document.createElement('button');
+        btnText.className = 'rp-svg-btn rp-svg-btn-text';
+        btnText.title = 'Thêm text lên tường';
+        const textInlinePanel = document.createElement('div');
+        textInlinePanel.id = 'rp-text-inline';
+        btnText.addEventListener('click', () => {
+          textInlinePanel.classList.toggle('open');
+          if (textInlinePanel.classList.contains('open')) {
+            this.textEditor?.togglePanel();
+          } else {
+            this.textEditor?.togglePanel();
+          }
+        });
+        btnsWrap.appendChild(btnText);
+        btnsWrap.appendChild(textInlinePanel);
+
+        // Grid thumbnail ảnh/video đã upload
+        const thumbGrid = document.createElement('div');
+        thumbGrid.className = 'rp-thumb-grid';
+        thumbGrid.id = 'rp-uw-img';
+        const existUwImg = document.getElementById('uw-img');
+        if (existUwImg && existUwImg.children.length) {
+          thumbGrid.innerHTML = existUwImg.innerHTML;
+        }
+        btnsWrap.appendChild(thumbGrid);
+
+        pane.appendChild(btnsWrap);
+        break;
+      }
+
+      // ── Bước 03: Ảnh/Video (legacy, giữ để không lỗi) ──
+      case 'pane-img':
+        pane.innerHTML = `
+          <div class="rp-section-title">Upload ảnh hoặc video</div>
+          <div class="rp-upload-btn" id="rp-uz-img">+ JPG · PNG · MP4</div>
+          <div class="rp-thumb-grid" id="rp-uw-img"></div>
+        `;
+        pane.querySelector('#rp-uz-img').addEventListener('click', () => document.getElementById('fi-img').click());
+        const existUwImg2 = document.getElementById('uw-img');
+        if (existUwImg2 && existUwImg2.children.length) {
+          pane.querySelector('#rp-uw-img').innerHTML = existUwImg2.innerHTML;
+        }
+        break;
+
+      // ── Bước 03: Model 3D (legacy) ──
+      case 'pane-3d':
+        pane.innerHTML = `
+          <div class="rp-section-title">Upload model 3D</div>
+          <div class="rp-upload-btn" id="rp-uz-3d">+ GLB · GLTF · OBJ</div>
+          <div id="rp-uw-3d" style="display:flex;flex-direction:column;gap:4px;margin-top:6px;"></div>
+        `;
+        pane.querySelector('#rp-uz-3d').addEventListener('click', () => document.getElementById('fi-3d').click());
+        break;
+
+      // ── Bước 03: Văn bản (legacy) ──
+      case 'pane-text':
+        pane.innerHTML = `
+          <div class="rp-section-title">Thêm văn bản 3D</div>
+          <div class="rp-upload-btn" id="rp-open-text-editor">+ Mở Text Editor</div>
+        `;
+        pane.querySelector('#rp-open-text-editor').addEventListener('click', () => this.textEditor?.togglePanel());
+        break;
+
+      // ── Bước 04: Waypoints ──
+      case 'pane-waypoints':
+        pane.style.paddingTop = '30px'; 
+        pane.innerHTML = `
+          <div class="rp-section-title">Lộ trình tham quan (<span id="rp-wp-count">0</span> điểm)</div>
+          <div class="rp-upload-btn" id="rp-pp-add" style="margin-bottom:6px;">＋ Thêm điểm hiện tại</div>
+          <div id="rp-wp-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+          <div class="rp-upload-btn" id="rp-pp-auto" style="margin-top:6px;">✦ Tự tạo lộ trình</div>
+          <div class="rp-upload-btn" id="rp-pp-clear" style="margin-top:4px;color:rgba(220,100,100,0.8);border-color:rgba(220,100,100,0.3);">✕ Xoá hết</div>
+        `;
+        pane.querySelector('#rp-pp-add').addEventListener('click', () => {
+          this.addWaypoint(this.camera.position.x, this.camera.position.y, this.camera.position.z, this.yaw, this.pitch, '');
+          this.currentWpIdx = this.pathWaypoints.length - 1;
+          this.updateNavBar();
+          this.toast(`Đã thêm điểm ${this.pathWaypoints.length}`, 'success');
+          this._renderRpWpList(pane);
+        });
+        pane.querySelector('#rp-pp-auto').addEventListener('click', () => { this.autoGeneratePath(); this._renderRpWpList(pane); });
+        pane.querySelector('#rp-pp-clear').addEventListener('click', () => { this.clearWaypoints(); this._renderRpWpList(pane); this.toast('Đã xoá hết điểm', 'info'); });
+        this._renderRpWpList(pane);
+        break;
+
+      // ── Bước 04: Rương ──
+      case 'pane-chest':
+        pane.style.paddingTop = '30px';
+        pane.innerHTML = `
+          <div class="rp-section-title">Rương kho báu</div>
+          <div class="rp-upload-btn" id="rp-btn-add-chest">➕ Đặt rương mới</div>
+          <div class="rp-upload-btn" id="rp-chest-hint" style="display:none;color:rgba(104,229,227,0.7);border-style:solid;">↓ Click vào sàn để đặt rương</div>
+          <div id="rp-chest-list" style="display:flex;flex-direction:column;gap:4px;margin-top:6px;"></div>
+        `;
+        pane.querySelector('#rp-btn-add-chest').addEventListener('click', () => {
+          this._chestPlacingMode = true;
+          this.renderer.domElement.style.cursor = 'crosshair';
+          pane.querySelector('#rp-chest-hint').style.display = 'block';
+        });
+        this._renderRpChestList(pane);
+        break;
+
+      // ── Bước 05: Xuất bản ──
+      case 'pane-publish': 
+      {
+        const isPub = this.manager.currentRoom?.isPublished || false;
+        pane.style.paddingTop = '30px';
+        pane.innerHTML = `
+          <div class="rp-section-title">Trạng thái phòng</div>
+          <div class="rp-pub-info">Phòng của bạn hiện đang ở chế độ <b style="color:#fff">${isPub ? 'Public' : 'Draft'}</b>.<br>Xuất bản để khách tham quan có thể xem.</div>
+          <button class="rp-pub-btn ${isPub ? 'danger' : 'primary'}" id="rp-btn-publish">${isPub ? '🔒 Huỷ xuất bản' : '🌐 Xuất bản ngay'}</button>
+          <div class="rp-pub-info" style="margin-top:8px;">Sau khi xuất bản, phòng sẽ xuất hiện trong danh sách khám phá.</div>
+        `;
+        pane.querySelector('#rp-btn-publish').addEventListener('click', () => this._togglePublish());
+        break;
+      }
+
+      default:
+        pane.innerHTML = `<div class="rp-placeholder"><div class="rp-placeholder-icon">🚧</div><div>Sắp ra mắt</div></div>`;
+    }
+  }
+
+  _renderRpWpList(pane) {
+    const list = pane.querySelector('#rp-wp-list');
+    const countEl = pane.querySelector('#rp-wp-count');
+    if (!list) return;
+    if (countEl) countEl.textContent = this.pathWaypoints.length;
+    list.innerHTML = '';
+    this.pathWaypoints.forEach((wp, i) => {
+      const el = document.createElement('div');
+      el.className = 'rp-wp-item';
+      el.innerHTML = `<span class="rp-wp-num">${i + 1}</span><span class="rp-wp-lbl">${wp.label || `(${wp.x.toFixed(1)}, ${wp.z.toFixed(1)})`}</span><button class="rp-wp-del">✕</button>`;
+      el.querySelector('.rp-wp-del').addEventListener('click', (e) => { e.stopPropagation(); this.removeWaypoint(i); this._renderRpWpList(pane); });
+      el.addEventListener('click', (e) => { if (!e.target.classList.contains('rp-wp-del')) this.travelToWaypoint(i); });
+      list.appendChild(el);
+    });
+  }
+
+  _renderRpChestList(pane) {
+    const list = pane.querySelector('#rp-chest-list');
+    if (!list) return;
+    list.innerHTML = this.chests.length ? '' : '<div style="color:rgba(255,255,255,0.2);font-size:9px;text-align:center;padding:8px;">Chưa có rương nào</div>';
+    this.chests.forEach((c, i) => {
+      const el = document.createElement('div');
+      el.className = 'rp-wp-item';
+      el.innerHTML = `<span class="rp-wp-num">🗝</span><span class="rp-wp-lbl">Rương ${i + 1} · ⭐ ${c.token_amount}</span><button class="rp-wp-del">✕</button>`;
+      el.querySelector('.rp-wp-del').addEventListener('click', () => { this._deleteChest(c.id); setTimeout(() => this._renderRpChestList(pane), 300); });
+      list.appendChild(el);
+    });
+  }
+
+  async _loadRpTemplateList(container) {
+    try {
+      const res = await fetch('/models/manifest.json');
+      const templates = await res.json();
+      container.innerHTML = '';
+      templates.forEach(t => {
+        const thumbFile = t.file.replace(/\.glb$/i, '').replace(/\.gltf$/i, '');
+        // Thử png trước, fallback sang svg
+        const thumbUrlPng = `/models/thumbnails/${thumbFile}.png`;
+        const thumbUrlSvg = `/models/thumbnails/${thumbFile}.svg`;
+        const card = document.createElement('div');
+        card.className = 'rp-tpl-card';
+        card.innerHTML = `
+          <span class="rp-tpl-name">${t.name}</span>
+          <img class="rp-tpl-thumb" src="${thumbUrlPng}" alt="${t.name}" onerror="this.src='${thumbUrlSvg}';this.onerror=function(){this.style.opacity='0.15'};">
+        `;
+        if (t.file === this.selectedTemplate) card.classList.add('active');
+        card.addEventListener('click', async () => {
+          card.querySelector('.rp-tpl-name').textContent = '⏳ Đang load...';
+          await this._changeTemplate(t.file);
+          container.querySelectorAll('.rp-tpl-card').forEach(c => c.classList.remove('active'));
+          card.classList.add('active');
+          card.querySelector('.rp-tpl-name').textContent = t.name;
+        });
+        container.appendChild(card);
+      });
+    } catch { container.innerHTML = '<div style="color:rgba(255,255,255,0.2);font-size:9px;">Không load được manifest</div>'; }
+  }
+
+  _loadRpDecorList(grid) {
+    // Mirror từ decor panel cũ — load danh sách decor
+    const decorItems = [
+      { icon: '🌿', name: 'Cây xanh' }, { icon: '🪑', name: 'Ghế' }, { icon: '🏮', name: 'Đèn lồng' },
+      { icon: '🖼', name: 'Khung ảnh' }, { icon: '🗿', name: 'Tượng' }, { icon: '🌺', name: 'Hoa' },
+    ];
+    decorItems.forEach(d => {
+      const el = document.createElement('div');
+      el.className = 'rp-decor-item';
+      el.title = d.name;
+      el.textContent = d.icon;
+      el.addEventListener('click', () => {
+        // Trigger decor panel cũ nếu còn, hoặc xử lý trực tiếp
+        document.getElementById('btn-decor')?.click();
+        this.toast(`Chọn ${d.name} trong panel Decor`, 'info');
+      });
+      grid.appendChild(el);
+    });
   }
 
   /* ══════════════════════════════════════════════ HUD ══════════════════════════════════════════════ */
@@ -1868,12 +2596,6 @@ _buildStudioLeftBtns() {
 
   /* ══════════════════════════════════════════════ BIND CONTROLS ══════════════════════════════════════════════ */
   _bindControls() {
-document.getElementById('btn-back').addEventListener('click', () => {
-    if (this._isRoomNameValid()) this.manager.navigateTo('dashboard');
-});
-    document.getElementById('btn-walk').addEventListener('click', () => this.setMode('walk'));
-    document.getElementById('btn-place').addEventListener('click', () => this.setMode('place'));
-    document.getElementById('btn-save').addEventListener('click', () => this.saveGallery());
     document.getElementById('btn-publish').addEventListener('click', () => this._togglePublish());
     document.getElementById('btn-adv-text').addEventListener('click', () => {
       this.textEditor.togglePanel();
@@ -2162,6 +2884,7 @@ document.getElementById('btn-back').addEventListener('click', () => {
 
   /* ══════════════════════════════════════════════ UPDATE ══════════════════════════════════════════════ */
   update(dt) {
+    if (!this.moveDir || !this.fwd || !this.rgt) return;
     if (this.textEditor && this.textEditor.isPlaceMode && this._lastMouseX !== undefined && this._lastMouseY !== undefined) {
       const rect = this.renderer.domElement.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {

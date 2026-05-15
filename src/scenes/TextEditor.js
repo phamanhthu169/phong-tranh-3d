@@ -48,23 +48,27 @@ export class TextEditor {
     style.textContent = `
       /* Text Editor Panel Styles */
       #advanced-text-panel {
+        transform: scale(0.8);
+        transform-origin: top right;
         position: fixed;
-        right: 20px;
-        top: 60px;
-        width: 380px;
-        background: rgba(15, 13, 12, 0.98);
-        border: 1px solid rgba(212, 197, 169, 0.25);
-        border-radius: 8px;
+        right: 420px;
+        top: 140px;
+        width: 470px;
+        height: 560px;
+        background: #ffffff;
+        background-size: 100% 100%;
+        border: none;
+        border-radius: 0;
         z-index: 100;
-        padding: 16px;
+        padding: 20px 24px;
         display: none;
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
         font-family: monospace;
-        backdrop-filter: blur(8px);
-        max-height: 85vh;
+        backdrop-filter: none;
         overflow-y: auto;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        box-shadow: none;
+        box-sizing: border-box;
       }
       #advanced-text-panel.open { display: flex; }
       
@@ -73,15 +77,15 @@ export class TextEditor {
         font-size: 14px;
         font-style: italic;
         letter-spacing: 0.1em;
-        border-bottom: 1px solid rgba(212, 197, 169, 0.2);
-        padding-bottom: 8px;
+        border-bottom: none;
+        padding-bottom: 4px;
         margin: 0 0 4px 0;
       }
       
       .te-section {
-        border-top: 1px solid rgba(212, 197, 169, 0.1);
-        padding-top: 10px;
-        margin-top: 4px;
+        border-top: none;
+        padding-top: 6px;
+        margin-top: 2px;
       }
       
       .te-section-title {
