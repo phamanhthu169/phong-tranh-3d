@@ -107,6 +107,9 @@ export class StudioScene extends BaseScene {
     this._buildMusicPanel();
     this._buildWaypointElements();
     this._injectWaypointCSS();
+    this._buildStudioTopBar();
+    this._buildMinimap();  
+    this._buildStudioLeftBtns();
     this._bindControls();
 
     /* ── Sự kiện ── */
@@ -225,6 +228,141 @@ export class StudioScene extends BaseScene {
       .ccfg label{color:#7a6e5c;font-size:9px;letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:4px}
       .ccfg input,.ccfg textarea{background:rgba(20,18,14,.8);border:.5px solid rgba(212,197,169,.25);color:#d4c5a9;font-family:monospace;font-size:11px;padding:6px 8px;border-radius:2px;outline:none;width:100%;box-sizing:border-box}
       .ccfg textarea{resize:vertical;min-height:60px}
+      #minimap-wrap { position:relative; background:transparent; border:none; backdrop-filter:none; }
+      #minimap-canvas-wrap { position:relative; overflow:hidden; width:96px; height:96px; transition:width .3s cubic-bezier(.4,0,.2,1), height .3s cubic-bezier(.4,0,.2,1); transform-origin:bottom left; }
+      #minimap-wrap.expanded #minimap-canvas-wrap { width:200px; height:200px; }
+      #minimap-wrap.expanded { width:200px; }
+      #minimap-wrap { width:96px; }
+      #minimap-bg-svg { position:absolute; top:0; left:0; width:100%; height:100%; display:block; object-fit:fill; pointer-events:none; z-index:0; }
+      #minimap-canvas { position:relative; z-index:1; display:block; width:100%; height:100%; }
+      #studio-topbar {
+        position:fixed; top:0; left:0; right:0; height:65px;
+        display:flex; align-items:center; justify-content:flex-start;
+        gap:10px; z-index:25; pointer-events:none;
+        padding:0 20px 0 200px;
+      }
+      #studio-topbar > * { pointer-events:auto; }
+      #studio-room-name-wrap {
+        display:inline-flex; align-items:center;
+        background:none; border:none; position:relative;
+      }
+      #studio-room-name-icon { display:none; }
+      #studio-room-name-bg { display:block; height:30px !important; pointer-events:none; }
+      #studio-room-name-input {
+        position:absolute; inset:0;
+        background:transparent; border:none; outline:none;
+        color:#d4c5a9; font-family:monospace; font-size:12px;
+        letter-spacing:.06em; text-align:center;
+        padding:0 16px; width:100%; height:100%; cursor:text;
+      }
+      #studio-room-name-input::placeholder { color:rgba(255, 255, 255, 0.4); }
+      #studio-room-name-bg { display:block; height:auto; pointer-events:none; }
+      #studio-draft-badge { background:none; border:none; padding:0; cursor:default; }
+      #studio-draft-badge img { display:block; height:30px !important; }
+      #studio-autosave-wrap {
+        height:30px !important;
+        display:flex; align-items:center; gap:0;
+        background:none; border:none; padding:0; position:relative; cursor:pointer;
+      }
+      #studio-autosave-bg { display:block; height:30px !important; pointer-events:none; }
+      #studio-autosave-label { display:none; }
+      .studio-toggle {
+        position:absolute; right:10px; top:50%; transform:translateY(-50%);
+        width:32px; height:18px; flex-shrink:0;
+      }
+      .studio-toggle input { opacity:0; width:0; height:0; position:absolute; }
+      .studio-toggle-slider {
+        position:absolute; inset:0; background:rgba(80,80,80,.6);
+        border:.5px solid rgba(212,197,169,.2); border-radius:18px; transition:all .25s; cursor:pointer;
+      }
+      .studio-toggle-slider::before {
+        content:''; position:absolute; width:12px; height:12px;
+        left:2px; top:2px; background:#7a6e5c; border-radius:50%; transition:all .25s;
+      }
+      .studio-toggle input:checked + .studio-toggle-slider { background:rgba(200,169,110,.5); border-color:#c8a96e; }
+      .studio-toggle input:checked + .studio-toggle-slider::before { transform:translateX(14px); background:#c8a96e; }
+      .studio-top-btn {
+        background:none; border:none; padding:0; cursor:pointer;
+        transition:filter .2s, transform .2s; display:block;
+      }
+      .studio-top-btn:hover { filter:brightness(1.15); transform:scale(1.06); }
+      .studio-top-btn img { display:block; height:40px !important; pointer-events:none; }
+      .studio-side-btn:hover::after {
+        content:attr(data-title);
+        position:absolute; left:calc(100% + 10px); top:50%; transform:translateY(-50%);
+        background:rgba(18,15,12,.95); color:#d4c5a9;
+        font-family:monospace; font-size:9px; letter-spacing:.1em;
+        padding:4px 10px; border:.5px solid rgba(212,197,169,.2);
+        border-radius:3px; white-space:nowrap; pointer-events:none; z-index:50;
+      }
+      #studio-help-chat {
+        position:fixed; left:84px; bottom:84px; top:auto; transform:none;
+        width:260px; background:rgba(15,13,12,.97);
+        border:.5px solid rgba(212,197,169,.2); border-radius:6px;
+        display:none; flex-direction:column; overflow:hidden;
+        box-shadow:0 8px 32px rgba(0,0,0,.5); z-index:30;
+      }
+      #studio-left-btns {
+        position:fixed; left:20px; top:296px;
+        display:flex; flex-direction:column; gap:10px; z-index:20;
+      }
+      .studio-side-btn {
+        position:relative; cursor:pointer; display:flex; align-items:center; justify-content:center;
+        width:40px; height:40px; transition:transform .2s, filter .2s;
+      }
+      .studio-side-btn:hover { transform:scale(1.1); filter:brightness(1.2); }
+      .studio-side-btn img { width:40px; height:40px; display:block; }
+      #btn-studio-helpchat {
+        position:fixed !important; left:20px !important; bottom:20px !important;
+        top:auto !important; width:56px !important; height:56px !important;
+      }
+      #btn-studio-helpchat img { width:56px; height:56px; }
+      #studio-helpchat-label {
+        position:fixed; left:84px; bottom:32px; z-index:20;
+        color:#d4c5a9; font-family:monospace; font-size:11px;
+        background:rgba(15,13,12,.7); padding:4px 10px; border-radius:20px;
+        border:.5px solid rgba(212,197,169,.2); pointer-events:none;
+        white-space:nowrap;
+      }
+      #studio-help-chat.open { display:flex; }
+      #shc-header {
+        padding:10px 14px; background:rgba(212,197,169,.05);
+        border-bottom:.5px solid rgba(212,197,169,.15);
+        display:flex; justify-content:space-between; align-items:center;
+      }
+      #shc-title { font-family:monospace; font-size:10px; letter-spacing:.12em; color:#c8a96e; text-transform:uppercase; }
+      #shc-close { background:none; border:none; color:#7a6e5c; cursor:pointer; font-size:13px; transition:color .2s; }
+      #shc-close:hover { color:#d4c5a9; }
+      #shc-messages {
+        height:180px; overflow-y:auto; padding:10px 12px;
+        display:flex; flex-direction:column; gap:6px; font-family:monospace;
+      }
+      #shc-messages::-webkit-scrollbar { width:2px; }
+      #shc-messages::-webkit-scrollbar-thumb { background:rgba(212,197,169,.15); }
+      .shc-msg { font-size:10px; line-height:1.6; color:rgba(212,197,169,.75); }
+      .shc-msg .shc-name { color:#c8a96e; font-size:8px; margin-right:5px; }
+      #shc-input-row { display:flex; border-top:.5px solid rgba(212,197,169,.12); }
+      #shc-input {
+        flex:1; padding:8px 10px; background:transparent; border:none;
+        color:#d4c5a9; font-family:monospace; font-size:10px; outline:none;
+      }
+      #shc-input::placeholder { color:#555; }
+      #shc-send {
+        padding:8px 12px; background:rgba(212,197,169,.06); border:none;
+        border-left:.5px solid rgba(212,197,169,.12); color:#7a6e5c;
+        font-family:monospace; font-size:10px; cursor:pointer; transition:all .2s;
+      }
+      #shc-send:hover { background:rgba(212,197,169,.15); color:#d4c5a9; }
+      #studio-settings-panel {
+        position:fixed; left:70px; top:300px; transform:none;
+        width:220px; background:rgba(15,13,12,.97);
+        border:.5px solid rgba(212,197,169,.2); border-radius:6px;
+        display:none; flex-direction:column; gap:12px;
+        padding:14px; z-index:30;
+        box-shadow:0 8px 32px rgba(0,0,0,.5);
+      }
+      #studio-settings-panel.open { display:flex; }
+      #ssp-title { font-family:monospace; font-size:10px; letter-spaci
     `;
     document.head.appendChild(style);
     this._el(style);
@@ -232,8 +370,12 @@ export class StudioScene extends BaseScene {
 
   /* ══════════════════════════════════════════════ TOOLBAR ══════════════════════════════════════════════ */
   _buildToolbar() {
+    const gradBar = document.createElement('div');
+    gradBar.style.cssText = 'position:fixed;top:0;left:0;right:0;height:120px;background:url(\'/icons/gradient.svg\') repeat-x top center;background-size:auto 120px;z-index:9;pointer-events:none;';
+    document.body.appendChild(gradBar);
+    this._el(gradBar);
     const el = document.createElement('div');
-    el.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10;';
+    el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10;';
     const isPub = this.manager.currentRoom?.isPublished || false;
     el.innerHTML = `
       <button class="tb-btn" id="btn-back">← Back</button>
@@ -265,6 +407,331 @@ export class StudioScene extends BaseScene {
     this._toastEl._t = setTimeout(() => { this._toastEl.className = ''; }, duration);
   }
 
+  _isRoomNameValid() {
+    const roomNameInput = document.getElementById('studio-room-name-input');
+    const name = roomNameInput?.value.trim();
+    if (!name) {
+        this.toast('❌ Vui lòng đặt tên cho phòng trước khi tiếp tục', 'error');
+        return false;
+    }
+    return true;
+}
+  _buildStudioTopBar() {
+    const bar = document.createElement('div');
+    bar.id = 'studio-topbar';
+    bar.innerHTML = `
+      <div id="studio-room-name-wrap">
+        <img id="studio-room-name-bg" src="/studio/roomname.svg" alt="">
+        <input id="studio-room-name-input" type="text" placeholder="Tên căn phòng này là gì vậy?" maxlength="60" style="color:#FFFFFF;">      </div>
+      <div id="studio-draft-badge" title="Trạng thái Draft">
+        <img src="/studio/draft.svg" alt="Draft">
+      </div>
+      <div id="studio-autosave-wrap" style="margin-left:330px;" title="Tự động lưu">
+        <img id="studio-autosave-bg" src="/studio/autosave.svg" alt="Autosave" style="height:40px !important;width:auto;">
+        <span id="studio-autosave-label">Autosave</span>
+        <label class="studio-toggle">
+          <input type="checkbox" id="studio-autosave-toggle" checked>
+          <span class="studio-toggle-slider"></span>
+        </label>
+      </div>
+        <div class="studio-top-btn" id="btn-studio-preview" style="margin-left:-30px;" title="Preview phòng tranh">
+        <img src="/studio/preview.svg" alt="Preview" style="margin-left:20px;">
+      </div>
+      <div class="studio-top-btn" id="btn-studio-save" title="Lưu phòng tranh" style="margin-left:-20px;">
+        <img src="/studio/save.svg" alt="Save">
+      </div>
+    `;
+    document.body.appendChild(bar);
+    this._el(bar);
+
+    // Load room name từ currentRoom
+    const roomNameInput = document.getElementById('studio-room-name-input');
+    roomNameInput.addEventListener('focus', function() {
+    if (this.value === '') {
+        this.placeholder = '';
+    }
+});
+roomNameInput.addEventListener('blur', function() {
+    if (this.value === '') {
+        this.placeholder = 'Tên căn phòng này là gì vậy?';
+    }
+});
+    if (this.manager.currentRoom?.name) {
+    roomNameInput.value = this.manager.currentRoom?.name || '';
+    }
+
+    // Autosave
+    this._autosaveEnabled = true;
+    this._autosaveTimer = null;
+    const autosaveToggle = document.getElementById('studio-autosave-toggle');
+    autosaveToggle.addEventListener('change', (e) => {
+      this._autosaveEnabled = e.target.checked;
+      if (!this._autosaveEnabled && this._autosaveTimer) {
+        clearTimeout(this._autosaveTimer);
+        this._autosaveTimer = null;
+      }
+    });
+
+    // Khi sửa tên phòng → debounce autosave
+    roomNameInput.addEventListener('input', (e) => {
+      if (this.manager.currentRoom) this.manager.currentRoom.name = e.target.value;
+      if (this._autosaveEnabled) {
+        clearTimeout(this._autosaveTimer);
+        this._autosaveTimer = setTimeout(() => this.saveGallery(), 2000);
+      }
+    });
+
+    // Nút Save
+    document.getElementById('btn-studio-save').addEventListener('click', () => this.saveGallery());
+
+    // Nút Preview — mở viewer trong tab mới
+    document.getElementById('btn-studio-preview').addEventListener('click', () => {
+      const roomId = this.manager.currentRoom?.id;
+      if (roomId) window.open(`/viewer?room=${roomId}`, '_blank');
+    });
+  }
+
+  _triggerAutosave() {
+    if (!this._autosaveEnabled) return;
+    clearTimeout(this._autosaveTimer);
+    this._autosaveTimer = setTimeout(() => this.saveGallery(), 3000);
+  }
+
+  _buildMinimap() {
+    const wrap = document.createElement('div');
+    wrap.id = 'minimap-wrap';
+    wrap.innerHTML = `
+      <div id="minimap-canvas-wrap">
+        <button id="minimap-expand-btn" style="position:absolute;top:4px;right:4px;z-index:10;background:rgba(18,15,12,.6);border:.5px solid rgba(212,197,169,.3);border-radius:3px;cursor:pointer;font-size:8px;color:rgba(212,197,169,.7);width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;">⤢</button>
+        <img id="minimap-bg-svg" src="/icons/minimap.svg" alt="">
+        <canvas id="minimap-canvas" width="200" height="200"></canvas>      </div>
+    `;
+    wrap.style.cssText = 'position:fixed;bottom:350px;left:12px;z-index:20;width:96px;';
+    document.body.appendChild(wrap);
+    this._el(wrap);
+
+    this._mmExpanded = false;
+
+    if (!this._playerSvg) {
+      this._playerSvg = new Image();
+      this._playerSvg.src = '/icons/player.svg';
+    }
+
+    document.getElementById('minimap-expand-btn').addEventListener('click', () => {
+      this._mmExpanded = !this._mmExpanded;
+      wrap.classList.toggle('expanded', this._mmExpanded);
+      const btn = document.getElementById('minimap-expand-btn');
+      btn.textContent = this._mmExpanded ? '⤡' : '⤢';
+      btn.title = this._mmExpanded ? 'Thu nhỏ' : 'Mở rộng';
+    });
+    
+  }
+
+  _drawMinimap() {
+    const mmCanvas = document.getElementById('minimap-canvas');
+    if (!mmCanvas) return;
+    const S = mmCanvas.width;
+    const mmCtx = mmCanvas.getContext('2d');
+    mmCtx.clearRect(0, 0, S, S);
+
+    const box = this._roomBox;
+    if (!box) return;
+    const minX = box.min.x, maxX = box.max.x;
+    const minZ = box.min.z, maxZ = box.max.z;
+    const pad = Math.round(S * .1);
+    const spanX = maxX - minX || 20, spanZ = maxZ - minZ || 20;
+    const scale = Math.min((S - pad*2)/spanX, (S - pad*2)/spanZ);
+    const ox = pad + ((S - pad*2) - spanX*scale)/2 - minX*scale;
+    const oz = pad + ((S - pad*2) - spanZ*scale)/2 - minZ*scale;
+    const toMM = (wx, wz) => [ox + wx*scale, oz + wz*scale];
+
+    this.artworks.forEach(a => {
+      if (!a.group) return;
+      const [mx, mz] = toMM(a.group.position.x, a.group.position.z);
+      const sz = this._mmExpanded ? 4 : 3;
+      mmCtx.fillStyle = 'rgba(200,169,110,.8)';
+      mmCtx.fillRect(mx - sz/2, mz - sz*.4, sz, sz*.8);
+    });
+
+    const [cx, cz] = toMM(this.camera.position.x, this.camera.position.z);
+    mmCtx.save();
+    mmCtx.translate(cx, cz);
+    mmCtx.rotate(-this.yaw);
+    if (this._playerSvg?.complete && this._playerSvg.naturalWidth) {
+      const imgSize = 104;
+      mmCtx.drawImage(this._playerSvg, -imgSize/2, -imgSize/2, imgSize, imgSize);
+    } else {
+      const r = this._mmExpanded ? 9 : 6;
+      mmCtx.beginPath();
+      mmCtx.moveTo(0, -r * 1.6);
+      mmCtx.lineTo(r, r);
+      mmCtx.lineTo(-r, r);
+      mmCtx.closePath();
+      mmCtx.fillStyle = 'rgba(200,169,110,0.95)';
+      mmCtx.fill();
+      mmCtx.strokeStyle = 'rgba(255,255,255,0.8)';
+      mmCtx.lineWidth = 1.5;
+      mmCtx.stroke();
+      if (!this._playerSvg) {
+        this._playerSvg = new Image();
+        this._playerSvg.src = '/icons/player.svg';
+      }
+    }
+    mmCtx.restore();
+  }
+_buildStudioLeftBtns() {
+    // 4 nút dọc bên trái
+    const col = document.createElement('div');
+    col.id = 'studio-left-btns';
+    col.style.cssText = 'position:fixed;left:12px;top:auto;bottom:200px;display:flex;flex-direction:column;gap:8px;z-index:20;';
+    col.innerHTML = `
+      <div class="studio-side-btn" id="btn-studio-tutorial" data-title="Hướng dẫn xây phòng">
+        <img src="/studio/tutorial.svg">
+      </div>
+      <div class="studio-side-btn" id="btn-studio-faq" data-title="FAQ">
+        <img src="/studio/faq.svg">
+      </div>
+      <div class="studio-side-btn" id="btn-studio-settings" data-title="Cài đặt">
+        <img src="/studio/studiosettings.svg">
+      </div>
+    `;
+    document.body.appendChild(col);
+    this._el(col);
+
+    // Helpchat button — bottom left, separate from other side buttons
+    const helpChatBtn = document.createElement('div');
+    helpChatBtn.id = 'btn-studio-helpchat';
+    helpChatBtn.className = 'studio-side-btn';
+    helpChatBtn.setAttribute('data-title', 'Bạn cần trợ giúp?');
+    helpChatBtn.style.cssText = 'position:fixed;left:20px;bottom:20px;z-index:20;width:56px;height:56px;cursor:pointer;transition:transform .2s,filter .2s;';
+    helpChatBtn.innerHTML = `<img src="/studio/helpchat.svg" style="width:56px;height:56px;display:block;">`;
+    document.body.appendChild(helpChatBtn);
+    this._el(helpChatBtn);
+
+
+    // --- Tutorial overlay ---
+    const tutOverlay = document.createElement('div');
+    tutOverlay.id = 'studio-tutorial-overlay';
+    tutOverlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:60;display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px)';
+    tutOverlay.innerHTML = `
+      <div style="background:rgba(15,13,12,.97);border:.5px solid rgba(212,197,169,.3);border-radius:8px;padding:32px 36px;width:420px;font-family:monospace;display:flex;flex-direction:column;gap:16px;">
+        <div style="color:#c8a96e;font-size:16px;letter-spacing:.1em;border-bottom:.5px solid rgba(212,197,169,.15);padding-bottom:10px;">📖 Hướng dẫn xây phòng</div>
+        <div style="color:#7a6e5c;font-size:9px;line-height:2;letter-spacing:.08em;">
+          <b style="color:#d4c5a9">🚶 Walk</b> — Di chuyển trong phòng<br>
+          <b style="color:#d4c5a9">📌 Place</b> — Đặt tranh / model lên tường hoặc sàn<br>
+          <b style="color:#d4c5a9">✦ Select</b> — Chọn và di chuyển / xoay / scale vật thể<br>
+          <b style="color:#d4c5a9">💡 Light</b> — Điều chỉnh ánh sáng phòng<br>
+          <b style="color:#d4c5a9">🛤 Path</b> — Tạo lộ trình tham quan<br>
+          <b style="color:#d4c5a9">🏛 Template</b> — Đổi mẫu phòng<br>
+          <b style="color:#d4c5a9">🎨 Decor</b> — Thêm đồ trang trí<br>
+          <b style="color:#d4c5a9">🗝 Rương</b> — Đặt rương kho báu<br>
+          <b style="color:#d4c5a9">💾 Save</b> — Lưu phòng<br>
+          <b style="color:#d4c5a9">🌐 Publish</b> — Công khai phòng tranh
+        </div>
+        <button id="studio-tut-close" style="align-self:flex-end;padding:7px 20px;background:rgba(212,197,169,.08);border:.5px solid rgba(212,197,169,.2);color:#7a6e5c;font-family:monospace;font-size:9px;letter-spacing:.12em;cursor:pointer;border-radius:3px;transition:all .2s">Đã hiểu ✓</button>
+      </div>
+    `;
+    document.body.appendChild(tutOverlay);
+    this._el(tutOverlay);
+
+    // --- Settings panel ---
+    const sspPanel = document.createElement('div');
+    sspPanel.id = 'studio-settings-panel';
+    sspPanel.innerHTML = `
+      <div id="ssp-title">⚙ Cài đặt Studio</div>
+      <div class="ssp-row">
+        <span class="ssp-label">Tốc độ di chuyển</span>
+        <input type="range" class="ssp-range" id="ssp-speed" min="2" max="20" step="1" value="8">
+        <span class="ssp-val" id="ssp-speed-val">8</span>
+      </div>
+      <div class="ssp-row">
+        <span class="ssp-label">FOV camera</span>
+        <input type="range" class="ssp-range" id="ssp-fov" min="40" max="100" step="1" value="75">
+        <span class="ssp-val" id="ssp-fov-val">75</span>
+      </div>
+    `;
+    document.body.appendChild(sspPanel);
+    this._el(sspPanel);
+
+    // --- Help chat panel ---
+    const chatPanel = document.createElement('div');
+    chatPanel.id = 'studio-help-chat';
+    chatPanel.innerHTML = `
+      <div id="shc-header">
+        <span id="shc-title">💬 Hỗ trợ Metasteps</span>
+        <button id="shc-close">✕</button>
+      </div>
+      <div id="shc-messages">
+        <div class="shc-msg"><span class="shc-name">Metasteps</span>Xin chào! Bạn cần hỗ trợ gì?</div>
+      </div>
+      <div id="shc-input-row">
+        <input id="shc-input" placeholder="Nhắn tin cho admin…" autocomplete="off">
+        <button id="shc-send">Gửi</button>
+      </div>
+    `;
+    document.body.appendChild(chatPanel);
+    this._el(chatPanel);
+
+    // --- Events ---
+    document.getElementById('btn-studio-tutorial').addEventListener('click', () => {
+      tutOverlay.style.display = 'flex';
+    });
+    document.getElementById('studio-tut-close').addEventListener('click', () => {
+      tutOverlay.style.display = 'none';
+    });
+    tutOverlay.addEventListener('click', e => {
+      if (e.target === tutOverlay) tutOverlay.style.display = 'none';
+    });
+
+    document.getElementById('btn-studio-faq').addEventListener('click', () => {
+      window.open('/faq', '_blank');
+    });
+
+    document.getElementById('btn-studio-settings').addEventListener('click', () => {
+      sspPanel.classList.toggle('open');
+      chatPanel.classList.remove('open');
+    });
+
+    document.getElementById('btn-studio-helpchat').addEventListener('click', () => {
+      chatPanel.classList.toggle('open');
+      sspPanel.classList.remove('open');
+    });
+
+    document.getElementById('shc-close').addEventListener('click', () => {
+      chatPanel.classList.remove('open');
+    });
+
+    document.getElementById('shc-send').addEventListener('click', () => {
+      const inp = document.getElementById('shc-input');
+      const text = inp.value.trim();
+      if (!text) return;
+      inp.value = '';
+      const msgs = document.getElementById('shc-messages');
+      const div = document.createElement('div');
+      div.className = 'shc-msg';
+      div.innerHTML = `<span class="shc-name" style="color:#8ab4ff">Bạn</span>${text}`;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+    });
+
+    document.getElementById('shc-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('shc-send').click();
+    });
+
+    document.getElementById('ssp-speed').addEventListener('input', e => {
+      document.getElementById('ssp-speed-val').textContent = e.target.value;
+    });
+
+    document.getElementById('ssp-fov').addEventListener('input', e => {
+      document.getElementById('ssp-fov-val').textContent = e.target.value;
+      if (this.camera) {
+        this.camera.fov = +e.target.value;
+        this.camera.updateProjectionMatrix();
+      }
+    });
+  }
+
+
   /* ══════════════════════════════════════════════ MODE ══════════════════════════════════════════════ */
   setMode(m) {
     this.mode = m;
@@ -291,7 +758,7 @@ export class StudioScene extends BaseScene {
   /* ══════════════════════════════════════════════ PANEL PHẢI (upload) ══════════════════════════════════════════════ */
   _buildRightPanel() {
     const panel = document.createElement('div');
-    panel.style.cssText = 'position:fixed;right:0;top:0;bottom:0;width:165px;background:rgba(15,13,12,.97);border-left:1px solid rgba(212,197,169,.15);display:flex;flex-direction:column;z-index:10;overflow-y:auto;font-family:monospace;';
+    panel.style.cssText = 'position:fixed;right:50px;top:70px;bottom:14px;width:140px;background:rgba(15,13,12,.97);border:1px solid rgba(212,197,169,.15);border-radius:8px;display:flex;flex-direction:column;z-index:10;overflow-y:auto;font-family:monospace;';
     panel.innerHTML = `
       <div style="color:#d4c5a9;font-size:13px;font-style:italic;padding:12px 12px 8px;border-bottom:1px solid rgba(212,197,169,.1)">Tác phẩm</div>
       <div style="color:#555;font-size:9px;letter-spacing:.15em;text-transform:uppercase;padding:9px 12px 4px">Upload ảnh / video</div>
@@ -906,6 +1373,7 @@ export class StudioScene extends BaseScene {
         const box = new THREE.Box3().setFromObject(model);
         const center = box.getCenter(new THREE.Vector3());
         this.floorY = box.min.y;
+        this._roomBox = box.clone();   
         this.camera.position.set(center.x, this.floorY + 1.6, center.z);
         resolve();
       });
@@ -1118,7 +1586,9 @@ export class StudioScene extends BaseScene {
 
   /* ══════════════════════════════════════════════ BIND CONTROLS ══════════════════════════════════════════════ */
   _bindControls() {
-    document.getElementById('btn-back').addEventListener('click', () => this.manager.navigateTo('dashboard'));
+document.getElementById('btn-back').addEventListener('click', () => {
+    if (this._isRoomNameValid()) this.manager.navigateTo('dashboard');
+});
     document.getElementById('btn-walk').addEventListener('click', () => this.setMode('walk'));
     document.getElementById('btn-place').addEventListener('click', () => this.setMode('place'));
     document.getElementById('btn-select').addEventListener('click', () => this.setMode('select'));
@@ -1360,6 +1830,7 @@ export class StudioScene extends BaseScene {
         const mouseY = -((this._lastMouseY - rect.top) / rect.height) * 2 + 1;
         const mouseVec = new THREE.Vector2(mouseX, mouseY);
         this.textEditor.updatePreviewOnMouseMove(this.raycaster, this.camera, mouseVec, this.modelMeshes);
+        this._drawMinimap();
       }
     }
     
@@ -1400,10 +1871,11 @@ export class StudioScene extends BaseScene {
       this.camera.position.add(this.moveDir); this.camera.position.y = posY;
     }
     this.artworks.forEach(a => { if (a.isVideo && a.videoTex) a.videoTex.needsUpdate = true; });
-  }
+    this._drawMinimap();  }
 
   /* ══════════════════════════════════════════════ SAVE / LOAD ══════════════════════════════════════════════ */
   async _togglePublish() {
+    if (!this._isRoomNameValid()) return;
     const room = this.manager.currentRoom;
     room.isPublished = !room.isPublished;
     const btn = document.getElementById('btn-publish');
@@ -1414,6 +1886,7 @@ export class StudioScene extends BaseScene {
   }
 
   async saveGallery() {
+    if (!this._isRoomNameValid()) return;
     const room = this.manager.currentRoom;
     const btn = document.getElementById('btn-save');
     if (btn) btn.textContent = '⏳ Saving...';

@@ -248,7 +248,7 @@ export class ViewerScene extends BaseScene {
       :root {
         --bg: rgb(69, 105, 177); --surface: rgb(63, 99, 170);
         --border: rgba(212,197,169,.15); --border-hi: rgba(212,197,169,.5);
-        --gold: #ffffff; --gold-dim: #ffffff; --text-dim: #555;
+        --gold: rgb(69, 105, 177); --gold-dim: rgb(69, 105, 177); --text-dim: #555;
         --accent: #85d4e7ef; --accent2: #7793ad;; --danger: #b54a3a; --green: #5aaa7a;
         --radius: 6px; --radius-sm: 3px;
         --font-ui: 'Nunito', sans-serif; --font-head: 'Cormorant Garamond', serif; --font-mono: 'Space Mono', monospace;
@@ -486,7 +486,7 @@ export class ViewerScene extends BaseScene {
 
       #settings-panel {
         position:fixed; left:66px; bottom:14px;
-        width:220px; background:rgba(18,15,12,.98);
+        width:220px; background:rgba(255, 255, 255, 0.98);
         border:.5px solid var(--border); border-radius:var(--radius);
         z-index:30; padding:14px; display:none; flex-direction:column; gap:12px;
         box-shadow:0 8px 32px rgba(0,0,0,.5);
@@ -494,7 +494,7 @@ export class ViewerScene extends BaseScene {
       #settings-panel.open { display:flex; }
       .sp-title {
         font-family:var(--font-head); font-size:14px; font-style:italic;
-        color:var(--gold); letter-spacing:.08em;
+        color:#76AAAB; letter-spacing:.08em;
         border-bottom:.5px solid var(--border); padding-bottom:8px;
       }
       .sp-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }

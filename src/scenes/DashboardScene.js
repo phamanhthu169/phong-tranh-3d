@@ -149,8 +149,7 @@ export class DashboardScene extends BaseScene {
   _createNewRoom() {
     const artistId = this.manager.auth.profile.name;
     const roomId   = artistId + ':::' + Date.now();
-    this.manager.currentRoom = { id: roomId, name: 'Phòng mới', artistId, isPublished: false };
-    this.manager.navigateTo('studio');
+    this.manager.currentRoom = { id: roomId, name: null, artistId, isPublished: false };    this.manager.navigateTo('studio');
   }
 
   update(_dt) {
