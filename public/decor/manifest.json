@@ -1,5 +1,6 @@
 [
   { "file": "Chicken.glb", "name": "Con gà" },
   { "file": "cypress_tree.glb", "name": "Cây bách" },
-  { "file": "military_trenches_wall_metal_corrugated_06_ydxnbdns_mid.glb", "name": "Vách kim loại" }
+  { "file": "military_trenches_wall_metal_corrugated_06_ydxnbdns_mid.glb", "name": "Vách kim loại" },
+  { "file": "drawer.glb", "name": "Drawer" }
 ]

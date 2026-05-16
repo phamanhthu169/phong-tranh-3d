@@ -1201,16 +1201,19 @@ _buildStudioLeftBtns() {
       }
       .rp-subtab {
         width: 93px; height: 40px;
-        padding: 8px 10px; font-size: 10px; color: rgba(255,255,255,0.45);
+        padding: 8px 10px; font-size: 20px; color: rgba(255,255,255,1);
         cursor: pointer; border-bottom: 2px solid transparent;
         transition: all 0.2s; white-space: nowrap; letter-spacing: .03em;
         display: flex; align-items: center; justify-content: center;
+        font-family: 'Montserrat', sans-serif;
       }
       .rp-subtab:hover { color: rgba(255,255,255,0.8); }
       .rp-subtab.active { color: #fff; border-bottom-color: #68e5e3; }
       /* ── Content ── */
       #rp-content {
         flex: 1; overflow-y: auto; padding: 16px 30px 30px 30px;
+        font-family: 'Montserrat', sans-serif;
+        color: #FFFFFF;
         padding-top: 0px;
       }
       #rp-content::-webkit-scrollbar { width: 3px; }
@@ -1225,12 +1228,13 @@ _buildStudioLeftBtns() {
       .rp-placeholder-icon { font-size: 32px; opacity: 0.3; }
       /* ── Light controls (bước 02 - đèn) ── */
       .rp-lp-row { display: flex; align-items: center; gap: 8px; }
-      .rp-lp-label { color: rgba(255,255,255,0.5); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; flex-shrink: 0; width: 80px; }
+      .rp-lp-label { color: rgba(255,255,255,0.5); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; flex-shrink: 0; width: 80px; }
       .rp-lp-val { color: #fff; font-size: 9px; width: 28px; text-align: right; flex-shrink: 0; }
       .rp-lp-range { flex: 1; -webkit-appearance: none; height: 2px; background: rgba(255,255,255,0.15); border-radius: 1px; outline: none; cursor: pointer; }
       .rp-lp-range::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #68e5e3; cursor: pointer; }
       .rp-lp-color { width: 28px; height: 20px; border: none; border-radius: 4px; cursor: pointer; background: none; padding: 0; }
-      .rp-section-title { color: rgba(255,255,255,0.35); font-size: 8px; letter-spacing: .15em; text-transform: uppercase; margin-bottom: 2px; margin-top: 4px; }
+      .rp-section-title { color: rgba(255,255,255,1); font-size: 15px; letter-spacing: .15em; text-transform: uppercase; margin-bottom: 2px; margin-top: 4px;   font-family: 'Montserrat', sans-serif;
+ }
       /* ── Upload (bước 03) ── */
       .rp-upload-btn {
         padding: 10px; text-align: center; cursor: pointer;
@@ -1263,7 +1267,7 @@ _buildStudioLeftBtns() {
       .rp-music-row { display: flex; align-items: center; gap: 10px; }
       .rp-music-btn { background: rgba(104,229,227,0.15); border: 1px solid rgba(104,229,227,0.35); color: #68e5e3; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all 0.2s; flex-shrink: 0; }
       .rp-music-btn:hover { background: rgba(104,229,227,0.3); }
-      .rp-music-name { font-size: 9px; color: rgba(255,255,255,0.4); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .rp-music-name { font-size: 14px; color: rgba(255,255,255,0.4); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .rp-music-vol { width: 70px; -webkit-appearance: none; height: 2px; background: rgba(255,255,255,0.15); border-radius: 1px; outline: none; }
       .rp-music-vol::-webkit-slider-thumb { -webkit-appearance: none; width: 8px; height: 8px; border-radius: 50%; background: #68e5e3; cursor: pointer; }
       /* ── Decor thumbs ── */
@@ -1310,6 +1314,96 @@ _buildStudioLeftBtns() {
       .rp-pub-btn.danger { background: rgba(181,74,58,.15); color: rgba(255,150,130,.8); border: 1px solid rgba(181,74,58,.4); }
       .rp-pub-btn.danger:hover { background: rgba(181,74,58,.3); }
       .rp-pub-info { font-size: 9px; color: rgba(255,255,255,0.3); line-height: 1.8; letter-spacing: .06em; }
+      /* ── Publish form redesign ── */
+      .pub-section-title { color: #68e5e3; font-size: 10px; letter-spacing: .15em; text-transform: uppercase; font-family: 'Montserrat', sans-serif; font-weight: 700; margin: 10px 0 5px; border-bottom: .5px solid rgba(104,229,227,0.2); padding-bottom: 4px; }
+      .pub-field { display: flex; flex-direction: column; gap: 3px; }
+      .pub-field-label { color: rgba(255,255,255,0.45); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+      .pub-required { color: #68e5e3; }
+      .pub-optional { color: rgba(255,255,255,0.22); font-style: italic; }
+      .pub-input { background: rgba(255,255,255,0.05); border: .5px solid rgba(212,197,169,0.22); border-radius: 4px; color: #d4c5a9; font-family: monospace; font-size: 11px; padding: 6px 8px; outline: none; transition: border-color .2s; width: 100%; box-sizing: border-box; }
+      .pub-textarea { background: rgba(255,255,255,0.05); border: .5px solid rgba(212,197,169,0.22); border-radius: 4px; color: #d4c5a9; font-family: monospace; font-size: 11px; padding: 6px 8px; outline: none; transition: border-color .2s; resize: vertical; width: 100%; box-sizing: border-box; min-height: 72px; }
+      .pub-input:focus, .pub-textarea:focus { border-color: rgba(104,229,227,0.5); }
+      .pub-char-count { color: rgba(255,255,255,0.2); font-size: 8px; text-align: right; letter-spacing: .06em; }
+      .pub-char-count.warn { color: #c8a96e; }
+      .pub-tags-container { display: flex; flex-wrap: wrap; gap: 4px; }
+      .pub-tag { background: rgba(104,229,227,0.1); border: .5px solid rgba(104,229,227,0.3); border-radius: 20px; color: #68e5e3; font-size: 9px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px; }
+      .pub-tag-del { cursor: pointer; opacity: .55; line-height: 1; }
+      .pub-tag-del:hover { opacity: 1; }
+      .pub-tag-input { background: transparent; border: none; outline: none; color: #d4c5a9; font-family: monospace; font-size: 11px; flex: 1; min-width: 60px; }
+      .pub-tag-input-wrap { background: rgba(255,255,255,0.05); border: .5px solid rgba(212,197,169,0.22); border-radius: 4px; padding: 5px 8px; display: flex; flex-wrap: wrap; gap: 4px; transition: border-color .2s; }
+      .pub-tag-input-wrap:focus-within { border-color: rgba(104,229,227,0.5); }
+      .pub-field-hint { color: rgba(255,255,255,0.2); font-size: 8px; letter-spacing: .06em; }
+      .pub-thumb-saved { color: #6aaa7a; font-size: 9px; margin-left: 6px; font-weight: normal; text-transform: none; letter-spacing: .06em; }
+      .pub-canvas-wrap { display: flex; flex-direction: column; gap: 5px; }
+      .pub-tools { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+      .pub-tool-btn { background: rgba(255,255,255,0.06); border: .5px solid rgba(212,197,169,0.22); border-radius: 4px; color: #d4c5a9; cursor: pointer; font-size: 13px; padding: 3px 7px; transition: all .15s; line-height: 1.4; }
+      .pub-tool-btn:hover { background: rgba(255,255,255,0.14); }
+      .pub-tool-btn.active { background: rgba(104,229,227,0.15); border-color: rgba(104,229,227,0.5); }
+      .pub-color-input { width: 28px; height: 26px; border: .5px solid rgba(212,197,169,0.22); border-radius: 4px; padding: 1px; cursor: pointer; background: none; }
+      .pub-size-input { flex: 1; max-width: 60px; -webkit-appearance: none; height: 2px; background: rgba(212,197,169,0.2); border-radius: 1px; cursor: pointer; outline: none; }
+      .pub-size-input::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #d4c5a9; cursor: pointer; }
+      .pub-canvas-area { position: relative; border-radius: 4px; overflow: hidden; border: .5px solid rgba(212,197,169,0.22); cursor: crosshair; align-self: flex-start; }
+      .pub-canvas-area canvas { display: block; }
+      .pub-canvas-area img.pub-door-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+      .pub-upload-label { display: block; text-align: center; padding: 6px; border: .5px dashed rgba(212,197,169,0.3); border-radius: 4px; color: rgba(212,197,169,0.55); font-size: 9px; cursor: pointer; letter-spacing: .06em; transition: all .2s; }
+      .pub-upload-label:hover { border-color: rgba(104,229,227,0.5); color: #68e5e3; }
+      .pub-save-thumb-btn { padding: 7px; background: rgba(104,229,227,0.1); border: .5px solid rgba(104,229,227,0.35); border-radius: 4px; color: #68e5e3; font-family: monospace; font-size: 10px; cursor: pointer; transition: all .2s; letter-spacing: .06em; width: 100%; }
+      .pub-save-thumb-btn:hover { background: rgba(104,229,227,0.2); }
+      .pub-save-thumb-btn:disabled { opacity: .4; cursor: default; }
+      .pub-thumb-preview { width: 100%; border-radius: 4px; border: .5px solid rgba(212,197,169,0.2); display: block; cursor:pointer; }
+      .pub-publish-section { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: .5px solid rgba(212,197,169,0.12); }
+      .thumb-trigger-area { display:flex; flex-direction:column; gap:6px; }
+      .thumb-open-btn { padding:9px; background:rgba(104,229,227,0.08); border:.5px solid rgba(104,229,227,0.3); border-radius:4px; color:#68e5e3; font-family:monospace; font-size:10px; cursor:pointer; transition:all .2s; letter-spacing:.06em; }
+      .thumb-open-btn:hover { background:rgba(104,229,227,0.18); }
+      .thumb-empty-hint { text-align:center; padding:16px; border:.5px dashed rgba(212,197,169,0.18); border-radius:4px; color:rgba(212,197,169,0.28); font-size:9px; letter-spacing:.06em; }
+      /* ── Thumbnail Modal ── */
+      #thumb-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:2000; opacity:0; pointer-events:none; transition:opacity .22s; }
+      #thumb-modal-overlay.open { opacity:1; pointer-events:auto; }
+      #thumb-modal { width:92vw; max-width:1080px; height:88vh; background:#FFFFFF; border:.5px solid rgba(212,197,169,0.18); border-radius:8px; display:flex; flex-direction:column; overflow:hidden; }
+      #thumb-modal-header { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-bottom:.5px solid rgba(212,197,169,0.1); flex-shrink:0; }
+      #thumb-modal-title { color:#d4c5a9; font-family:'Montserrat',sans-serif; font-size:12px; letter-spacing:.12em; font-weight:700; }
+      #thumb-modal-close { background:none; border:.5px solid rgba(212,197,169,0.2); border-radius:3px; color:#d4c5a9; cursor:pointer; font-size:12px; padding:3px 9px; transition:all .2s; }
+      #thumb-modal-close:hover { background:rgba(181,74,58,.2); border-color:rgba(181,74,58,.5); color:#ff9982; }
+      #thumb-modal-body { display:flex; flex:1; overflow:hidden; }
+      #thumb-canvas-container { flex:1; display:flex; align-items:center; justify-content:center; padding:16px; overflow:hidden; background:rgba(255,255,255,0.015); }
+      #thumb-canvas-area { position:relative; border:.5px solid rgba(212,197,169,0.2); border-radius:4px; overflow:hidden; flex-shrink:0; background: repeating-conic-gradient(#3a3835 0% 25%, #2a2826 0% 50%) 0 0 / 16px 16px; cursor:crosshair; }
+      #thumb-draw-canvas { display:block; background: transparent; position:relative; z-index:1; }
+      #thumb-obj-layer { position:absolute; inset:0; z-index:2; pointer-events:none; }
+      #thumb-door-overlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:0; object-fit:fill; opacity:0.5; }
+      #thumb-guide-hint { position:absolute; bottom:12%; left:50%; transform:translateX(-50%); pointer-events:none; z-index:3; text-align:center; background:rgba(0,0,0,0.45); border:.5px solid rgba(212,197,169,0.25); border-radius:4px; padding:4px 10px; white-space:nowrap; }
+      #thumb-guide-hint span { display:block; color:rgba(212,197,169,0.6); font-size:9px; letter-spacing:.08em; font-family:'Montserrat',sans-serif; line-height:1.5; }
+      .thumb-obj-item { position:absolute; box-sizing:border-box; cursor:move; touch-action:none; pointer-events:auto; }
+      .thumb-obj-item.selected { outline:1.5px dashed rgba(104,229,227,0.75); outline-offset:1px; }
+      .thumb-obj-item img { width:100%; height:100%; pointer-events:none; display:block; object-fit:fill; }
+      .obj-handle { position:absolute; width:10px; height:10px; background:#68e5e3; border-radius:2px; z-index:10; display:none; box-sizing:border-box; }
+      .thumb-obj-item.selected .obj-handle { display:block; }
+      .obj-handle.tl { top:-5px; left:-5px; cursor:nwse-resize; }
+      .obj-handle.tr { top:-5px; right:-5px; cursor:nesw-resize; }
+      .obj-handle.bl { bottom:-5px; left:-5px; cursor:nesw-resize; }
+      .obj-handle.br { bottom:-5px; right:-5px; cursor:nwse-resize; }
+      .obj-rotate-handle { position:absolute; top:-22px; left:50%; transform:translateX(-50%); width:12px; height:12px; background:#c8a96e; border-radius:50%; cursor:crosshair; display:none; z-index:10; }
+      .thumb-obj-item.selected .obj-rotate-handle { display:block; }
+      .obj-delete-btn { position:absolute; top:-10px; right:-10px; width:18px; height:18px; background:rgba(181,74,58,.85); border:none; border-radius:50%; color:#fff; font-size:9px; cursor:pointer; display:none; align-items:center; justify-content:center; z-index:10; padding:0; line-height:1; font-family:monospace; }
+      .thumb-obj-item.selected .obj-delete-btn { display:flex; }
+      #thumb-tool-panel { width:210px; flex-shrink:0; display:flex; flex-direction:column; background:rgba(8,7,6,.9); border-left:.5px solid rgba(212,197,169,0.1); overflow-y:auto; padding-bottom:12px; }
+      .tp-section { color:rgba(255,255,255,0.3); font-size:8px; letter-spacing:.15em; text-transform:uppercase; padding:10px 12px 5px; flex-shrink:0; }
+      .tp-brushes { display:flex; flex-wrap:wrap; gap:4px; padding:0 10px 8px; }
+      .tp-brush { background:rgba(255,255,255,0.06); border:.5px solid rgba(212,197,169,0.18); border-radius:4px; color:#d4c5a9; cursor:pointer; font-size:14px; padding:5px 8px; transition:all .15s; line-height:1.2; }
+      .tp-brush:hover { background:rgba(255,255,255,0.12); }
+      .tp-brush.active { background:rgba(104,229,227,0.15); border-color:rgba(104,229,227,0.5); }
+      .tp-row { display:flex; align-items:center; gap:8px; padding:0 12px 7px; }
+      .tp-color { width:30px; height:28px; border:.5px solid rgba(212,197,169,0.2); border-radius:4px; padding:1px; cursor:pointer; background:none; flex-shrink:0; }
+      .tp-range { flex:1; -webkit-appearance:none; height:2px; background:rgba(212,197,169,0.18); border-radius:1px; cursor:pointer; outline:none; }
+      .tp-range::-webkit-slider-thumb { -webkit-appearance:none; width:10px; height:10px; border-radius:50%; background:#d4c5a9; cursor:pointer; }
+      .tp-label { color:rgba(255,255,255,0.28); font-size:8px; min-width:22px; text-align:right; flex-shrink:0; }
+      .tp-sep { border:none; border-top:.5px solid rgba(212,197,169,0.08); margin:6px 0; }
+      .tp-upload-label { display:flex; align-items:center; gap:6px; margin:0 10px 6px; padding:7px 10px; border:.5px dashed rgba(212,197,169,0.22); border-radius:4px; color:rgba(212,197,169,0.5); font-size:9px; cursor:pointer; letter-spacing:.06em; transition:all .2s; }
+      .tp-upload-label:hover { border-color:rgba(104,229,227,0.5); color:#68e5e3; }
+      .tp-btn { margin:0 10px 5px; padding:7px 10px; background:rgba(255,255,255,0.04); border:.5px solid rgba(212,197,169,0.16); border-radius:4px; color:#d4c5a9; font-family:monospace; font-size:9px; cursor:pointer; transition:all .2s; text-align:left; letter-spacing:.06em; width:calc(100% - 20px); }
+      .tp-btn:hover { background:rgba(255,255,255,0.09); }
+      .tp-save-btn { margin:8px 10px 4px; padding:10px; background:rgba(104,229,227,0.12); border:.5px solid rgba(104,229,227,0.4); border-radius:4px; color:#68e5e3; font-family:monospace; font-size:10px; cursor:pointer; transition:all .2s; width:calc(100% - 20px); letter-spacing:.06em; }
+      .tp-save-btn:hover { background:rgba(104,229,227,0.22); }
+      .tp-save-btn:disabled { opacity:.4; cursor:default; }
 
       /* ── Collapse/Expand right panel ── */
       #rp-steps, #rp-body {
@@ -1756,7 +1850,7 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
 
       // ── Bước 01: Template ──
       case 'pane-template':
-        pane.style.paddingTop = '30px'; 
+        pane.style.paddingTop = '60px'; 
         pane.innerHTML = `<div class="rp-section-title">Chọn mẫu phòng</div>`;
         const tplList = document.createElement('div');
         tplList.id = 'rp-template-list';
@@ -1799,17 +1893,12 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
 
       // ── Bước 02: Đồ trang trí ──
       case 'pane-decor':
-        pane.style.background = "url('/panelstudio/subtabbg.svg') no-repeat center center";
-        pane.style.backgroundSize = '100% 100%';
-        pane.style.width = '418px';
-        pane.style.minHeight = '409.81px';
-        pane.style.borderRadius = '17px';
-        pane.style.padding = '20px';
-        pane.style.boxSizing = 'border-box';
+        pane.style.paddingTop = '15px';
         pane.innerHTML = `<div class="rp-section-title">Thêm đồ trang trí</div>`;
         const decorGrid = document.createElement('div');
-        decorGrid.className = 'rp-decor-grid';
         decorGrid.id = 'rp-decor-grid';
+        decorGrid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:0px;width:100%;box-sizing:border-box;padding:0 10px;';
+
         pane.appendChild(decorGrid);
         this._loadRpDecorList(decorGrid);
         break;
@@ -1848,13 +1937,13 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
         pane.innerHTML = `
           <div class="rp-section-title">Lộ trình đường đi (<span id="rp-path-wp-count">0</span> điểm)</div>
           <div style="display:flex;gap:8px;margin-bottom:6px;">
-            <div class="rp-upload-btn" id="rp-path-add" style="flex:1;padding:8px;">＋ Thêm điểm hiện tại</div>
-            <div class="rp-upload-btn" id="rp-path-walk" style="flex:1;padding:8px;">▶ Đi theo lộ trình</div>
+            <div class="rp-upload-btn" id="rp-path-add" style="flex:1;padding:8px;font-size:11px">＋ Thêm điểm hiện tại</div>
+            <div class="rp-upload-btn" id="rp-path-walk" style="flex:1;padding:8px;font-size:11px">▶ Đi theo lộ trình</div>
           </div>
           <div id="rp-wp-list" style="display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto;"></div>
           <div style="display:flex;gap:8px;margin-top:6px;">
-            <div class="rp-upload-btn" id="rp-path-auto" style="flex:1;padding:6px;font-size:9px;">✦ Tự tạo lộ trình</div>
-            <div class="rp-upload-btn" id="rp-path-clear" style="flex:1;padding:6px;font-size:9px;color:rgba(220,100,100,0.8);border-color:rgba(220,100,100,0.3);">✕ Xoá hết</div>
+            <div class="rp-upload-btn" id="rp-path-auto" style="flex:1;padding:6px;font-size:11px;">✦ Tự tạo lộ trình</div>
+            <div class="rp-upload-btn" id="rp-path-clear" style="flex:1;padding:6px;font-size:11px;color:rgba(220,100,100,1);border-color:rgba(220,100,100,0.3);">✕ Xoá hết</div>
           </div>
         `;
         pane.querySelector('#rp-path-add').addEventListener('click', () => {
@@ -1889,7 +1978,7 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
       // ── Bước 02: Thêm tác phẩm ──
       case 'pane-artwork':
       {
-        pane.style.cssText += 'padding:14px 12px 12px;display:flex;flex-direction:column;gap:8px;';
+        pane.style.cssText += 'padding:50px 12px 12px;display:flex;flex-direction:column;gap:8px;';
 
         const makeRow = ({ svgClass, label, type, onAdd }) => {
           const wrap = document.createElement('div');
@@ -2016,7 +2105,7 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
 
       // ── Bước 04: Waypoints ──
       case 'pane-waypoints':
-        pane.style.paddingTop = '30px'; 
+        pane.style.paddingTop = '60px'; 
         pane.innerHTML = `
           <div class="rp-section-title">Lộ trình tham quan (<span id="rp-wp-count">0</span> điểm)</div>
           <div class="rp-upload-btn" id="rp-pp-add" style="margin-bottom:6px;">＋ Thêm điểm hiện tại</div>
@@ -2038,7 +2127,7 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
 
       // ── Bước 04: Rương ──
       case 'pane-chest':
-        pane.style.paddingTop = '30px';
+        pane.style.paddingTop = '60px';
         pane.innerHTML = `
           <div class="rp-section-title">Rương kho báu</div>
           <div class="rp-upload-btn" id="rp-btn-add-chest">➕ Đặt rương mới</div>
@@ -2054,17 +2143,142 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
         break;
 
       // ── Bước 05: Xuất bản ──
-      case 'pane-publish': 
+      case 'pane-publish':
       {
         const isPub = this.manager.currentRoom?.isPublished || false;
-        pane.style.paddingTop = '30px';
+        const room = this.manager.currentRoom;
+        pane.style.paddingTop = '20px';
+
+        const nameVal = (room?.name || '').replace(/"/g, '&quot;');
+        const thumbUrl = room?.thumbnailUrl || null;
+
         pane.innerHTML = `
-          <div class="rp-section-title">Trạng thái phòng</div>
-          <div class="rp-pub-info">Phòng của bạn hiện đang ở chế độ <b style="color:#fff">${isPub ? 'Public' : 'Draft'}</b>.<br>Xuất bản để khách tham quan có thể xem.</div>
-          <button class="rp-pub-btn ${isPub ? 'danger' : 'primary'}" id="rp-btn-publish">${isPub ? '🔒 Huỷ xuất bản' : '🌐 Xuất bản ngay'}</button>
-          <div class="rp-pub-info" style="margin-top:8px;">Sau khi xuất bản, phòng sẽ xuất hiện trong danh sách khám phá.</div>
+          <div class="pub-section-title">Thông tin phòng</div>
+
+          <div class="pub-field">
+            <label class="pub-field-label">Tên phòng <span class="pub-required">*</span></label>
+            <input id="pub-name" class="pub-input" type="text" maxlength="60" placeholder="Tên phòng..." value="${nameVal}">
+          </div>
+
+          <div class="pub-field">
+            <label class="pub-field-label">Mô tả <span class="pub-optional">(tùy chọn)</span></label>
+            <textarea id="pub-desc" class="pub-textarea" placeholder="Mô tả về phòng tranh của bạn..."></textarea>
+            <div class="pub-char-count"><span id="pub-word-count">0</span>/2000 từ</div>
+          </div>
+
+          <div class="pub-field">
+            <label class="pub-field-label">Tags <span class="pub-optional">(tùy chọn)</span></label>
+            <div class="pub-tag-input-wrap" id="pub-tag-wrap">
+              <div id="pub-tags-list" class="pub-tags-container"></div>
+              <input id="pub-tag-input" class="pub-tag-input" type="text" placeholder="Nhập từ khóa, nhấn Enter...">
+            </div>
+            <div class="pub-field-hint">Từ khóa giúp khách tìm thấy phòng dễ hơn</div>
+          </div>
+
+          <div class="pub-section-title" id="pub-thumb-title">
+            Thumbnail <span class="pub-required">*</span>
+            ${thumbUrl ? '<span class="pub-thumb-saved">✓ Đã lưu</span>' : ''}
+          </div>
+
+          <div class="thumb-trigger-area">
+            ${thumbUrl ? `<img src="${thumbUrl}" class="pub-thumb-preview" id="pub-thumb-preview" alt="Thumbnail">` : '<div class="thumb-empty-hint">Chưa có thumbnail — nhấn để tạo</div>'}
+            <button class="thumb-open-btn" id="pub-open-thumb-btn">🖼 Mở trình chỉnh thumbnail</button>
+          </div>
+
+          <div class="pub-publish-section">
+            <div class="rp-pub-info" id="pub-status-info">Phòng đang ở chế độ <b style="color:#fff">${isPub ? 'Public' : 'Draft'}</b></div>
+            <button class="rp-pub-btn ${isPub ? 'danger' : 'primary'}" id="rp-btn-publish">${isPub ? '🔒 Huỷ xuất bản' : '🌐 Xuất bản ngay'}</button>
+            ${isPub ? '' : '<div class="rp-pub-info" style="margin-top:4px;opacity:.7;">Cần tên phòng và thumbnail để xuất bản</div>'}
+          </div>
         `;
-        pane.querySelector('#rp-btn-publish').addEventListener('click', () => this._togglePublish());
+
+        // Restore description
+        pane.querySelector('#pub-desc').value = room?.description || '';
+
+        // ── Word count ──
+        const descEl = pane.querySelector('#pub-desc');
+        const wordCountEl = pane.querySelector('#pub-word-count');
+        const charCountWrap = pane.querySelector('.pub-char-count');
+        const countWords = s => s.trim() === '' ? 0 : s.trim().split(/\s+/).length;
+        const updateWordCount = () => {
+          const cnt = countWords(descEl.value);
+          wordCountEl.textContent = cnt;
+          charCountWrap.classList.toggle('warn', cnt > 1800);
+          if (cnt > 2000) {
+            const words = descEl.value.trim().split(/\s+/).slice(0, 2000);
+            descEl.value = words.join(' ');
+          }
+        };
+        updateWordCount();
+        descEl.addEventListener('input', updateWordCount);
+
+        // ── Tags ──
+        const tagsListEl = pane.querySelector('#pub-tags-list');
+        const tagInputEl = pane.querySelector('#pub-tag-input');
+        let currentTags = [...(room?.tags || [])];
+        const renderTags = () => {
+          tagsListEl.innerHTML = '';
+          currentTags.forEach((tag, i) => {
+            const chip = document.createElement('span');
+            chip.className = 'pub-tag';
+            chip.innerHTML = `${tag}<span class="pub-tag-del" data-i="${i}">✕</span>`;
+            chip.querySelector('.pub-tag-del').addEventListener('click', () => { currentTags.splice(i, 1); renderTags(); });
+            tagsListEl.appendChild(chip);
+          });
+        };
+        renderTags();
+        tagInputEl.addEventListener('keydown', e => {
+          if ((e.key === 'Enter' || e.key === ',') && tagInputEl.value.trim()) {
+            e.preventDefault();
+            const tag = tagInputEl.value.trim().replace(/,/g, '');
+            if (tag && !currentTags.includes(tag) && currentTags.length < 20) { currentTags.push(tag); renderTags(); }
+            tagInputEl.value = '';
+          } else if (e.key === 'Backspace' && !tagInputEl.value && currentTags.length) {
+            currentTags.pop(); renderTags();
+          }
+        });
+
+        // ── Sync pub-name → top bar ──
+        pane.querySelector('#pub-name').addEventListener('input', e => {
+          const topInput = document.getElementById('studio-room-name-input');
+          if (topInput) topInput.value = e.target.value;
+          if (room) room.name = e.target.value;
+        });
+
+        // ── Open thumbnail editor modal ──
+        this._currentPublishPane = pane;
+        pane.querySelector('#pub-open-thumb-btn').addEventListener('click', () => this._openThumbModal());
+
+        // ── Publish / Unpublish ──
+        let pubState = isPub;
+        pane.querySelector('#rp-btn-publish').addEventListener('click', async () => {
+          const pubBtn = pane.querySelector('#rp-btn-publish');
+          const statusEl = pane.querySelector('#pub-status-info');
+          if (pubState) {
+            room.isPublished = false; pubState = false;
+            pubBtn.textContent = '🌐 Xuất bản ngay';
+            pubBtn.className = 'rp-pub-btn primary';
+            statusEl.innerHTML = 'Phòng đang ở chế độ <b style="color:#fff">Draft</b>';
+            await this.saveGallery();
+            this.toast('Đã chuyển về Draft', 'info');
+          } else {
+            const nameInput = pane.querySelector('#pub-name');
+            if (!nameInput.value.trim()) { this.toast('❌ Vui lòng điền tên phòng', 'error'); return; }
+            if (!room.thumbnailUrl) { this.toast('❌ Vui lòng lưu thumbnail trước', 'error'); return; }
+            room.name = nameInput.value.trim();
+            room.description = descEl.value;
+            room.tags = [...currentTags];
+            const topInput = document.getElementById('studio-room-name-input');
+            if (topInput) topInput.value = room.name;
+            room.isPublished = true; pubState = true;
+            pubBtn.textContent = '🔒 Huỷ xuất bản';
+            pubBtn.className = 'rp-pub-btn danger';
+            statusEl.innerHTML = 'Phòng đang ở chế độ <b style="color:#fff">Public</b>';
+            await this.saveGallery();
+            this.toast('Đã xuất bản phòng ✓', 'success');
+          }
+        });
+
         break;
       }
 
@@ -2102,6 +2316,509 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
     });
   }
 
+  /* ══════════════════════════════════════════════ THUMBNAIL MODAL ══════════════════════════════════════════════ */
+
+  _openThumbModal() {
+    if (!this._thumbModal) this._buildThumbModal();
+    this._thumbModal.classList.add('open');
+  }
+
+  _buildThumbModal() {
+    const overlay = document.createElement('div');
+    overlay.id = 'thumb-modal-overlay';
+    overlay.innerHTML = `
+      <div id="thumb-modal">
+        <div id="thumb-modal-header">
+          <span id="thumb-modal-title">🖼 CHỈNH SỬA THUMBNAIL</span>
+          <button id="thumb-modal-close">✕ Đóng</button>
+        </div>
+        <div id="thumb-modal-body">
+          <div id="thumb-canvas-container">
+            <div id="thumb-canvas-area">
+              <img id="thumb-door-overlay" src="/studio/door-frame.png" alt="">
+              <canvas id="thumb-draw-canvas"></canvas>
+              <div id="thumb-obj-layer"></div>
+              <div id="thumb-guide-hint">
+                <span>↑ Vẽ cửa ở khu vực này</span>
+                <span style="opacity:.7;">Phần còn lại vẽ tự do</span>
+              </div>
+            </div>
+          </div>
+          <div id="thumb-tool-panel">
+            <div class="tp-section">Chế độ vẽ</div>
+            <div class="tp-brushes">
+              <button class="tp-brush active" data-brush="round"  title="Cọ tròn">●</button>
+              <button class="tp-brush"        data-brush="eraser" title="Tẩy">⬜</button>
+              <button class="tp-brush"        data-brush="bucket" title="Đổ màu">🪣</button>
+            </div>
+            <div class="tp-section">Màu & kích cỡ</div>
+            <div class="tp-row">
+              <input type="color" id="tp-color" class="tp-color" value="#c8a96e" title="Màu">
+              <input type="range" id="tp-size" class="tp-range" min="1" max="80" value="12">
+              <span class="tp-label" id="tp-size-label">12</span>
+            </div>
+            <div class="tp-section">Độ mờ</div>
+            <div class="tp-row">
+              <input type="range" id="tp-opacity" class="tp-range" min="5" max="100" value="100">
+              <span class="tp-label" id="tp-opacity-label">100%</span>
+            </div>
+            <hr class="tp-sep">
+            <div class="tp-section">Hoạ tiết (có thể chọn nhiều)</div>
+            <label class="tp-upload-label">
+              📁 Thêm hoạ tiết
+              <input type="file" id="tp-upload-input" accept="image/*" multiple style="display:none">
+            </label>
+            <div id="tp-obj-hint" style="color:rgba(255,255,255,0.22);font-size:8px;padding:0 12px 6px;letter-spacing:.06em;">Click hoạ tiết để chọn — kéo, co/giãn, xoay tuỳ ý</div>
+            <hr class="tp-sep">
+            <button class="tp-btn" id="tp-undo-btn">↩ Hoàn tác</button>
+            <button class="tp-btn" id="tp-clear-btn">🗑 Xóa nền vẽ</button>
+            <button class="tp-btn" id="tp-clear-objs-btn">🗑 Xóa tất cả hoạ tiết</button>
+            <hr class="tp-sep">
+            <button class="tp-save-btn" id="tp-save-btn">💾 Lưu thumbnail & đóng</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    this._el(overlay);
+    this._thumbModal = overlay;
+    this._thumbObjects = [];
+    this._thumbObjCounter = 0;
+    this._thumbUndoStack = [];
+    this._thumbRestoring = false;
+
+    overlay.querySelector('#thumb-modal-close').addEventListener('click', () => overlay.classList.remove('open'));
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+
+    this._setupCanvasEditor(overlay);
+  }
+
+  _setupCanvasEditor(modal) {
+    const canvas   = modal.querySelector('#thumb-draw-canvas');
+    const objLayer = modal.querySelector('#thumb-obj-layer');
+    const colorEl  = modal.querySelector('#tp-color');
+    const sizeEl   = modal.querySelector('#tp-size');
+    const sizeLbl  = modal.querySelector('#tp-size-label');
+    const opacEl   = modal.querySelector('#tp-opacity');
+    const opacLbl  = modal.querySelector('#tp-opacity-label');
+    const uploadEl = modal.querySelector('#tp-upload-input');
+
+    const setupCanvas = (nw, nh) => {
+      const container = modal.querySelector('#thumb-canvas-container');
+      const cRect = container.getBoundingClientRect();
+      const maxW = Math.min(cRect.width - 32, 820);
+      const maxH = Math.min(cRect.height - 32, 700);
+      const scale = Math.min(maxW / nw, maxH / nh, 1);
+      canvas.width  = Math.round(nw * scale);
+      canvas.height = Math.round(nh * scale);
+      this._thumbCanvas   = canvas;
+      this._thumbObjLayer = objLayer;
+      this._restoreThumbState();
+    };
+
+    const imgRef = new Image();
+    imgRef.onload  = () => setupCanvas(imgRef.naturalWidth, imgRef.naturalHeight);
+    imgRef.onerror = () => setupCanvas(600, 800);
+    imgRef.src = '/studio/door-frame.png';
+
+    let lastPos     = null;
+    let isDrawing   = false;
+    let currentBrush = 'round';
+
+    const brushBtns = modal.querySelectorAll('.tp-brush');
+    brushBtns.forEach(btn => btn.addEventListener('click', () => {
+      currentBrush = btn.dataset.brush;
+      brushBtns.forEach(b => b.classList.toggle('active', b === btn));
+    }));
+
+    sizeEl.addEventListener('input', () => sizeLbl.textContent = sizeEl.value);
+    opacEl.addEventListener('input', () => opacLbl.textContent = opacEl.value + '%');
+
+    const getCanvasPos = e => {
+      const r = canvas.getBoundingClientRect();
+      return { x: (e.clientX - r.left) * (canvas.width / r.width), y: (e.clientY - r.top) * (canvas.height / r.height) };
+    };
+
+    const saveUndo = () => {
+      this._thumbUndoStack.push(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height));
+      if (this._thumbUndoStack.length > 24) this._thumbUndoStack.shift();
+    };
+
+    canvas.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      const ctx = canvas.getContext('2d');
+      const pos = getCanvasPos(e);
+      saveUndo();
+
+      if (currentBrush === 'bucket') {
+        const hex = colorEl.value;
+        this._floodFill(ctx, Math.round(pos.x), Math.round(pos.y),
+          [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16), 255]);
+        this._saveThumbState();
+        return;
+      }
+
+      isDrawing = true;
+      lastPos   = pos;
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    });
+
+    canvas.addEventListener('mousemove', e => {
+      if (!isDrawing) return;
+      const ctx = canvas.getContext('2d');
+      const pos = getCanvasPos(e);
+      ctx.lineWidth = +sizeEl.value;
+      ctx.lineCap   = 'round';
+      ctx.lineJoin  = 'round';
+
+      if (currentBrush === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = 'rgba(0,0,0,1)';
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = +opacEl.value / 100;
+        ctx.strokeStyle = colorEl.value;
+      }
+
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      lastPos = pos;
+    });
+
+    const stopDraw = () => {
+      if (isDrawing) {
+        isDrawing = false;
+        lastPos   = null;
+        this._saveThumbState();
+      }
+    };
+    canvas.addEventListener('mouseup', stopDraw);
+    canvas.addEventListener('mouseleave', stopDraw);
+
+    modal.querySelector('#tp-undo-btn').addEventListener('click', () => {
+      if (!this._thumbUndoStack.length) return;
+      canvas.getContext('2d').putImageData(this._thumbUndoStack.pop(), 0, 0);
+      this._saveThumbState();
+    });
+
+    modal.querySelector('#tp-clear-btn').addEventListener('click', () => {
+      saveUndo();
+      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+      this._saveThumbState();
+    });
+
+    modal.querySelector('#tp-clear-objs-btn').addEventListener('click', () => {
+      this._thumbObjects = [];
+      objLayer.innerHTML = '';
+      this._saveThumbState();
+    });
+
+    uploadEl.addEventListener('change', e => {
+      Array.from(e.target.files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = ev => {
+          const img = new Image();
+          img.onload = () => {
+            const canvasW = canvas.width, canvasH = canvas.height;
+            const maxDim  = Math.min(canvasW, canvasH) * 0.5;
+            const scale   = Math.min(maxDim / img.naturalWidth, maxDim / img.naturalHeight, 1);
+            const w = Math.round(img.naturalWidth  * scale);
+            const h = Math.round(img.naturalHeight * scale);
+            const offset  = this._thumbObjects.length * 20;
+            const x = Math.min((canvasW - w) / 2 + offset, canvasW - w - 4);
+            const y = Math.min((canvasH - h) / 2 + offset, canvasH - h - 4);
+            this._addThumbObject(img, x, y, w, h, canvas, objLayer);
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+      e.target.value = '';
+    });
+
+    modal.querySelector('#tp-save-btn').addEventListener('click', async () => {
+      const saveBtn = modal.querySelector('#tp-save-btn');
+      saveBtn.disabled = true; saveBtn.textContent = '⏳ Đang lưu...';
+      try {
+        const dataUrl = this._exportThumbnailDataUrl(modal);
+        const url = await this._uploadThumbnail(dataUrl);
+        const room = this.manager.currentRoom;
+        if (url && room) {
+          room.thumbnailUrl = url;
+          const pane = this._currentPublishPane;
+          if (pane) {
+            let preview = pane.querySelector('#pub-thumb-preview');
+            if (!preview) {
+              const hint = pane.querySelector('.thumb-empty-hint');
+              if (hint) hint.remove();
+              preview = document.createElement('img');
+              preview.id = 'pub-thumb-preview';
+              preview.className = 'pub-thumb-preview';
+              preview.alt = 'Thumbnail';
+              pane.querySelector('.thumb-trigger-area').prepend(preview);
+            }
+            preview.src = url;
+            const thumbTitle = pane.querySelector('#pub-thumb-title');
+            if (thumbTitle && !thumbTitle.querySelector('.pub-thumb-saved')) {
+              thumbTitle.insertAdjacentHTML('beforeend', '<span class="pub-thumb-saved">✓ Đã lưu</span>');
+            }
+          }
+          await this.saveGallery();
+          this.toast('Thumbnail đã lưu ✓', 'success');
+          modal.classList.remove('open');
+        } else {
+          this.toast('Lưu thumbnail thất bại', 'error');
+        }
+      } catch (err) { this.toast('Lỗi: ' + err.message, 'error'); }
+      saveBtn.disabled = false; saveBtn.textContent = '💾 Lưu thumbnail & đóng';
+    });
+  }
+
+  _addThumbObject(img, x, y, w, h, canvas, objLayer, initialRotation = 0) {
+    const id = ++this._thumbObjCounter;
+    const obj = { id, img, x, y, w, h, rotation: initialRotation };
+    this._thumbObjects.push(obj);
+
+    const el = document.createElement('div');
+    el.className = 'thumb-obj-item';
+    el.dataset.id = id;
+    el.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;transform:rotate(${initialRotation}deg);`;
+    el.innerHTML = `
+      <img src="${img.src}" draggable="false">
+      <div class="obj-handle tl"></div>
+      <div class="obj-handle tr"></div>
+      <div class="obj-handle bl"></div>
+      <div class="obj-handle br"></div>
+      <div class="obj-rotate-handle"></div>
+      <button class="obj-delete-btn" title="Xóa">✕</button>
+    `;
+    obj.el = el;
+
+    const selectThis = () => {
+      objLayer.querySelectorAll('.thumb-obj-item').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+    };
+
+    // ── Move ──
+    el.addEventListener('mousedown', e => {
+      if (e.target.classList.contains('obj-handle') || e.target.classList.contains('obj-rotate-handle') || e.target.classList.contains('obj-delete-btn')) return;
+      e.preventDefault(); e.stopPropagation();
+      selectThis();
+      const startX = e.clientX, startY = e.clientY;
+      const origX = obj.x, origY = obj.y;
+      const onMove = mv => {
+        obj.x = origX + (mv.clientX - startX);
+        obj.y = origY + (mv.clientY - startY);
+        el.style.left = obj.x + 'px';
+        el.style.top  = obj.y + 'px';
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        this._saveThumbState();
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    // ── Scale (corner handles) ──
+    el.querySelectorAll('.obj-handle').forEach(handle => {
+      handle.addEventListener('mousedown', e => {
+        e.preventDefault(); e.stopPropagation();
+        const corner = handle.classList[1];
+        const startX = e.clientX, startY = e.clientY;
+        const origW = obj.w, origH = obj.h, origX = obj.x, origY = obj.y;
+        const aspect = origW / origH;
+        const onMove = mv => {
+          const dx = mv.clientX - startX, dy = mv.clientY - startY;
+          let newW, newH, newX, newY;
+          if (corner === 'br') { newW = Math.max(30, origW + dx); newH = newW / aspect; newX = origX; newY = origY; }
+          else if (corner === 'bl') { newW = Math.max(30, origW - dx); newH = newW / aspect; newX = origX + (origW - newW); newY = origY; }
+          else if (corner === 'tr') { newW = Math.max(30, origW + dx); newH = newW / aspect; newX = origX; newY = origY + (origH - newH); }
+          else { newW = Math.max(30, origW - dx); newH = newW / aspect; newX = origX + (origW - newW); newY = origY + (origH - newH); }
+          obj.w = newW; obj.h = newH; obj.x = newX; obj.y = newY;
+          el.style.width = newW + 'px'; el.style.height = newH + 'px';
+          el.style.left  = newX + 'px'; el.style.top    = newY + 'px';
+        };
+        const onUp = () => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          this._saveThumbState();
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    });
+
+    // ── Rotate ──
+    el.querySelector('.obj-rotate-handle').addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      const onMove = mv => {
+        const rect = el.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+        const angle = Math.atan2(mv.clientY - cy, mv.clientX - cx) * 180 / Math.PI + 90;
+        obj.rotation = angle;
+        el.style.transform = `rotate(${angle}deg)`;
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        this._saveThumbState();
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    // ── Delete ──
+    el.querySelector('.obj-delete-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      this._thumbObjects = this._thumbObjects.filter(o => o.id !== id);
+      el.remove();
+      this._saveThumbState();
+    });
+
+    // Deselect on click outside
+    objLayer.addEventListener('mousedown', e => {
+      if (!el.contains(e.target)) el.classList.remove('selected');
+    }, true);
+
+    objLayer.appendChild(el);
+    selectThis();
+    if (!this._thumbRestoring) this._saveThumbState();
+    return obj;
+  }
+
+  _deselectAllObjs() {
+    if (!this._thumbModal) return;
+    this._thumbModal.querySelectorAll('.thumb-obj-item').forEach(e => e.classList.remove('selected'));
+  }
+
+  _saveThumbState() {
+    if (!this._thumbCanvas || this._thumbRestoring) return;
+    try {
+      const roomId = this.manager.currentRoom?.id;
+      if (!roomId) return;
+      const objsData = (this._thumbObjects || []).map(obj => ({
+        imgSrc: obj.img.src,
+        x: obj.x, y: obj.y, w: obj.w, h: obj.h, rotation: obj.rotation,
+      }));
+      localStorage.setItem(`thumb_editor_${roomId}`, JSON.stringify({
+        canvasDataUrl: this._thumbCanvas.toDataURL('image/png'),
+        objects: objsData,
+      }));
+    } catch (_e) {}
+  }
+
+  _restoreThumbState() {
+    if (!this._thumbCanvas || !this._thumbObjLayer) return;
+    try {
+      const roomId = this.manager.currentRoom?.id;
+      if (!roomId) return;
+      const raw = localStorage.getItem(`thumb_editor_${roomId}`);
+      if (!raw) return;
+      const { canvasDataUrl, objects } = JSON.parse(raw);
+      const promises = [];
+      if (canvasDataUrl) {
+        promises.push(new Promise(resolve => {
+          const img = new Image();
+          img.onload = () => { this._thumbCanvas.getContext('2d').drawImage(img, 0, 0); resolve(); };
+          img.onerror = resolve;
+          img.src = canvasDataUrl;
+        }));
+      }
+      if (objects?.length) {
+        this._thumbRestoring = true;
+        objects.forEach(od => {
+          promises.push(new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => {
+              this._addThumbObject(img, od.x, od.y, od.w, od.h, this._thumbCanvas, this._thumbObjLayer, od.rotation);
+              resolve();
+            };
+            img.onerror = resolve;
+            img.src = od.imgSrc;
+          }));
+        });
+      }
+      Promise.all(promises).then(() => { this._thumbRestoring = false; });
+    } catch (_e) { this._thumbRestoring = false; }
+  }
+
+  _floodFill(ctx, startX, startY, fillColor) {
+    const { width, height } = ctx.canvas;
+    if (startX < 0 || startX >= width || startY < 0 || startY >= height) return;
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    const idx = (x, y) => (y * width + x) * 4;
+    const getCol = i => [data[i], data[i + 1], data[i + 2], data[i + 3]];
+    const colMatch = (a, b) => Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]) + Math.abs(a[2]-b[2]) + Math.abs(a[3]-b[3]) <= 40;
+    const setCol = i => { data[i] = fillColor[0]; data[i+1] = fillColor[1]; data[i+2] = fillColor[2]; data[i+3] = fillColor[3]; };
+    const target = getCol(idx(startX, startY));
+    if (colMatch(target, fillColor)) return;
+    const queue = [[startX, startY]];
+    const visited = new Uint8Array(width * height);
+    while (queue.length) {
+      const [x, y] = queue.pop();
+      if (x < 0 || x >= width || y < 0 || y >= height) continue;
+      if (visited[y * width + x]) continue;
+      visited[y * width + x] = 1;
+      if (!colMatch(getCol(idx(x, y)), target)) continue;
+      setCol(idx(x, y));
+      queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+
+  _exportThumbnailDataUrl(modal) {
+    const drawCanvas = modal.querySelector('#thumb-draw-canvas');
+    const doorOverlay = modal.querySelector('#thumb-door-overlay');
+    const exp = document.createElement('canvas');
+    exp.width  = drawCanvas.width;
+    exp.height = drawCanvas.height;
+    const ctx = exp.getContext('2d');
+
+    // 1. Door frame as background layer
+    if (doorOverlay?.complete && doorOverlay.naturalWidth) {
+      ctx.drawImage(doorOverlay, 0, 0, exp.width, exp.height);
+    }
+
+    // 3. Paint layer on top of door frame
+    ctx.drawImage(drawCanvas, 0, 0);
+
+    // 4. Image objects on top
+    const dispW = drawCanvas.offsetWidth  || drawCanvas.width;
+    const dispH = drawCanvas.offsetHeight || drawCanvas.height;
+    const sx = drawCanvas.width  / dispW;
+    const sy = drawCanvas.height / dispH;
+    (this._thumbObjects || []).forEach(obj => {
+      ctx.save();
+      const cx = (obj.x + obj.w / 2) * sx;
+      const cy = (obj.y + obj.h / 2) * sy;
+      ctx.translate(cx, cy);
+      ctx.rotate(obj.rotation * Math.PI / 180);
+      ctx.drawImage(obj.img, -obj.w / 2 * sx, -obj.h / 2 * sy, obj.w * sx, obj.h * sy);
+      ctx.restore();
+    });
+
+    return exp.toDataURL('image/png');
+  }
+
+  async _uploadThumbnail(dataUrl) {
+    const res  = await fetch(dataUrl);
+    const blob = await res.blob();
+    const roomId = this.manager.currentRoom?.id || 'unknown';
+    const path = `thumbnails/${roomId}_${Date.now()}.png`;
+    const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { upsert: true, contentType: 'image/png' });
+    if (error) { console.error('Thumbnail upload error:', error); return null; }
+    return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+  }
+
   async _loadRpTemplateList(container) {
     try {
       const res = await fetch('/models/manifest.json');
@@ -2131,24 +2848,29 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
     } catch { container.innerHTML = '<div style="color:rgba(255,255,255,0.2);font-size:9px;">Không load được manifest</div>'; }
   }
 
-  _loadRpDecorList(grid) {
-    // Mirror từ decor panel cũ — load danh sách decor
-    const decorItems = [
-      { icon: '🌿', name: 'Cây xanh' }, { icon: '🪑', name: 'Ghế' }, { icon: '🏮', name: 'Đèn lồng' },
-      { icon: '🖼', name: 'Khung ảnh' }, { icon: '🗿', name: 'Tượng' }, { icon: '🌺', name: 'Hoa' },
-    ];
-    decorItems.forEach(d => {
-      const el = document.createElement('div');
-      el.className = 'rp-decor-item';
-      el.title = d.name;
-      el.textContent = d.icon;
-      el.addEventListener('click', () => {
-        // Trigger decor panel cũ nếu còn, hoặc xử lý trực tiếp
-        document.getElementById('btn-decor')?.click();
-        this.toast(`Chọn ${d.name} trong panel Decor`, 'info');
+  async _loadRpDecorList(container) {
+    try {
+      const res = await fetch('/decor/manifest.json');
+      const decors = await res.json();
+      container.innerHTML = '';
+      decors.forEach(d => {
+        const thumbFile = d.file.replace(/\.glb$/i, '.jpg');
+        const thumbUrl = `/decor/${thumbFile}`;
+        const card = document.createElement('div');
+        card.className = 'rp-tpl-card';
+        card.style.cssText = 'width:100%;height:auto;aspect-ratio:1/1;flex-shrink:0;';
+        card.innerHTML = `
+          <span class="rp-tpl-name">${d.name}</span>
+          <img class="rp-tpl-thumb" src="${thumbUrl}" alt="${d.name}" onerror="this.style.opacity='0.15';">
+        `;
+        card.addEventListener('click', () => {
+          container.querySelectorAll('.rp-tpl-card').forEach(c => c.classList.remove('active'));
+          card.classList.add('active');
+          this._selectDecorItem(d);
+        });
+        container.appendChild(card);
       });
-      grid.appendChild(el);
-    });
+    } catch { container.innerHTML = '<div style="color:rgba(255,255,255,0.2);font-size:9px;">Không load được manifest</div>'; }
   }
 
   /* ══════════════════════════════════════════════ HUD ══════════════════════════════════════════════ */
@@ -3084,9 +3806,11 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
     if (!this._isRoomNameValid()) return;
     const room = this.manager.currentRoom;
     room.isPublished = !room.isPublished;
-    const btn = document.getElementById('btn-publish');
-    btn.textContent = room.isPublished ? '🔒 Unpublish' : '🌐 Publish';
-    btn.classList.toggle('active', room.isPublished);
+    const btn = document.getElementById('rp-btn-publish');
+    if (btn) {
+      btn.textContent = room.isPublished ? '🔒 Huỷ xuất bản' : '🌐 Xuất bản ngay';
+      btn.className = `rp-pub-btn ${room.isPublished ? 'danger' : 'primary'}`;
+    }
     await this.saveGallery();
     this.toast(room.isPublished ? 'Đã publish phòng ✓' : 'Đã chuyển về Draft', room.isPublished ? 'success' : 'info');
   }
@@ -3125,6 +3849,9 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
         isPublished: room.isPublished,
         artistId: room.artistId,
         selectedTemplate: this.selectedTemplate,
+        description: room.description || '',
+        tags: room.tags || [],
+        thumbnailUrl: room.thumbnailUrl || null,
       },
       artworks: this.artworks.map(a => ({
         x: a.group.position.x,
@@ -3192,6 +3919,14 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
     if (error || !data || !data.length) return;
     const sd = data[0].scene_data;
     console.log('[Load] uploadedSources from DB:', sd.uploadedSources?.length, sd.uploadedSources);
+
+    // Khôi phục metadata phòng
+    const room = this.manager.currentRoom;
+    if (room && sd._meta) {
+      if (sd._meta.description !== undefined) room.description = sd._meta.description;
+      if (sd._meta.tags !== undefined) room.tags = sd._meta.tags;
+      if (sd._meta.thumbnailUrl) room.thumbnailUrl = sd._meta.thumbnailUrl;
+    }
 
     // Khôi phục template phòng trước khi đặt artworks
     const savedTemplate = sd._meta?.selectedTemplate || 'scene.glb';
