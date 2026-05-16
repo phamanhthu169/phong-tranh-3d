@@ -41,6 +41,9 @@ export class StudioScene extends BaseScene {
     this.selectedTemplate = 'scene.glb';
     this.artworks       = [];
     this.models3d       = [];
+    // Danh sách tác phẩm đã upload trong session (ảnh, video, model 3D)
+    // Mỗi phần tử: { type: 'image'|'video'|'model', label, src, thumb? }
+    this._uploadedSources = [];
     this.backgroundMusic = null;
     this.isMusicPlaying  = false;
     this._musicUrl       = null;
@@ -122,7 +125,17 @@ export class StudioScene extends BaseScene {
     this._on(this.renderer.domElement, 'mousemove', (e) => this._onMouseMove(e));
     this._on(document,                 'keydown',   (e) => { this.keys[e.code] = true; });
     this._on(document,                 'keyup',     (e) => { this.keys[e.code] = false; });
-    
+
+    /* ── Khi F5 / reload / đóng tab: nếu còn timer autosave đang chờ thì cảnh báo ── */
+    this._beforeUnloadHandler = (e) => {
+      if (this._autosaveEnabled && this._autosaveTimer) {
+        e.preventDefault();
+        e.returnValue = 'Phòng tranh của bạn có thay đổi chưa được lưu. Bạn có muốn rời đi không?';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', this._beforeUnloadHandler);
+
     /* ── Waypoint hover ── */
     this._setupWaypointHover();
 
@@ -136,7 +149,14 @@ export class StudioScene extends BaseScene {
     img.style.cssText = 'position:fixed;top:16px;left:20px;height:32px;cursor:pointer;opacity:0.85;transition:opacity 0.2s;z-index:100;';
     img.addEventListener('mouseenter', () => img.style.opacity = '1');
     img.addEventListener('mouseleave', () => img.style.opacity = '0.85');
-    img.addEventListener('click', () => this.manager.navigateTo('landing'));
+    img.addEventListener('click', () => {
+      // Nếu đang có thay đổi chưa lưu (timer còn chờ) → lưu trước rồi mới về landing
+      if (this._autosaveEnabled && this._autosaveTimer) {
+        this._saveAndLeave(() => this.manager.navigateTo('landing'));
+      } else {
+        this.manager.navigateTo('landing');
+      }
+    });
     document.body.appendChild(img);
     this._el(img);
   }
@@ -451,6 +471,56 @@ export class StudioScene extends BaseScene {
     overlay.classList.remove('open');
   }
 
+  /**
+   * Hiện modal "đang lưu" trong khi chờ saveGallery() xong, rồi gọi callback.
+   * Dùng cho logo click (về homepage) — không cần đợi animation kết thúc,
+   * chỉ cần đảm bảo save xong rồi mới đi.
+   */
+  async _saveAndLeave(afterSaveFn) {
+    const overlay = document.getElementById('save-success-overlay');
+    // Cập nhật nội dung modal thành "đang lưu"
+    if (overlay) {
+      const icon  = overlay.querySelector('#save-success-icon');
+      const title = overlay.querySelector('#save-success-title');
+      const msg   = overlay.querySelector('#save-success-msg');
+      const prog  = overlay.querySelector('#save-success-progress');
+      if (icon)  icon.textContent  = '💾';
+      if (title) title.textContent = 'Đang lưu phòng tranh…';
+      if (msg)   msg.innerHTML     = 'Vui lòng chờ trong giây lát.<br>Chúng tôi đang lưu mọi thay đổi của bạn.';
+      // Reset progress animation
+      if (prog) {
+        const fresh = prog.cloneNode(true);
+        // Đặt animation-duration dài hơn để khớp thời gian save thực tế
+        fresh.style.animationDuration = '3s';
+        prog.parentNode.replaceChild(fresh, prog);
+      }
+      overlay.classList.add('open');
+    }
+
+    // Huỷ debounce timer nếu còn đang chờ, lưu ngay
+    if (this._autosaveTimer) {
+      clearTimeout(this._autosaveTimer);
+      this._autosaveTimer = null;
+    }
+    await this.saveGallery();
+
+    // Cập nhật modal thành "đã lưu xong"
+    if (overlay) {
+      const icon  = overlay.querySelector('#save-success-icon');
+      const title = overlay.querySelector('#save-success-title');
+      const msg   = overlay.querySelector('#save-success-msg');
+      if (icon)  icon.textContent  = '✅';
+      if (title) title.textContent = 'Đã lưu thành công!';
+      if (msg)   msg.innerHTML     = 'Phòng tranh của bạn đã được lưu.<br>Đang chuyển trang…';
+    }
+
+    // Dừng nhỏ để user thấy trạng thái "xong" trước khi rời trang
+    await new Promise(resolve => setTimeout(resolve, 700));
+
+    if (overlay) overlay.classList.remove('open');
+    afterSaveFn();
+  }
+
   _isRoomNameValid() {
     const roomNameInput = document.getElementById('studio-room-name-input');
     const name = roomNameInput?.value.trim();
@@ -731,6 +801,7 @@ bar.appendChild(btnRedo);
       this.artworks.splice(state.index, 0, state.data);
       this.threeScene.add(state.data.group);
       this._redoStack.push({ type: 'restore-artwork', index: state.index, data: state.data });
+      this._renderUploadedList();
       this.toast('Hoàn tác xoá tranh ✓', 'success'); return;
     }
     if (state.type === 'delete-model') {
@@ -739,6 +810,7 @@ bar.appendChild(btnRedo);
       if (state.data.light) this.threeScene.add(state.data.light);
       if (state.data.pedestal) this.threeScene.add(state.data.pedestal);
       this._redoStack.push({ type: 'restore-model', index: state.index, data: state.data });
+      this._renderUploadedList();
       this.toast('Hoàn tác xoá model ✓', 'success'); return;
     }
     const obj = this._getObjByState(state);
@@ -755,6 +827,7 @@ bar.appendChild(btnRedo);
       this.threeScene.remove(state.data.group);
       this.artworks.splice(state.index, 1);
       this._undoStack.push({ type: 'delete-artwork', index: state.index, data: state.data });
+      this._renderUploadedList();
       this.toast('Làm lại xoá tranh ✓', 'success'); return;
     }
     if (state.type === 'restore-model') {
@@ -763,6 +836,7 @@ bar.appendChild(btnRedo);
       if (state.data.pedestal) this.threeScene.remove(state.data.pedestal);
       this.models3d.splice(state.index, 1);
       this._undoStack.push({ type: 'delete-model', index: state.index, data: state.data });
+      this._renderUploadedList();
       this.toast('Làm lại xoá model ✓', 'success'); return;
     }
     const obj = this._getObjByState(state);
@@ -1464,7 +1538,6 @@ _buildStudioLeftBtns() {
     document.getElementById('uz-3d')?.addEventListener('click', () => document.getElementById('fi-3d').click());
 
     document.getElementById('fi-img').addEventListener('change', async (e) => {
-      const wrap = document.getElementById('uw-img');
       for (const file of Array.from(e.target.files)) {
         const isVideo = file.type.startsWith('video/');
         if (isVideo) {
@@ -1477,15 +1550,17 @@ _buildStudioLeftBtns() {
             vid.addEventListener('loadeddata', () => {
               const tex = new THREE.VideoTexture(vid); tex.minFilter = THREE.LinearFilter;
               const src = { isVideo: true, texture: tex, videoEl: vid, storageUrl };
-              const wi = document.createElement('div'); wi.style.cssText = 'position:relative;margin-bottom:4px';
-              const th = document.createElement('canvas'); th.width = 120; th.height = 90; th.className = 'uth';
-              th.style.cssText = 'width:100%;aspect-ratio:4/3;cursor:pointer;border:1.5px solid transparent;display:block;border-radius:2px;';
-              setTimeout(() => { vid.currentTime = 0.5; vid.addEventListener('seeked', () => { th.getContext('2d').drawImage(vid, 0, 0, 120, 90); }, { once: true }); }, 200);
-              th.addEventListener('click', () => { this.selectSource(src); document.querySelectorAll('.uth,.model-th').forEach(el => el.classList.remove('sel')); th.classList.add('sel'); });
-              const lbl = document.createElement('div'); lbl.style.cssText = 'font-size:9px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px';
-              lbl.textContent = '▶ ' + file.name.substring(0, 18);
-              wi.appendChild(th); wi.appendChild(lbl); wrap.appendChild(wi);
-              this.selectSource(src); th.classList.add('sel'); vid.play(); this.setMode('place');
+              // Tạo thumbnail bằng canvas
+              const th = document.createElement('canvas'); th.width = 120; th.height = 120;
+              setTimeout(() => { vid.currentTime = 0.5; vid.addEventListener('seeked', () => { const ctx = th.getContext('2d');
+const scale = 120 / vid.videoWidth;
+const dh = vid.videoHeight * scale;
+ctx.fillStyle = '#ffffff8a';
+ctx.fillRect(0, 0, 120, 120);
+ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
+              this._uploadedSources.push({ type: 'video', label: file.name, src, thumbCanvas: th });
+              this._renderUploadedList();
+              this.selectSource(src); vid.play(); this.setMode('place');
               this.toast('Video ✓ — click tường để đặt', 'success');
             });
           } catch (err) { this.toast('Lỗi: ' + err.message, 'error'); }
@@ -1500,15 +1575,17 @@ _buildStudioLeftBtns() {
             cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
             const tex = new THREE.CanvasTexture(cv);
             const src = { canvas: cv, texture: tex, naturalWidth: nw, naturalHeight: nh, storageUrl };
-            const wi = document.createElement('div'); wi.style.cssText = 'position:relative;margin-bottom:4px';
-            const th = document.createElement('canvas'); th.width = 120; th.height = 90; th.className = 'uth';
-            th.style.cssText = 'width:100%;aspect-ratio:4/3;cursor:pointer;border:1.5px solid transparent;display:block;border-radius:2px;';
-            th.getContext('2d').drawImage(img, 0, 0, 120, 90);
-            th.addEventListener('click', () => { this.selectSource(src); document.querySelectorAll('.uth,.model-th').forEach(el => el.classList.remove('sel')); th.classList.add('sel'); });
-            const lbl = document.createElement('div'); lbl.style.cssText = 'font-size:9px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px';
-            lbl.textContent = file.name.substring(0, 20);
-            wi.appendChild(th); wi.appendChild(lbl); wrap.appendChild(wi);
-            this.selectSource(src); th.classList.add('sel'); this.setMode('place');
+            const th = document.createElement('canvas'); th.width = 120; th.height = 120;
+            const ctx = th.getContext('2d');
+            const scale = 120 / img.naturalWidth;
+            const dh = img.naturalHeight * scale;
+            const dy = (120 - dh) / 2;
+            ctx.fillStyle = 'rgba(255,255,255,0.08)';
+            ctx.fillRect(0, 0, 120, 120);
+            ctx.drawImage(img, 0, dy, 120, dh);
+            this._uploadedSources.push({ type: 'image', label: file.name, src, thumbCanvas: th });
+            this._renderUploadedList();
+            this.selectSource(src); this.setMode('place');
             this.toast('Ảnh ✓ — click tường để đặt', 'success');
           };
           img.src = URL.createObjectURL(file);
@@ -1527,14 +1604,9 @@ _buildStudioLeftBtns() {
           this.toast('Đang load model...', 'info', 10000);
           const onLoad = (object) => {
             const src = { type: 'model3d', object, name: file.name, storageUrl };
-            const th = document.createElement('div'); th.className = 'model-th';
-            th.style.cssText = 'width:100%;padding:8px 0;text-align:center;font-size:20px;cursor:pointer;border:1.5px solid transparent;border-radius:2px;background:#111;margin-bottom:2px;transition:border-color .2s';
-            th.textContent = '📦'; th.title = file.name;
-            th.addEventListener('click', () => { this.selectSource(src); document.querySelectorAll('.uth,.model-th').forEach(el => el.classList.remove('sel')); th.classList.add('sel'); });
-            const lbl = document.createElement('div'); lbl.style.cssText = 'font-size:9px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px';
-            lbl.textContent = file.name.substring(0, 20);
-            document.getElementById('uw-3d').appendChild(th); document.getElementById('uw-3d').appendChild(lbl);
-            this.selectSource(src); th.classList.add('sel'); this.setMode('place');
+            this._uploadedSources.push({ type: 'model', label: file.name, src });
+            this._renderUploadedList();
+            this.selectSource(src); this.setMode('place');
             this.toast('Model ✓ — click sàn để đặt', 'success');
           };
           const onErr = () => this.toast('Không load được: ' + file.name, 'error');
@@ -1549,14 +1621,134 @@ _buildStudioLeftBtns() {
 
   /* ══════════════════════════════════════════════ UPLOAD ══════════════════════════════════════════════ */
   async uploadToStorage(file) {
-    const path = `${Date.now()}_${file.name}`;
+    // Làm sạch tên file: bỏ dấu tiếng Việt, thay ký tự đặc biệt bằng '_'
+    // Tránh lỗi 400 Bad Request khi tên có ký tự unicode
+    const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+    const safeName = file.name
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/\u0111/gi, 'd')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .replace(/_+/g, '_')
+      .substring(0, 80);
+    const path = `${Date.now()}_${safeName || ('file.' + ext)}`;
     const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { upsert: true });
-    if (error) { console.error(error.message); return null; }
+    if (error) { console.error('Upload error:', error.message); return null; }
     return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl;
   }
 
   selectSource(src) {
     this.selectedSource = src;
+  }
+
+  /**
+   * Re-render danh sách tác phẩm đã upload trong pane-artwork.
+   * Được gọi mỗi khi có file mới được upload thành công.
+   */
+  _renderUploadedList() {
+    if (!this._rowRefs) return;
+
+    // Thumbnail + source cache from session uploads (keyed by storageUrl)
+    const thumbCache = new Map();
+    for (const item of this._uploadedSources) {
+      const key = item.src?.storageUrl;
+      if (key && !thumbCache.has(key)) thumbCache.set(key, item);
+    }
+
+    // Build unique list from what's actually placed in the room
+    const byType = { image: [], video: [], model: [] };
+    const seenUrls = new Set();
+
+    for (const a of this.artworks) {
+      const key = a.storageUrl;
+      if (!key || seenUrls.has(key)) continue;
+      seenUrls.add(key);
+      const cached = thumbCache.get(key);
+      const type = a.isVideo ? 'video' : 'image';
+      byType[type].push({
+        label: cached?.label || key.split('/').pop().replace(/^\d+_/, '') || key,
+        type,
+        src: cached?.src || { storageUrl: key },
+        thumbCanvas: cached?.thumbCanvas || null,
+      });
+    }
+
+    for (const m of this.models3d) {
+      const key = m.storageUrl;
+      if (!key || seenUrls.has(key)) continue;
+      seenUrls.add(key);
+      const cached = thumbCache.get(key);
+      byType['model'].push({
+        label: cached?.label || m.name || key.split('/').pop().replace(/^\d+_/, '') || key,
+        type: 'model',
+        src: cached?.src || { storageUrl: key },
+        thumbCanvas: null,
+      });
+    }
+
+    const renderInner = (inner, items, type) => {
+      inner.innerHTML = '';
+      if (!items.length) {
+        inner.style.gridTemplateColumns = '1fr';
+        const empty = document.createElement('div');
+        empty.style.cssText = 'font-size:9px;color:rgba(255,255,255,0.3);font-family:monospace;padding:8px 0;text-align:center;';
+        empty.textContent = 'Chưa có tệp nào';
+        inner.appendChild(empty);
+        return;
+      }
+      inner.style.gridTemplateColumns = 'repeat(3,1fr)';
+      items.forEach((item, idx) => {
+        const card = document.createElement('div');
+        card.style.cssText = 'position:relative;border-radius:7px;overflow:hidden;cursor:pointer;background:rgba(255, 255, 255, 0.55);transition:border-color .2s,transform .15s;aspect-ratio:1;';
+        card.title = item.label;
+        if (type === 'model') {
+          const icon = document.createElement('div');
+          icon.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:22px;background:rgba(255,255,255,0.08);';
+          icon.textContent = '\u{1F4E6}';
+          card.appendChild(icon);
+        } else if (item.thumbCanvas) {
+          const imgEl = document.createElement('img');
+          imgEl.src = item.thumbCanvas.toDataURL();
+          imgEl.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;background: rgba(255, 255, 255, 0.57);';
+          card.appendChild(imgEl);
+          if (type === 'video') {
+            const badge = document.createElement('div');
+            badge.style.cssText = 'position:absolute;bottom:3px;left:3px;background:rgba(18, 47, 106, 1);color:#fff;font-size:13px;padding:5px 4px;';
+            badge.textContent = '\u25B6';
+            card.appendChild(badge);
+          }
+        }
+        const lbl = document.createElement('div');
+        lbl.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:rgba(18,47,106,1);color:#FFFFFF;font-size:9px;padding:3px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:"Montserrat",sans-serif;font-weight:700;line-height:1.3;';
+        lbl.textContent = item.label.replace(/\.[^.]+$/, '').substring(0, 14);
+        card.appendChild(lbl);
+        const updateAllCards = () => {
+          document.querySelectorAll('[data-upcard]').forEach(c => {
+            const [t, i] = c.dataset.upcard.split('-');
+            const s = this._uploadedSources.filter(x => x.type === t)[+i];
+            const sel = s && s.src === this.selectedSource;
+            c.style.borderColor = sel ? '#68e5e3' : 'rgba(255,255,255,0.1)';
+            c.style.transform   = sel ? 'scale(1.05)' : '';
+          });
+        };
+        card.addEventListener('click', () => {
+          this.selectSource(item.src);
+          this.setMode('place');
+          updateAllCards();
+        });
+        card.dataset.upcard = type + '-' + idx;
+        const isSel = this.selectedSource === item.src;
+        card.style.borderColor = isSel ? '#68e5e3' : 'rgba(255,255,255,0.1)';
+        card.style.transform   = isSel ? 'scale(1.05)' : '';
+        inner.appendChild(card);
+      });
+    };
+
+    for (const [type, row] of Object.entries(this._rowRefs)) {
+      if (type === 'text' || !row._inner) continue;
+      const items = byType[type] || [];
+      renderInner(row._inner, items, type);
+      if (items.length && !row._openState()) row._toggle();
+    }
   }
   /* ══════════════════════════════════════════════ FILL PANE ══════════════════════════════════════════════ */
   _fillPane(paneId, pane) {
@@ -1694,70 +1886,100 @@ _buildStudioLeftBtns() {
         pane.querySelector('#rp-path-wp-count').textContent = this.pathWaypoints.length;
         break;
 
-      // ── Bước 02: Thêm tác phẩm (4 nút SVG) ──
-      case 'pane-artwork': 
-       pane.style.paddingTop = '30px';
-       {
-        const btnsWrap = document.createElement('div');
-        btnsWrap.className = 'rp-action-btns';
-        btnsWrap.style.marginTop = '30px';
+      // ── Bước 02: Thêm tác phẩm ──
+      case 'pane-artwork':
+      {
+        pane.style.cssText += 'padding:14px 12px 12px;display:flex;flex-direction:column;gap:8px;';
 
-        // Nút thêm ảnh
-        const btnPicture = document.createElement('button');
-        btnPicture.className = 'rp-svg-btn rp-svg-btn-picture';
-        btnPicture.title = 'Thêm ảnh';
-        btnPicture.addEventListener('click', () => document.getElementById('fi-img').click());
-        btnsWrap.appendChild(btnPicture);
+        const makeRow = ({ svgClass, label, type, onAdd }) => {
+          const wrap = document.createElement('div');
+          wrap.style.cssText = 'display:flex;flex-direction:column;';
 
-        // Nút thêm video
-        const btnVideo = document.createElement('button');
-        btnVideo.className = 'rp-svg-btn rp-svg-btn-video';
-        btnVideo.title = 'Thêm video';
-        btnVideo.addEventListener('click', () => {
-          const fi = document.getElementById('fi-img');
-          fi.accept = 'video/*';
-          fi.click();
-          fi.addEventListener('change', () => { fi.accept = 'image/*,video/*'; }, { once: true });
-        });
-        btnsWrap.appendChild(btnVideo);
+          // Thanh chính
+          const bar = document.createElement('div');
+          bar.style.cssText = 'display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.08);border-radius:10px;padding:10px 12px;';
 
-        // Nút thêm model 3D
-        const btnModel = document.createElement('button');
-        btnModel.className = 'rp-svg-btn rp-svg-btn-3dmodel';
-        btnModel.title = 'Thêm model 3D';
-        btnModel.addEventListener('click', () => document.getElementById('fi-3d').click());
-        btnsWrap.appendChild(btnModel);
+          // Icon SVG background (dùng lại class cũ nếu có, fallback emoji)
+          const iconWrap = document.createElement('div');
+          iconWrap.style.cssText = 'width:22px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;';
+          const iconMap = { image: '\u{1F5BC}', video: '\u{1F3AC}', model: '\u{1F4E6}', text: '\u270F\uFE0F' };
+          iconWrap.textContent = iconMap[type] || '\u2795';
+          bar.appendChild(iconWrap);
 
-        // Nút thêm text
-        const btnText = document.createElement('button');
-        btnText.className = 'rp-svg-btn rp-svg-btn-text';
-        btnText.title = 'Thêm text lên tường';
-        const textInlinePanel = document.createElement('div');
-        textInlinePanel.id = 'rp-text-inline';
-        btnText.addEventListener('click', () => {
-          textInlinePanel.classList.toggle('open');
-          if (textInlinePanel.classList.contains('open')) {
-            this.textEditor?.togglePanel();
-          } else {
-            this.textEditor?.togglePanel();
-          }
-        });
-        btnsWrap.appendChild(btnText);
-        btnsWrap.appendChild(textInlinePanel);
+          const labelEl = document.createElement('span');
+          labelEl.style.cssText = 'flex:1;color:#fff;font-size:13px;font-weight:600;font-family:"Montserrat",sans-serif;';
+          labelEl.textContent = label;
+          bar.appendChild(labelEl);
 
-        // Grid thumbnail ảnh/video đã upload
-        const thumbGrid = document.createElement('div');
-        thumbGrid.className = 'rp-thumb-grid';
-        thumbGrid.id = 'rp-uw-img';
-        const existUwImg = document.getElementById('uw-img');
-        if (existUwImg && existUwImg.children.length) {
-          thumbGrid.innerHTML = existUwImg.innerHTML;
-        }
-        btnsWrap.appendChild(thumbGrid);
+          // Nút +
+          const btnAdd = document.createElement('button');
+          btnAdd.style.cssText = 'width:30px;height:30px;border-radius:8px;border:none;cursor:pointer;background:rgba(255,255,255,0.15);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s;';
+          btnAdd.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14"><line x1="7" y1="1" x2="7" y2="13" stroke="white" stroke-width="2.2" stroke-linecap="round"/><line x1="1" y1="7" x2="13" y2="7" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg>';
+          btnAdd.title = 'Tải lên';
+          btnAdd.addEventListener('mouseenter', () => { btnAdd.style.background = 'rgba(104,229,227,0.35)'; });
+          btnAdd.addEventListener('mouseleave', () => { btnAdd.style.background = 'rgba(255,255,255,0.15)'; });
+          btnAdd.addEventListener('click', (e) => { e.stopPropagation(); onAdd(); });
+          bar.appendChild(btnAdd);
 
-        pane.appendChild(btnsWrap);
+          // Separator
+          const sep = document.createElement('div');
+          sep.style.cssText = 'width:1px;height:16px;background:rgba(255,255,255,0.18);flex-shrink:0;margin:0 2px;';
+          bar.appendChild(sep);
+
+          // Nút v
+          const btnV = document.createElement('button');
+          btnV.style.cssText = 'width:30px;height:30px;border-radius:8px;border:none;cursor:pointer;background:rgba(255,255,255,0.15);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s, transform .25s;';
+          btnV.innerHTML = '<svg width="11" height="7" viewBox="0 0 11 7"><path d="M1 1L5.5 5.5L10 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+          btnV.title = 'Ẩn / hiện danh sách';
+          btnV.addEventListener('mouseenter', () => { btnV.style.background = 'rgba(255,255,255,0.25)'; });
+          btnV.addEventListener('mouseleave', () => { btnV.style.background = 'rgba(255,255,255,0.15)'; });
+          bar.appendChild(btnV);
+          wrap.appendChild(bar);
+
+          // Dropdown
+          const dropdown = document.createElement('div');
+          dropdown.style.cssText = 'overflow:hidden;max-height:0;opacity:0;transition:max-height .3s cubic-bezier(0.4,0,0.2,1),opacity .25s,margin .3s;margin-top:0;';
+          const inner = document.createElement('div');
+          inner.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:22px;padding:8px 4px 8px;';
+          inner.dataset.rpInner = type;
+          dropdown.appendChild(inner);
+          wrap.appendChild(dropdown);
+
+          let open = false;
+          const toggle = () => {
+            open = !open;
+            dropdown.style.maxHeight = open ? '9999px' : '0';
+            dropdown.style.opacity   = open ? '1' : '0';
+            dropdown.style.marginTop = open ? '4px' : '0';
+            btnV.style.transform     = open ? 'rotate(180deg)' : '';
+          };
+          btnV.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
+
+          wrap._inner     = inner;
+          wrap._toggle    = toggle;
+          wrap._openState = () => open;
+          pane.appendChild(wrap);
+          return wrap;
+        };
+
+        const fiImg = document.getElementById('fi-img');
+
+        const rowImg = makeRow({ label: 'Ảnh tĩnh', type: 'image', onAdd: () => {
+          fiImg.accept = 'image/*'; fiImg.click();
+          fiImg.addEventListener('change', () => { fiImg.accept = 'image/*,video/*'; }, { once: true });
+        }});
+        const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
+          fiImg.accept = 'video/*'; fiImg.click();
+          fiImg.addEventListener('change', () => { fiImg.accept = 'image/*,video/*'; }, { once: true });
+        }});
+        const rowModel = makeRow({ label: '3D', type: 'model', onAdd: () => document.getElementById('fi-3d').click() });
+        const rowText  = makeRow({ label: 'Văn bản', type: 'text', onAdd: () => this.textEditor?.togglePanel() });
+
+        this._rowRefs = { image: rowImg, video: rowVid, model: rowModel, text: rowText };
+        this._renderUploadedList();
         break;
       }
+
 
       // ── Bước 03: Ảnh/Video (legacy, giữ để không lỗi) ──
       case 'pane-img':
@@ -2586,6 +2808,7 @@ _buildStudioLeftBtns() {
         this._redoStack = [];
         this.threeScene.remove(aw.group);
         this.artworks.splice(idx, 1);
+        this._renderUploadedList();
         this.toast('Đã xoá tranh — Ctrl+Z để hoàn tác', 'info');
       } else {
         const idx = this.selectedItem.index;
@@ -2597,6 +2820,7 @@ _buildStudioLeftBtns() {
         this.threeScene.remove(md.light);
         this.threeScene.remove(md.pedestal);
         this.models3d.splice(idx, 1);
+        this._renderUploadedList();
         this.toast('Đã xoá model — Ctrl+Z để hoàn tác', 'info');
       }
       this.deselectItem();
@@ -2682,6 +2906,7 @@ _buildStudioLeftBtns() {
       if (this.selectedSource.type === 'model3d') {
         const hits = this.raycaster.intersectObjects(this.modelMeshes, true); if (!hits.length) return;
         this.place3DModel(this.selectedSource.object.clone(), hits[0].point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null);
+        this._renderUploadedList();
         this._triggerAutosave();
         this.toast('Model đặt thành công ✓', 'success'); return;
       }
@@ -2691,6 +2916,7 @@ _buildStudioLeftBtns() {
       pt.add(n.clone().multiplyScalar(.05));
       if (this.selectedSource.isVideo) this.selectedSource.videoEl.play();
       this.placeArtwork(this.selectedSource, pt, [0, Math.atan2(n.x, n.z), 0]);
+      this._renderUploadedList();
       this._triggerAutosave();
       this.toast('Đã đặt tranh ✓', 'success'); return;
     }
@@ -2865,6 +3091,28 @@ _buildStudioLeftBtns() {
     this.toast(room.isPublished ? 'Đã publish phòng ✓' : 'Đã chuyển về Draft', room.isPublished ? 'success' : 'info');
   }
 
+  _buildUploadedSourcesSaveData() {
+    const map = new Map();
+    // 1. Từ _uploadedSources (file upload trong session, kể cả chưa đặt)
+    for (const s of this._uploadedSources) {
+      const url = s.src?.storageUrl;
+      if (url && !map.has(url)) map.set(url, { type: s.type, label: s.label, storageUrl: url });
+    }
+    // 2. Artworks đã đặt vào phòng
+    for (const a of this.artworks) {
+      if (!a.storageUrl || map.has(a.storageUrl)) continue;
+      const label = a.storageUrl.split('/').pop().replace(/^\d+_/, '');
+      map.set(a.storageUrl, { type: a.isVideo ? 'video' : 'image', label, storageUrl: a.storageUrl });
+    }
+    // 3. Models 3D đã đặt vào phòng
+    for (const m of this.models3d) {
+      if (!m.storageUrl || map.has(m.storageUrl)) continue;
+      const label = m.name || m.storageUrl.split('/').pop().replace(/^\d+_/, '');
+      map.set(m.storageUrl, { type: 'model', label, storageUrl: m.storageUrl });
+    }
+    return Array.from(map.values());
+  }
+
   async saveGallery() {
     if (!this._isRoomNameValid()) return;
     const room = this.manager.currentRoom;
@@ -2920,8 +3168,10 @@ _buildStudioLeftBtns() {
       gallery_name: room.name,
       artist_name: this.manager.auth.user?.user_metadata?.name || 'Artist Name',
       musicUrl: this._musicUrl || null,
+      uploadedSources: this._buildUploadedSourcesSaveData(),
     };
 
+    console.log('[Save] uploadedSources count:', galleryData.uploadedSources?.length, galleryData.uploadedSources);
     const { error } = await supabase
       .from('gallery')
       .upsert({ name: room.id, scene_data: galleryData }, { onConflict: 'name' });
@@ -2941,6 +3191,7 @@ _buildStudioLeftBtns() {
     const { data, error } = await supabase.from('gallery').select('*').eq('name', roomId).limit(1);
     if (error || !data || !data.length) return;
     const sd = data[0].scene_data;
+    console.log('[Load] uploadedSources from DB:', sd.uploadedSources?.length, sd.uploadedSources);
 
     // Khôi phục template phòng trước khi đặt artworks
     const savedTemplate = sd._meta?.selectedTemplate || 'scene.glb';
@@ -2979,8 +3230,17 @@ _buildStudioLeftBtns() {
         const pos = new THREE.Vector3(a.x, a.y, a.z);
         const sv  = a.sx ? new THREE.Vector3(a.sx, a.sy, a.sz) : null;
         if (a.isVideo) {
-          const vid = document.createElement('video'); vid.src = a.storageUrl; vid.loop = true; vid.muted = true; vid.playsInline = true; vid.crossOrigin = 'anonymous';
-          vid.addEventListener('loadeddata', () => { const tex = new THREE.VideoTexture(vid); tex.minFilter = THREE.LinearFilter; this.placeArtwork({ isVideo: true, texture: tex, videoEl: vid, storageUrl: a.storageUrl }, pos, [a.rx || 0, a.ry || 0, a.rz || 0], a.meta || {}, sv); vid.play(); });
+          await new Promise(resolve => {
+            const vid = document.createElement('video'); vid.src = a.storageUrl; vid.loop = true; vid.muted = true; vid.playsInline = true; vid.crossOrigin = 'anonymous';
+            vid.addEventListener('loadeddata', () => {
+              const tex = new THREE.VideoTexture(vid); tex.minFilter = THREE.LinearFilter;
+              this.placeArtwork({ isVideo: true, texture: tex, videoEl: vid, storageUrl: a.storageUrl }, pos, [a.rx || 0, a.ry || 0, a.rz || 0], a.meta || {}, sv);
+              vid.play();
+              resolve();
+            }, { once: true });
+            vid.addEventListener('error', () => resolve(), { once: true });
+            setTimeout(resolve, 8000);
+          });
         } else {
           const tex = await new Promise(resolve => new THREE.TextureLoader().load(a.storageUrl, resolve, undefined, () => resolve(null)));
           if (!tex) continue;
@@ -3019,17 +3279,90 @@ _buildStudioLeftBtns() {
       this.backgroundMusic = new Audio(sd.musicUrl);
       this.backgroundMusic.loop = true;
       this.backgroundMusic.volume = 0.5;
-      document.getElementById('music-track-name').textContent = `🎵 Background Music`;
-      document.getElementById('music-volume-slider').value = 0.5;
+      const trackNameEl = document.getElementById('music-track-name');
+      const volumeSliderEl = document.getElementById('music-volume-slider');
+      if (trackNameEl) trackNameEl.textContent = '🎵 Background Music';
+      if (volumeSliderEl) volumeSliderEl.value = 0.5;
       this.backgroundMusic.play().then(() => {
         this.isMusicPlaying = true;
-        document.getElementById('music-play-pause').textContent = '⏸';
+        const ppEl = document.getElementById('music-play-pause');
+        if (ppEl) ppEl.textContent = '⏸';
       }).catch(() => {
         this.isMusicPlaying = false;
-        document.getElementById('music-play-pause').textContent = '▶';
+        const ppEl = document.getElementById('music-play-pause');
+        if (ppEl) ppEl.textContent = '▶';
       });
     }
     await this._loadChests();
+
+    // ── Khôi phục danh sách tác phẩm vào sidebar ──
+    // Gộp sd.uploadedSources + artworks đã đặt + models đã đặt, dedup theo storageUrl
+    const usMap = new Map();
+    for (const entry of (sd.uploadedSources || [])) {
+      if (entry.storageUrl && !usMap.has(entry.storageUrl)) usMap.set(entry.storageUrl, entry);
+    }
+    for (const a of this.artworks) {
+      if (!a.storageUrl || usMap.has(a.storageUrl)) continue;
+      const label = a.storageUrl.split('/').pop().replace(/^\d+_/, '');
+      usMap.set(a.storageUrl, { type: a.isVideo ? 'video' : 'image', label, storageUrl: a.storageUrl });
+    }
+    for (const m of this.models3d) {
+      if (!m.storageUrl || usMap.has(m.storageUrl)) continue;
+      const label = m.name || m.storageUrl.split('/').pop().replace(/^\d+_/, '');
+      usMap.set(m.storageUrl, { type: 'model', label, storageUrl: m.storageUrl });
+    }
+
+    // Push stub ngay lập tức để _rowRefs có data khi render, thumbnail load async sau
+    for (const entry of usMap.values()) {
+      if (!entry.storageUrl) continue;
+      const stub = { type: entry.type, label: entry.label, src: { storageUrl: entry.storageUrl }, thumbCanvas: null };
+      this._uploadedSources.push(stub);
+
+      if (entry.type === 'image') {
+        const img = new Image(); img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const nw = img.naturalWidth, nh = img.naturalHeight;
+          const cv = document.createElement('canvas'); cv.width = 512; cv.height = Math.round(512 * nh / nw);
+          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+          const tex = new THREE.CanvasTexture(cv);
+          stub.src = { canvas: cv, texture: tex, naturalWidth: nw, naturalHeight: nh, storageUrl: entry.storageUrl };
+          const th = document.createElement('canvas'); th.width = 120; th.height = 120;
+          const ctx = th.getContext('2d');
+          const scale = 120 / nw; const dh = nh * scale;
+          ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(0, 0, 120, 120);
+          ctx.drawImage(img, 0, (120 - dh) / 2, 120, dh);
+          stub.thumbCanvas = th;
+          this._renderUploadedList();
+        };
+        img.src = entry.storageUrl;
+      } else if (entry.type === 'video') {
+        const vid = document.createElement('video');
+        vid.src = entry.storageUrl; vid.loop = true; vid.muted = true; vid.playsInline = true; vid.crossOrigin = 'anonymous';
+        vid.addEventListener('loadeddata', () => {
+          const tex = new THREE.VideoTexture(vid); tex.minFilter = THREE.LinearFilter;
+          stub.src = { isVideo: true, texture: tex, videoEl: vid, storageUrl: entry.storageUrl };
+          const th = document.createElement('canvas'); th.width = 120; th.height = 120;
+          setTimeout(() => {
+            vid.currentTime = 0.5;
+            vid.addEventListener('seeked', () => {
+              const ctx = th.getContext('2d');
+              const scale = 120 / (vid.videoWidth || 1); const dh = (vid.videoHeight || 0) * scale;
+              ctx.fillStyle = '#ffffff8a'; ctx.fillRect(0, 0, 120, 120);
+              ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh);
+              stub.thumbCanvas = th;
+              this._renderUploadedList();
+            }, { once: true });
+          }, 200);
+          vid.play().catch(() => {});
+        }, { once: true });
+      } else if (entry.type === 'model') {
+        // Model chỉ cần icon hộp, không cần load lại object 3D cho sidebar
+        stub.src = { type: 'model3d', name: entry.label, storageUrl: entry.storageUrl };
+      }
+    }
+
+    // Render ngay sau khi push tất cả stubs
+    this._renderUploadedList();
   }
 
   /* ══════════════════════════════════════════════ CHEST ══════════════════════════════════════════════ */
@@ -3182,5 +3515,14 @@ _buildStudioLeftBtns() {
     }
     this._renderChestList();
     this.toast('Đã xoá rương', 'info');
+  }
+
+  dispose() {
+    // Gỡ beforeunload listener để tránh memory leak khi scene bị huỷ
+    if (this._beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+      this._beforeUnloadHandler = null;
+    }
+    super.dispose?.();
   }
 }
