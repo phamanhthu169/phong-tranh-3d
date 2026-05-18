@@ -1304,8 +1304,10 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
 
     document.getElementById('checkout-btn').addEventListener('click', () => {
       if (this.cartItems.length === 0) return;
-      this._syncCartToStorage();
-      this.manager.navigateTo('checkout');
+      // TODO: re-enable when checkout is ready
+      this._toast('Tính năng thanh toán đang hoàn thiện, vui lòng quay lại sau!', 'info', 3000);
+      // this._syncCartToStorage();
+      // this.manager.navigateTo('checkout');
     });
   }
 
