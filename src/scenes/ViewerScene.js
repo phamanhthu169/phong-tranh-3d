@@ -1615,7 +1615,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
 
   async _loadRoomGLB(roomIndex, templateFile = 'scene.glb') {
     return new Promise(resolve => {
-      new GLTFLoader().load(`/models/${templateFile}`, (gltf) => {
+      const modelUrl = templateFile.startsWith('http') ? templateFile : `/models/${templateFile}`;
+      new GLTFLoader().load(modelUrl, (gltf) => {
         const model = gltf.scene;
         if (roomIndex === 0) {
           const box = new THREE.Box3().setFromObject(model);

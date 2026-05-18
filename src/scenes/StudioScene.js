@@ -4150,7 +4150,8 @@ async _handleMusicUpload(e) {
   /* ══════════════════════════════════════════════ LOAD GLB ══════════════════════════════════════════════ */
   async _loadRoomGLB(templateFile = 'scene.glb') {
     return new Promise(resolve => {
-      new GLTFLoader().load(`/models/${templateFile}`, (gltf) => {
+      const modelUrl = templateFile.startsWith('http') ? templateFile : `/models/${templateFile}`;
+      new GLTFLoader().load(modelUrl, (gltf) => {
         const model = gltf.scene;
         model.traverse((child) => {
           if (child.isLight) child.intensity = 0;

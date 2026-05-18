@@ -2,5 +2,5 @@
   { "file": "scene.glb", "name": "Phòng mặc định" },
   { "file": "modern_vr_art_gallery_pyramid.glb", "name": "Gallery Kim Tự Tháp" },
   { "file": "backrooms_vr_room_baked.glb", "name": "Backroom" },
-  { "file": "Lafayette_Street_New_York.glb", "name": "Lafayette Street New York" }
+  { "file": "https://github.com/phamanhthu169/phong-tranh-3d/releases/download/v1.0/Lafayette_Street_New_York.glb", "name": "Lafayette Street New York" }
 ]
