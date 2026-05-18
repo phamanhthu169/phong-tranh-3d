@@ -55,30 +55,67 @@ export class BaseScene {
           border:3px solid rgba(212,197,169,0.12);
           border-top-color:#c8a96e;
           animation:_room_spin 0.85s linear infinite;
-          margin-bottom:22px;
+          margin-bottom:28px;
+        }
+        #room-loading-overlay .rl-bar-wrap {
+          width:220px;height:3px;
+          background:rgba(212,197,169,0.1);
+          border-radius:2px;
+          overflow:hidden;
+          margin-bottom:14px;
+        }
+        #room-loading-overlay .rl-bar-fill {
+          height:100%;width:0%;
+          background:linear-gradient(90deg,#a07840,#c8a96e);
+          border-radius:2px;
+          transition:width 0.25s ease;
+        }
+        #room-loading-overlay .rl-pct {
+          color:#c8a96e;
+          font-family:monospace;
+          font-size:13px;
+          font-weight:600;
+          margin-bottom:8px;
+          letter-spacing:0.05em;
         }
         #room-loading-overlay .rl-text {
-          color:rgba(212,197,169,0.65);
+          color:rgba(212,197,169,0.5);
           font-family:monospace;
-          font-size:11px;
+          font-size:10px;
           letter-spacing:0.18em;
           text-transform:uppercase;
         }
       </style>
       <div class="rl-ring"></div>
-      <div class="rl-text">${text}</div>
+      <div class="rl-pct" id="rl-pct-label">0%</div>
+      <div class="rl-bar-wrap"><div class="rl-bar-fill" id="rl-bar-fill"></div></div>
+      <div class="rl-text" id="rl-status-text">${text}</div>
     `;
     document.body.appendChild(overlay);
     this._loadingOverlay = overlay;
     requestAnimationFrame(() => { overlay.style.opacity = '1'; });
   }
 
+  _setLoadingProgress(pct, label) {
+    if (!this._loadingOverlay) return;
+    const clamped = Math.min(100, Math.max(0, Math.round(pct)));
+    const fill = this._loadingOverlay.querySelector('#rl-bar-fill');
+    const pctEl = this._loadingOverlay.querySelector('#rl-pct-label');
+    const textEl = this._loadingOverlay.querySelector('#rl-status-text');
+    if (fill) fill.style.width = clamped + '%';
+    if (pctEl) pctEl.textContent = clamped + '%';
+    if (textEl && label) textEl.textContent = label;
+  }
+
   _hideLoadingScreen() {
+    this._setLoadingProgress(100);
     const overlay = this._loadingOverlay;
     if (!overlay) return;
     this._loadingOverlay = null;
-    overlay.style.opacity = '0';
-    setTimeout(() => overlay.parentNode?.removeChild(overlay), 380);
+    setTimeout(() => {
+      overlay.style.opacity = '0';
+      setTimeout(() => overlay.parentNode?.removeChild(overlay), 380);
+    }, 120);
   }
 
   // thêm event listener có quản lý (tự xoá khi dispose)

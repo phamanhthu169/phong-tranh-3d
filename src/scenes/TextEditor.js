@@ -25,6 +25,12 @@ export class TextEditor {
     this.tempCanvas = document.createElement('canvas');
     this.ctx = this.tempCanvas.getContext('2d');
 
+    // Preload Montserrat so canvas renders consistently across all devices
+    document.fonts.load('96px "Montserrat"').catch(() => {});
+    document.fonts.load('bold 96px "Montserrat"').catch(() => {});
+    document.fonts.load('italic 96px "Montserrat"').catch(() => {});
+    document.fonts.load('bold italic 96px "Montserrat"').catch(() => {});
+
     this.cssInjected = false;
     this.panel = null;
     this.previewMouseMoveHandler = null;
@@ -445,7 +451,7 @@ export class TextEditor {
     let fontString = '';
     if (styles.bold) fontString += 'bold ';
     if (styles.italic) fontString += 'italic ';
-    fontString += `${baseFontSize}px "Segoe UI", "Arial", "Helvetica Neue", sans-serif`;
+    fontString += `${baseFontSize}px "Montserrat", "Segoe UI", "Arial", "Helvetica Neue", sans-serif`;
 
     // Pass 1: do wrapping bang temp canvas
     const measureCtx = this.ctx;
@@ -573,9 +579,11 @@ export class TextEditor {
       map: texture,
       transparent: true,
       side: THREE.DoubleSide,
-      opacity: 0.85
+      opacity: 0.85,
+      depthTest: false
     });
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(planeWidth, planeHeight), material);
+    plane.renderOrder = 1;
     group.add(plane);
 
     return { group, plane, material, texture };
@@ -711,9 +719,11 @@ export class TextEditor {
     const material = new THREE.MeshBasicMaterial({
       map: texture,
       transparent: true,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      depthTest: false
     });
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(planeWidth, planeHeight), material);
+    plane.renderOrder = 1;
     group.add(plane);
 
     return { group, plane, material, texture, canvas };
@@ -1053,6 +1063,8 @@ export class TextEditor {
 
   async loadFromData(textsData) {
     if (!textsData || !textsData.length) return;
+
+    try { await document.fonts.ready; } catch (e) {}
 
     for (const t of textsData) {
       const pos = new THREE.Vector3(t.x, t.y, t.z);

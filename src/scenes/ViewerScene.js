@@ -96,7 +96,10 @@ export class ViewerScene extends BaseScene {
     this.textEditor = new TextEditor(this.threeScene, this.modelMeshes, () => {});
 
     /* ---- loaders ---- */
+    this.dracoLoader = new DRACOLoader();
+    this.dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
     this.gltfLoader  = new GLTFLoader();
+    this.gltfLoader.setDRACOLoader(this.dracoLoader);
     this.objLoader   = new OBJLoader();
 
     /* ---- walk state ---- */
@@ -1617,11 +1620,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
   async _loadRoomGLB(roomIndex, templateFile = 'scene.glb') {
     return new Promise(resolve => {
       const modelUrl = templateFile.startsWith('http') ? templateFile : `/models/${templateFile}`;
-      const dracoLoader = new DRACOLoader();
-      dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
-      const loader = new GLTFLoader();
-      loader.setDRACOLoader(dracoLoader);
-      loader.load(modelUrl, (gltf) => {
+      this.gltfLoader.load(modelUrl, (gltf) => {
         const model = gltf.scene;
         if (roomIndex === 0) {
           const box = new THREE.Box3().setFromObject(model);
@@ -1696,8 +1695,10 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
   }
 
   async _loadRoom() {
+    this._setLoadingProgress(5, 'Đang kết nối...');
     const { data, error } = await supabase.from('gallery').select('scene_data').eq('name', this.manager.currentRoom.id).limit(1);
     if (error || !data?.length) {
+      this._setLoadingProgress(20, 'Đang tải phòng...');
       await this._loadRoomGLB(0, 'scene.glb');
       this._galleryName = 'Phòng Tranh 3D';
       this._artistName  = 'Artist Name';
@@ -1707,6 +1708,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
 
     // Load GLB phòng với đúng template
     const templateFile = sd._meta?.selectedTemplate || 'scene.glb';
+    this._setLoadingProgress(15, 'Đang tải phòng...');
     await this._loadRoomGLB(0, templateFile);
     if (this._disposed) return;
 
@@ -1716,7 +1718,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       this._lighting.ambientColor = sd.lighting.ambientColor;
       this._lighting.hemisphereIntensity = sd.lighting.hemisphereIntensity;
       this._lighting.directionalIntensity = sd.lighting.directionalIntensity;
-      
+
       this.ambLight.color.set(this._lighting.ambientColor);
       this.ambLight.intensity = this._lighting.ambientIntensity * this._brightnessMultiplier;
       this.hemiLight.intensity = this._lighting.hemisphereIntensity * this._brightnessMultiplier;
@@ -1727,9 +1729,12 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     }
 
     const roomCount = sd._meta?.roomCount || 1;
-    for (let i = 1; i < roomCount; i++) {
-      await this._loadRoomGLB(i, templateFile);
+    if (roomCount > 1) {
+      this._setLoadingProgress(25, `Đang tải ${roomCount} phòng...`);
+      const extraRooms = Array.from({ length: roomCount - 1 }, (_, i) => this._loadRoomGLB(i + 1, templateFile));
+      await Promise.all(extraRooms);
     }
+    this._setLoadingProgress(35, 'Đang tải nội dung...');
 
     this._galleryName = sd.gallery_name || this.manager.currentRoom.name || 'Phòng Tranh 3D';
     this._artistName = (sd.artist_name && sd.artist_name !== 'Artist' && sd.artist_name !== 'Artist Name')
@@ -1738,15 +1743,20 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     this._trackView();
 
     if (sd.artworks?.length) {
-      for (const a of sd.artworks) {
-        if (!a.storageUrl) continue;
+      const MAX_TEX = 1024;
+      const _artTotal = sd.artworks.filter(a => a.storageUrl).length;
+      let _artDone = 0;
+      const _artTick = () => {
+        _artDone++;
+        this._setLoadingProgress(35 + Math.round(_artDone / _artTotal * 45), `Đang tải tranh... ${_artDone}/${_artTotal}`);
+      };
+      const artworkTasks = sd.artworks.filter(a => a.storageUrl).map(a => {
         const pos  = new THREE.Vector3(a.x, a.y, a.z);
         const sv   = a.sx ? new THREE.Vector3(a.sx, a.sy, a.sz) : null;
         const meta = a.meta || {};
         const group = new THREE.Group();
         group.position.copy(pos); group.rotation.set(0, a.ry||0, 0); if (sv) group.scale.copy(sv);
 
-        // ── Frame options từ data đã lưu ──
         const frameVisible   = a.frameVisible !== false;
         const frameColor     = a.frameColor   ?? 0x182D58;
         const frameThickness = typeof a.frameThickness === 'number' ? a.frameThickness : 0.08;
@@ -1754,7 +1764,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
         const frameMat = new THREE.MeshLambertMaterial({ color: frameColor });
 
         if (a.isYouTube && a.youtubeId) {
-          await new Promise(async resolve => {
+          return (async () => {
             const ytId = a.youtubeId;
             const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
             const ctx = canvas.getContext('2d');
@@ -1775,8 +1785,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
             group.add(plane);
             this.threeScene.add(group);
             this.artworks.push({ group, isYouTube: true, youtubeId: ytId, sourceImage: canvas, meta, storageUrl: a.storageUrl });
-            resolve();
-          });
+            _artTick();
+          })();
         } else if (a.isVideo) {
           const vid = document.createElement('video'); vid.src = a.storageUrl; vid.loop=true; vid.muted=true; vid.playsInline=true; vid.crossOrigin='anonymous';
           vid.addEventListener('loadeddata', () => {
@@ -1792,14 +1802,19 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
             this.artworks.push({ group, isVideo:true, videoTex:tex, videoEl:vid, meta, sourceImage:null, storageUrl: a.storageUrl });
             vid.play();
           });
+          _artTick();
+          return Promise.resolve();
         } else {
-          const img = new Image(); img.crossOrigin = 'anonymous'; img.src = a.storageUrl;
-          await new Promise(resolve => {
+          return new Promise(resolve => {
+            const img = new Image(); img.crossOrigin = 'anonymous'; img.src = a.storageUrl;
             img.onload = () => {
-              const canvas = document.createElement('canvas'); canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
-              canvas.getContext('2d').drawImage(img,0,0);
+              const sw = img.naturalWidth, sh = img.naturalHeight;
+              const scale = Math.min(1, MAX_TEX / Math.max(sw, sh));
+              const cw = Math.round(sw * scale), ch = Math.round(sh * scale);
+              const canvas = document.createElement('canvas'); canvas.width=cw; canvas.height=ch;
+              canvas.getContext('2d').drawImage(img, 0, 0, cw, ch);
               const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.LinearFilter; tex.colorSpace = THREE.SRGBColorSpace;
-              const AH = 1.65, AW = AH * (img.naturalWidth / img.naturalHeight);
+              const AH = 1.65, AW = AH * (sw / sh);
               const frame = new THREE.Mesh(new THREE.BoxGeometry(AW + framePad, AH + framePad, frameThickness), frameMat);
               frame.visible = frameVisible;
               group.add(frame);
@@ -1808,17 +1823,24 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
               group.add(plane);
               this.threeScene.add(group);
               this.artworks.push({ group, sourceImage: img, meta, storageUrl: a.storageUrl });
+              _artTick();
               resolve();
             };
-            img.onerror = resolve;
+            img.onerror = () => { _artTick(); resolve(); };
           });
         }
-      }
+      });
+      await Promise.all(artworkTasks);
     }
 
     if (sd.models?.length) {
-      for (const m of sd.models) {
-        if (!m.storageUrl) continue;
+      const _modTotal = sd.models.filter(m => m.storageUrl).length;
+      let _modDone = 0;
+      const _modTick = () => {
+        _modDone++;
+        this._setLoadingProgress(80 + Math.round(_modDone / _modTotal * 15), `Đang tải mô hình 3D... ${_modDone}/${_modTotal}`);
+      };
+      const modelTasks = sd.models.filter(m => m.storageUrl).map(m => {
         const ext = (m.name||m.storageUrl).split('.').pop().toLowerCase();
         const pos = new THREE.Vector3(m.x, m.y, m.z);
         const sv  = m.sx ? new THREE.Vector3(m.sx, m.sy, m.sz) : null;
@@ -1832,13 +1854,15 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
           this._makePedestal(new THREE.Vector3(pos.x, 0, pos.z));
           this.models3d.push({ object:obj, name:m.name, meta });
         };
-        await new Promise(resolve => {
-          if (ext==='glb'||ext==='gltf') this.gltfLoader.load(m.storageUrl, g=>{ onLoad(g.scene); resolve(); }, null, resolve);
-          else if (ext==='obj') this.objLoader.load(m.storageUrl, obj=>{ obj.traverse(c=>{ if(c.isMesh)c.material=new THREE.MeshLambertMaterial({color:0xccbbaa}); }); onLoad(obj); resolve(); }, null, resolve);
-          else resolve();
+        return new Promise(resolve => {
+          if (ext==='glb'||ext==='gltf') this.gltfLoader.load(m.storageUrl, g=>{ onLoad(g.scene); _modTick(); resolve(); }, null, () => { _modTick(); resolve(); });
+          else if (ext==='obj') this.objLoader.load(m.storageUrl, obj=>{ obj.traverse(c=>{ if(c.isMesh)c.material=new THREE.MeshLambertMaterial({color:0xccbbaa}); }); onLoad(obj); _modTick(); resolve(); }, null, () => { _modTick(); resolve(); });
+          else { _modTick(); resolve(); }
         });
-      }
+      });
+      await Promise.all(modelTasks);
     }
+    this._setLoadingProgress(96, 'Hoàn thiện...');
 
     if (sd.waypoints?.length) {
       this.pathWaypoints = sd.waypoints.map(wp=>({ ...wp }));
@@ -1853,6 +1877,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     }
 
     if (sd.texts?.length) {
+      try { await document.fonts.load('96px "Montserrat"'); } catch(e) {}
+      try { await document.fonts.load('bold 96px "Montserrat"'); } catch(e) {}
       await this.textEditor.loadFromData(sd.texts);
     }
 

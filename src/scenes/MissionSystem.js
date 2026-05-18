@@ -8,17 +8,18 @@ import { supabase } from '../utils/supabase.js';
 
 export class MissionSystem {
   constructor(scene) {
-    this._s          = scene;
-    this._missions   = [];
-    this._config     = null;
-    this._completed  = new Set();  // Set<missionIndex> — missions fully done
-    this._allDone    = false;
-    this._foundEggs  = new Map();  // Map<missionIndex, Set<eggIndex>>
-    this._eggSpheres = [];         // [{sphere, missionIndex, eggIndex, isChestRiddle?, mission?}]
-    this._eggObjects = [];         // THREE.Object3D placed in scene
-    this._hudEl      = null;
-    this._roomId     = null;
-    this._gltfLoader = new GLTFLoader();
+    this._s            = scene;
+    this._missions     = [];
+    this._config       = null;
+    this._completed    = new Set();  // Set<missionIndex> — missions fully done
+    this._allDone      = false;
+    this._foundEggs    = new Map();  // Map<missionIndex, Set<eggIndex>>
+    this._eggSpheres   = [];         // [{sphere, missionIndex, eggIndex, isChestRiddle?, mission?}]
+    this._eggObjects   = [];         // THREE.Object3D placed in scene
+    this._hudEl        = null;
+    this._hudCollapsed = false;
+    this._roomId       = null;
+    this._gltfLoader   = new GLTFLoader();
   }
 
   // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -260,18 +261,32 @@ export class MissionSystem {
     const hud = document.createElement('div');
     hud.id = 'mission-hud';
     hud.style.cssText = [
-      'position:fixed;bottom:80px;right:16px;',
+      'position:fixed;top:70px;left:16px;',
       'background:rgba(10,12,20,0.88);',
       'border:.5px solid rgba(104,229,227,0.3);border-radius:12px;',
-      'padding:12px 14px;display:flex;flex-direction:column;gap:8px;',
-      'z-index:200;min-width:210px;max-width:260px;',
+      'padding:10px 14px;display:flex;flex-direction:column;gap:0;',
+      'z-index:200;min-width:220px;max-width:270px;',
       'backdrop-filter:blur(8px);font-family:"Montserrat",sans-serif;',
     ].join('');
 
-    const title = document.createElement('div');
-    title.style.cssText = 'color:#68e5e3;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:6px;';
-    title.innerHTML = '<span>🎯</span><span>Nhiệm vụ phòng tranh</span>';
-    hud.appendChild(title);
+    // ── Title row (clickable to collapse) ──
+    const titleRow = document.createElement('div');
+    titleRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;padding-bottom:' + (this._hudCollapsed ? '0' : '8px') + ';';
+
+    const titleLeft = document.createElement('div');
+    titleLeft.style.cssText = 'color:#68e5e3;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:6px;';
+    titleLeft.innerHTML = '<span>🎯</span><span>Nhiệm vụ phòng tranh</span>';
+
+    const toggleBtn = document.createElement('span');
+    toggleBtn.style.cssText = 'color:rgba(104,229,227,0.55);font-size:12px;line-height:1;flex-shrink:0;transition:transform .2s;';
+    toggleBtn.textContent = this._hudCollapsed ? '▼' : '▲';
+
+    titleRow.append(titleLeft, toggleBtn);
+    hud.appendChild(titleRow);
+
+    // ── Collapsible content wrapper ──
+    const content = document.createElement('div');
+    content.style.cssText = 'display:flex;flex-direction:column;gap:8px;overflow:hidden;' + (this._hudCollapsed ? 'display:none;' : '');
 
     const TYPE_ICON  = { hidden_object: '🥚', chest_riddle: '🗝', story_sequence: '📖' };
     const TYPE_LABEL = { hidden_object: 'Tìm Easter Egg', chest_riddle: 'Giải mã rương câu đố', story_sequence: 'Xếp tranh' };
@@ -285,7 +300,6 @@ export class MissionSystem {
       const icon  = TYPE_ICON[m.mission_type]  || '•';
       const label = m.title || TYPE_LABEL[m.mission_type] || 'Nhiệm vụ';
 
-      // Sub-info for egg progress
       let subText = isDone ? 'Hoàn thành ✓' : this._missionHint(m);
       if (m.mission_type === 'hidden_object' && !isDone) {
         const found = this._foundEggs.get(m.mission_index)?.size || 0;
@@ -306,10 +320,10 @@ export class MissionSystem {
         row.addEventListener('mouseleave', () => row.style.background = 'rgba(255,255,255,0.04)');
         if (m.mission_type === 'story_sequence') row.addEventListener('click', () => this._openStoryUI(m));
       }
-      hud.appendChild(row);
+      content.appendChild(row);
     });
 
-    // Progress bar
+    // ── Progress bar ──
     const done  = this._completed.size;
     const total = this._missions.length;
     const prog  = document.createElement('div');
@@ -322,7 +336,23 @@ export class MissionSystem {
         <div style="height:100%;width:${total ? Math.round(done / total * 100) : 0}%;background:linear-gradient(90deg,#68e5e3,#a0f0ef);border-radius:4px;transition:width .4s;"></div>
       </div>
     `;
-    hud.appendChild(prog);
+    content.appendChild(prog);
+
+    hud.appendChild(content);
+
+    // ── Toggle collapse on title click ──
+    titleRow.addEventListener('click', () => {
+      this._hudCollapsed = !this._hudCollapsed;
+      if (this._hudCollapsed) {
+        content.style.display = 'none';
+        titleRow.style.paddingBottom = '0';
+        toggleBtn.textContent = '▼';
+      } else {
+        content.style.display = 'flex';
+        titleRow.style.paddingBottom = '8px';
+        toggleBtn.textContent = '▲';
+      }
+    });
 
     document.body.appendChild(hud);
     this._hudEl = hud;
