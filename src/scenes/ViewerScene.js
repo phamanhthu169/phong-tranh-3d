@@ -190,9 +190,29 @@ export class ViewerScene extends BaseScene {
     this._bindFeatureEvents();
     await this._initLike();
 
+    // Pre-compile shader + warm-up GPU để tránh lag frame đầu khi đi lại
+    this.renderer.compile(this.threeScene, this.camera);
+    await new Promise(resolve => {
+      let frames = 0;
+      const warmup = () => {
+        this.renderer.render(this.threeScene, this.camera);
+        if (++frames < 15) requestAnimationFrame(warmup);
+        else resolve();
+      };
+      requestAnimationFrame(warmup);
+    });
+
     this._hideLoadingScreen();
     this._updateTopBarInfo();
     this._updateTokenDisplay();
+
+    // Phát nhạc sau khi loading screen đã ẩn
+    if (this._bgAudio) {
+      this._bgAudio.play().catch(() => {
+        const playOnFirst = () => { this._bgAudio?.play().catch(() => {}); };
+        document.addEventListener('click', playOnFirst, { once: true });
+      });
+    }
 
     if (!localStorage.getItem('gallery_visited')) {
       setTimeout(() => {
@@ -301,7 +321,7 @@ export class ViewerScene extends BaseScene {
       
 #gallery-info {
   margin-top: -55px !important; 
-  margin-left: -320px !important;
+  margin-left: -220px !important;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
@@ -449,7 +469,8 @@ export class ViewerScene extends BaseScene {
       #chat-unread.show { display:inline; }
 
       #chat-box {
-        width:260px; background:rgba(18,15,12,.97);
+        width:260px; background:linear-gradient(135deg, rgba(118,170,171,1), rgba(35,92,208,0.5));
+        font-family:'Montserrat',sans-serif; color:#FFFFFF;
         border:.5px solid var(--border); border-radius:var(--radius);
         overflow:hidden; display:none; flex-direction:column;
         box-shadow:0 8px 32px rgba(0,0,0,.5);
@@ -458,19 +479,19 @@ export class ViewerScene extends BaseScene {
       #chat-box.open { display:flex; }
       #chat-box-header {
         padding:8px 12px;
-        background:rgba(212,197,169,.04);
-        border-bottom:.5px solid var(--border);
+        background:rgba(255,255,255,0.08);
+        border-bottom:.5px solid rgba(255,255,255,0.2);
         display:flex; justify-content:space-between; align-items:center;
       }
       #chat-room-label {
-        font-family:var(--font-mono); font-size:7px; letter-spacing:.18em;
-        text-transform:uppercase; color:var(--gold-dim);
+        font-family:'Montserrat',sans-serif; font-size:7px; letter-spacing:.18em;
+        text-transform:uppercase; color:#FFFFFF;
       }
       #chat-username-tag {
-        font-family:var(--font-mono); font-size:7px; color:var(--accent); cursor:pointer;
-        letter-spacing:.1em;
+        font-family:'Montserrat',sans-serif; font-size:7px; color:#FFFFFF; cursor:pointer;
+        letter-spacing:.1em; opacity:0.8;
       }
-      #chat-username-tag:hover { color:var(--gold); }
+      #chat-username-tag:hover { opacity:1; }
 
       #chat-messages {
         height:160px; overflow-y:auto;
@@ -480,24 +501,24 @@ export class ViewerScene extends BaseScene {
       #chat-messages::-webkit-scrollbar-thumb { background:rgba(212,197,169,.1); }
 
       .chat-msg { line-height:1.55; word-break:break-word; }
-      .chat-msg .msg-name { font-family:var(--font-mono); font-size:8px; color:var(--accent); margin-right:5px; }
-      .chat-msg.is-me .msg-name { color:#8ab4ff; }
-      .chat-msg .msg-text { font-size:10px; color:rgba(212,197,169,.8); }
+      .chat-msg .msg-name { font-family:'Montserrat',sans-serif; font-size:8px; color:#FFFFFF; font-weight:700; margin-right:5px; }
+      .chat-msg.is-me .msg-name { color:#FFD700; font-weight:700; }
+      .chat-msg .msg-text { font-family:'Montserrat',sans-serif; font-size:10px; color:#FFFFFF; }
 
-      #chat-input-row { display:flex; border-top:.5px solid var(--border); }
+      #chat-input-row { display:flex; border-top:.5px solid rgba(255,255,255,0.2); }
       #chat-input {
         flex:1; padding:8px 10px; background:transparent; border:none;
-        color:var(--gold); font-family:var(--font-ui); font-size:10px;
+        color:#FFFFFF; font-family:'Montserrat',sans-serif; font-size:10px;
         outline:none; letter-spacing:.04em;
       }
-      #chat-input::placeholder { color:var(--text-dim); }
+      #chat-input::placeholder { color:rgba(255,255,255,0.5); }
       #chat-send {
-        padding:8px 12px; background:rgba(212,197,169,.06);
-        border:none; border-left:.5px solid var(--border);
-        color:var(--gold-dim); font-family:var(--font-ui); font-size:10px;
+        padding:8px 12px; background:rgba(255,255,255,0.1);
+        border:none; border-left:.5px solid rgba(255,255,255,0.2);
+        color:#FFFFFF; font-family:'Montserrat',sans-serif; font-size:10px;
         font-weight:700; cursor:pointer; transition:all .2s; letter-spacing:.06em;
       }
-      #chat-send:hover { background:rgba(212,197,169,.15); color:var(--gold); }
+      #chat-send:hover { background:rgba(255,255,255,0.2); }
 
       #settings-panel {
         position:fixed; left:66px; bottom:14px;
@@ -705,12 +726,13 @@ export class ViewerScene extends BaseScene {
       #artwork-popup{
         position:fixed; z-index:30; background:rgba(18,15,12,.98);
         border:.5px solid var(--border); border-radius:var(--radius);
-        padding:0; width:280px; display:none; flex-direction:column; overflow:hidden;
+        padding:0; display:none; flex-direction:column; overflow:hidden;
         box-shadow:0 16px 48px rgba(0,0,0,.6);
+        max-height:calc(100vh - 60px); overflow-y:auto;
       }
       #artwork-popup.open{ display:flex; }
-      #ap-img-wrap{ position:relative; width:100%; overflow:hidden; background:#111; }
-      #ap-img-canvas{ width:100%; height:auto; display:block; }
+      #ap-img-wrap{ position:relative; width:100%; overflow:hidden; background:#111; flex-shrink:0; }
+      #ap-img-canvas{ width:100%; height:auto; display:block; max-height:45vh; object-fit:contain; }
       #ap-close{
         position:absolute; top:8px; right:8px; width:26px; height:26px;
         background:rgba(0,0,0,.7); border:.5px solid rgba(255,255,255,.2); border-radius:50%;
@@ -839,8 +861,8 @@ export class ViewerScene extends BaseScene {
 </div>
 
       <div class="icon-btn" id="btn-fullscreen" title="Phóng to màn hình"><img src="/icons/fullscreen.svg" style="width:18px;height:18px"></div>
-      <div class="icon-btn" id="btn-sound" title="Tắt / mở âm thanh"><img src="/icons/sound.svg" style="width:18px;height:18px"></div>
-      <div class="icon-btn" id="btn-route" title="Lộ trình tham quan"><img src="/icons/route.svg" style="width:18px;height:18px"></div>
+      <div class="icon-btn" id="btn-sound" title="Tắt / mở âm thanh" style="background-image: url('/icons/sound.svg'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
+      <div class="icon-btn" id="btn-route" title="Lộ trình tham quan" style="background-image: url('/icons/route.svg'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
       <div class="icon-btn" id="btn-like" title="Thích phòng tranh này"><img src="/icons/heart-empty.svg" style="width:18px;height:18px"></div>
       <div class="icon-btn" id="btn-settings" title="Cài đặt"><img src="/icons/settings.svg" style="width:18px;height:18px"></div>
       <div class="icon-btn" id="btn-help" title="Hướng dẫn sử dụng"><img src="/icons/help.svg" style="width:18px;height:18px"></div>
@@ -969,8 +991,7 @@ export class ViewerScene extends BaseScene {
     document.getElementById('btn-sound').addEventListener('click', () => {
       this._soundOn = !this._soundOn;
       const btn = document.getElementById('btn-sound');
-      btn.textContent = this._soundOn ? '🔊' : '🔇';
-      btn.classList.toggle('active', !this._soundOn);
+      btn.style.backgroundImage = this._soundOn ? "url('/icons/sound.svg')" : "url('/icons/mute.svg')";
       if (this._bgAudio) this._bgAudio.muted = !this._soundOn;
     });
 
@@ -1232,24 +1253,24 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       </div>
       <div id="panel-header">
         <div id="panel-header-top">
-          <div id="panel-title">Tác phẩm trưng bày</div>
+        <div id="panel-title" style="font-family:'Montserrat',sans-serif;color:#FFFFFF;">Tác phẩm bày bán</div>
           <button id="panel-toggle-btn">✕</button>
         </div>
-        <div id="panel-count">0 tác phẩm</div>
+        <div id="panel-count" style="font-family:'Montserrat',sans-serif;color:#FFFFFF;">0 tác phẩm</div>
       </div>
       <div id="product-list">
-        <div id="product-empty">
-          <div style="font-size:24px;margin-bottom:8px">🖼</div>
-          Chưa có tác phẩm nào<br>trong phòng tranh này
-        </div>
+        <div id="product-empty" style="font-family:'Montserrat',sans-serif;color:#FFFFFF;">
+      <div style="font-size:24px;margin-bottom:8px">🖼</div>
+      Chưa có tác phẩm nào<br>trong phòng tranh này
+    </div>
       </div>
       <div id="cart-section">
         <div id="cart-header-row">
-          <div id="cart-label">Giỏ hàng</div>
+          <div id="cart-label" style="font-family:'Montserrat',sans-serif;color:#FFFFFF;">Giỏ hàng</div>
           <span id="cart-badge">0</span>
         </div>
         <div id="cart-items">
-          <div id="cart-empty-msg">Chưa có tác phẩm nào</div>
+          <div id="cart-empty-msg" style="font-family:'Montserrat',sans-serif;color:#FFFFFF;">Chưa có tác phẩm nào</div>
         </div>
         <div id="cart-total-row" style="display:none">
           <span id="cart-total-label">Tổng cộng</span>
@@ -1387,47 +1408,58 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
   }
 
   _renderProductList() {
-    const list = document.getElementById('product-list');
-    const count = document.getElementById('panel-count');
-    list.innerHTML = '';
-    const allItems = [
-      ...this.artworks.map(a => ({ kind:'artwork', data:a })),
-      ...this.models3d.map(m => ({ kind:'model', data:m }))
-    ];
-    count.textContent = allItems.length + ' tác phẩm';
-    if (allItems.length === 0) {
-      const e = document.createElement('div'); e.id='product-empty';
-      e.innerHTML = '<div style="font-size:24px;margin-bottom:8px">🖼</div>Chưa có tác phẩm nào<br>trong phòng tranh này';
-      list.appendChild(e); return;
-    }
-    allItems.forEach((item,i) => {
-      const art = item.data;
-      const meta = art.meta || {};
-      const card = document.createElement('div'); card.className = 'product-card';
-      card.dataset.idx = i; card.dataset.kind = item.kind;
+  const list = document.getElementById('product-list');
+  const count = document.getElementById('panel-count');
+  list.innerHTML = '';
 
-      const tw = document.createElement('div'); tw.className = 'product-thumb-wrap';
-      const tc = this._renderThumb(art, item.kind);
-      tc.className = 'product-thumb-canvas'; tw.appendChild(tc);
+  // Lấy tất cả tác phẩm
+  const allItems = [
+    ...this.artworks.map(a => ({ kind: 'artwork', data: a })),
+    ...this.models3d.map(m => ({ kind: 'model', data: m }))
+  ];
 
-      const body = document.createElement('div'); body.className = 'product-body';
-      const dName = meta.title || (item.kind==='model' ? (art.name||'Model 3D') : ('Tác phẩm #'+(i+1)));
-      body.innerHTML = `<div class="product-name">${dName}</div>
-        <div class="product-artist">${meta.artist || (item.kind==='model'?'<span style="color:#3a3028;font-size:6px">● 3D</span>':'')}</div>
-        <div class="product-price ${meta.price?'':'contact'}">${meta.price||'Liên hệ'}</div>`;
+  // CHỈ giữ lại những tác phẩm có giá tiền trong mô tả (meta.price)
+  const forSaleItems = allItems.filter(item => {
+    const price = item.data.meta?.price;
+    return price && price.trim() !== '';
+  });
 
-      const acts = document.createElement('div'); acts.className = 'product-actions';
-      const infoBtn = document.createElement('button'); infoBtn.className='product-act-btn'; infoBtn.title='Xem thông tin'; infoBtn.innerHTML='<img src="/icons/info.svg" style="width:16px;height:16px">';
-      const flyBtn = document.createElement('button'); flyBtn.className='product-act-btn'; flyBtn.title='Di chuyển đến'; flyBtn.innerHTML='<img src="/icons/fullpic.svg" style="width:16px;height:16px">';
+  count.textContent = forSaleItems.length + ' tác phẩm';
 
-      infoBtn.addEventListener('click', e => { e.stopPropagation(); this._showArtworkPopup(art, i, item.kind); });
-      flyBtn.addEventListener('click', e => { e.stopPropagation(); this._showExpand(art, i, item.kind); });
-      acts.appendChild(infoBtn); acts.appendChild(flyBtn);
-      card.appendChild(tw); card.appendChild(body); card.appendChild(acts);
-      card.addEventListener('click', () => this._showArtworkPopup(art, i, item.kind));
-      list.appendChild(card);
-    });
+  if (forSaleItems.length === 0) {
+    const e = document.createElement('div'); e.id = 'product-empty';
+    e.innerHTML = '<div style="font-size:24px;margin-bottom:8px">🏷️</div>Chưa có tác phẩm nào<br>được đặt giá để bán';
+    list.appendChild(e); return;
   }
+
+  forSaleItems.forEach((item, i) => {
+    const art = item.data;
+    const meta = art.meta || {};
+    const card = document.createElement('div'); card.className = 'product-card';
+    card.dataset.idx = i; card.dataset.kind = item.kind;
+
+    const tw = document.createElement('div'); tw.className = 'product-thumb-wrap';
+    const tc = this._renderThumb(art, item.kind);
+    tc.className = 'product-thumb-canvas'; tw.appendChild(tc);
+
+    const body = document.createElement('div'); body.className = 'product-body';
+    const dName = meta.title || (item.kind === 'model' ? (art.name || 'Model 3D') : ('Tác phẩm #' + (i + 1)));
+    body.innerHTML = `<div class="product-name">${dName}</div>
+      <div class="product-artist">${meta.artist || (item.kind === 'model' ? '<span style="color:#3a3028;font-size:6px">● 3D</span>' : '')}</div>
+      <div class="product-price">${meta.price}</div>`;
+
+    const acts = document.createElement('div'); acts.className = 'product-actions';
+    const infoBtn = document.createElement('button'); infoBtn.className = 'product-act-btn'; infoBtn.title = 'Xem thông tin'; infoBtn.innerHTML = '<img src="/icons/info.svg" style="width:16px;height:16px">';
+    const flyBtn = document.createElement('button'); flyBtn.className = 'product-act-btn'; flyBtn.title = 'Di chuyển đến'; flyBtn.innerHTML = '<img src="/icons/fullpic.svg" style="width:16px;height:16px">';
+
+    infoBtn.addEventListener('click', e => { e.stopPropagation(); this._showArtworkPopup(art, i, item.kind); });
+    flyBtn.addEventListener('click', e => { e.stopPropagation(); this._showExpand(art, i, item.kind); });
+    acts.appendChild(infoBtn); acts.appendChild(flyBtn);
+    card.appendChild(tw); card.appendChild(body); card.appendChild(acts);
+    card.addEventListener('click', () => this._showArtworkPopup(art, i, item.kind));
+    list.appendChild(card);
+  });
+}
 
   _syncCartToStorage() {
     const payload = this.cartItems.map(ci => ({
@@ -1502,21 +1534,40 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     art._kind = kind; art._idx = idx;
     const meta = art.meta || {};
     const apCanvas = document.getElementById('ap-img-canvas');
+    let popW = 280;
 
     if (kind === 'model') {
       apCanvas.width=280; apCanvas.height=210; apCanvas.style.width='280px'; apCanvas.style.height='210px';
       try { this._renderModelThumb(art.object, apCanvas); } catch(e) {}
     } else {
       let ar = 4/3;
-      if (art.isYouTube) ar = 16/9;
-      else if (art.sourceImage) ar = art.sourceImage.naturalWidth / art.sourceImage.naturalHeight;
-      else if (art.videoEl) ar = art.videoEl.videoWidth / art.videoEl.videoHeight || 4/3;
-      const popW = 280, popH = Math.round(popW / ar);
-      apCanvas.width=popW*2; apCanvas.height=popH*2; apCanvas.style.width=popW+'px'; apCanvas.style.height=popH+'px';
-      const ctx = apCanvas.getContext('2d'); ctx.scale(2,2);
-      if (art.isYouTube && art.sourceImage) ctx.drawImage(art.sourceImage,0,0,popW,popH);
-      else if (art.sourceImage) ctx.drawImage(art.sourceImage,0,0,popW,popH);
-      else if (art.videoEl) { ctx.fillStyle='#111'; ctx.fillRect(0,0,popW,popH); ctx.fillStyle='#c8a96e'; ctx.font='30px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('▶',popW/2,popH/2); }
+      let natW, natH;
+      if (art.isYouTube && art.sourceImage) {
+        natW = art.sourceImage.naturalWidth || 640; natH = art.sourceImage.naturalHeight || 360; ar = natW / natH;
+      } else if (art.sourceImage) {
+        natW = art.sourceImage.naturalWidth; natH = art.sourceImage.naturalHeight; ar = natW / natH;
+      } else if (art.videoEl) {
+        natW = art.videoEl.videoWidth || 640; natH = art.videoEl.videoHeight || 360; ar = natW / natH || 4/3;
+      } else {
+        natW = 640; natH = 480;
+      }
+      // Vẽ canvas đúng kích thước gốc → không vỡ khi zoom
+      apCanvas.width = natW; apCanvas.height = natH;
+      const ctx = apCanvas.getContext('2d');
+      if (art.isYouTube && art.sourceImage) ctx.drawImage(art.sourceImage, 0, 0, natW, natH);
+      else if (art.sourceImage) ctx.drawImage(art.sourceImage, 0, 0, natW, natH);
+      else if (art.videoEl) { ctx.fillStyle='#111'; ctx.fillRect(0,0,natW,natH); ctx.fillStyle='#c8a96e'; ctx.font=`${natH*0.1}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('▶',natW/2,natH/2); }
+      // CSS thu nhỏ về kích thước hiển thị, giữ tỉ lệ
+      const maxImgH = Math.round(window.innerHeight * 0.55);
+      const maxImgW = Math.round(window.innerWidth * 0.7);
+      if (ar >= 1) {
+        popW = Math.min(maxImgW, Math.round(maxImgH * ar));
+      } else {
+        const popH = Math.min(maxImgH, Math.round(maxImgW / ar));
+        popW = Math.round(popH * ar);
+      }
+      apCanvas.style.width = popW + 'px';
+      apCanvas.style.height = Math.round(popW / ar) + 'px';
     }
 
     document.getElementById('ap-title').textContent = meta.title || (kind==='model'? (art.name||'Model 3D') : ('Tác phẩm #'+(idx+1)));
@@ -1533,6 +1584,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     addBtn.className = inCart ? 'added' : ''; addBtn._art = art;
 
     const popup = document.getElementById('artwork-popup');
+    popup.style.width = popW + 'px';
     popup.style.left='50%'; popup.style.top='50%'; popup.style.transform='translate(-50%,-50%)';
     popup.classList.add('open');
   }
@@ -1879,6 +1931,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     if (sd.texts?.length) {
       try { await document.fonts.load('96px "Montserrat"'); } catch(e) {}
       try { await document.fonts.load('bold 96px "Montserrat"'); } catch(e) {}
+      try { await document.fonts.load('italic 96px "Montserrat"'); } catch(e) {}
+      try { await document.fonts.load('bold italic 96px "Montserrat"'); } catch(e) {}
       await this.textEditor.loadFromData(sd.texts);
     }
 
@@ -1938,10 +1992,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       this._bgAudio.loop = true;
       this._bgAudio.volume = 0.5;
       this._bgAudio.muted = !this._soundOn;
-      this._bgAudio.play().catch(() => {
-        const playOnFirst = () => { this._bgAudio?.play().catch(() => {}); };
-        document.addEventListener('click', playOnFirst, { once: true });
-      });
+      // play() sẽ được gọi sau khi loading screen ẩn
     }
 
     this._updateTopBarInfo();
@@ -2289,10 +2340,10 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       this._charIsWalking = isMoving;
       if (isMoving) {
         if (this._charIdle) this._charIdle.fadeOut(0.2);
-        if (this._charWalk) this._charWalk.reset().fadeIn(0.2).play();
+        if (this._charWalk) { this._charWalk.enabled = true; this._charWalk.paused = false; this._charWalk.fadeIn(0.2).play(); }
       } else {
         if (this._charWalk) this._charWalk.fadeOut(0.2);
-        if (this._charIdle) this._charIdle.reset().fadeIn(0.2).play();
+        if (this._charIdle) { this._charIdle.enabled = true; this._charIdle.paused = false; this._charIdle.fadeIn(0.2).play(); }
       }
     }
     if (this._charMixer) this._charMixer.update(dt);

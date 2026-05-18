@@ -4636,6 +4636,19 @@ async _handleMusicUpload(e) {
             this.rgt.crossVectors(this.fwd, new THREE.Vector3(0, 1, 0)).normalize();
             obj.position.addScaledVector(this.rgt, dx * 0.012);
             obj.position.addScaledVector(this.fwd, -dy * 0.012);
+
+            // ── Di chuyển bục (pedestal) và đèn theo cùng model ──
+            if (this.selectedItem?.type === 'model') {
+              const md = this.selectedItem.data ?? this.selectedItem;
+              if (md?.pedestal) {
+                md.pedestal.position.addScaledVector(this.rgt, dx * 0.012);
+                md.pedestal.position.addScaledVector(this.fwd, -dy * 0.012);
+              }
+              if (md?.light) {
+                md.light.position.addScaledVector(this.rgt, dx * 0.012);
+                md.light.position.addScaledVector(this.fwd, -dy * 0.012);
+              }
+            }
           }
         }
         return;

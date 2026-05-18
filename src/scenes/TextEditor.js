@@ -580,10 +580,13 @@ export class TextEditor {
       transparent: true,
       side: THREE.DoubleSide,
       opacity: 0.85,
-      depthTest: false
+      depthTest: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1
     });
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(planeWidth, planeHeight), material);
-    plane.renderOrder = 1;
+    plane.renderOrder = 0;
     group.add(plane);
 
     return { group, plane, material, texture };
@@ -720,10 +723,13 @@ export class TextEditor {
       map: texture,
       transparent: true,
       side: THREE.DoubleSide,
-      depthTest: false
+      depthTest: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1
     });
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(planeWidth, planeHeight), material);
-    plane.renderOrder = 1;
+    plane.renderOrder = 0;
     group.add(plane);
 
     return { group, plane, material, texture, canvas };
@@ -1057,7 +1063,9 @@ export class TextEditor {
       normalY: t.data.normal.y,
       normalZ: t.data.normal.z,
       content: t.data.content,
-      styles: t.data.styles
+      styles: t.data.styles,
+      planeWidth: t.plane.geometry.parameters.width,
+      planeHeight: t.plane.geometry.parameters.height
     }));
   }
 
@@ -1076,9 +1084,17 @@ export class TextEditor {
       const { group, plane, material, texture, canvas } = this.createTextGroup(
         t.content, t.styles, pos, normal
       );
+      // Neu co kich thuoc plane da luu, dung chinh xac chung thay vi tinh lai
+      // (tranh sai khac do font chua load hoac moi truong khac nhau giua Studio va Viewer)
+      if (t.planeWidth !== undefined && t.planeHeight !== undefined) {
+        plane.geometry.dispose();
+        plane.geometry = new THREE.PlaneGeometry(t.planeWidth, t.planeHeight);
+      }
       this.scene.add(group);
-      if (t.rotZ) group.rotation.z = t.rotZ;
-      if (t.scale && t.scale !== 1) group.scale.setScalar(t.scale);
+      // Uu tien rotY da luu; neu khong co thi giu nguyen goc tinh tu normal
+      if (t.rotY !== undefined) group.rotation.y = t.rotY;
+      if (t.rotZ !== undefined) group.rotation.z = t.rotZ;
+      if (t.scale !== undefined) group.scale.setScalar(t.scale);
 
       this.texts.push({
         group: group,

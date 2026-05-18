@@ -17,7 +17,7 @@ export class MissionSystem {
     this._eggSpheres   = [];         // [{sphere, missionIndex, eggIndex, isChestRiddle?, mission?}]
     this._eggObjects   = [];         // THREE.Object3D placed in scene
     this._hudEl        = null;
-    this._hudCollapsed = false;
+    this._hudCollapsed = true;  // Mặc định đóng khi vào phòng
     this._roomId       = null;
     this._gltfLoader   = new GLTFLoader();
   }
@@ -262,11 +262,12 @@ export class MissionSystem {
     hud.id = 'mission-hud';
     hud.style.cssText = [
       'position:fixed;top:70px;left:16px;',
-      'background:rgba(10,12,20,0.88);',
-      'border:.5px solid rgba(104,229,227,0.3);border-radius:12px;',
+      'background: linear-gradient(135deg, rgba(118, 170, 171, 1), rgba(35, 92, 208, 0.5));',
+      'border:.5px solid rgba(255,255,255,0.2);border-radius:12px;',
       'padding:10px 14px;display:flex;flex-direction:column;gap:0;',
       'z-index:200;min-width:220px;max-width:270px;',
       'backdrop-filter:blur(8px);font-family:"Montserrat",sans-serif;',
+      'color:#FFFFFF;'
     ].join('');
 
     // ── Title row (clickable to collapse) ──
@@ -274,8 +275,13 @@ export class MissionSystem {
     titleRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;padding-bottom:' + (this._hudCollapsed ? '0' : '8px') + ';';
 
     const titleLeft = document.createElement('div');
-    titleLeft.style.cssText = 'color:#68e5e3;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:6px;';
-    titleLeft.innerHTML = '<span>🎯</span><span>Nhiệm vụ phòng tranh</span>';
+    titleLeft.style.cssText = 'color:#FFFFFF;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:6px;';
+
+    const remaining = this._missions.length - this._completed.size;
+    const badgeHtml = remaining > 0
+      ? `<span id="ms-hud-badge" style="background:linear-gradient(135deg,#f87171,#ef4444);color:#fff;font-size:9px;font-weight:800;border-radius:10px;padding:1px 6px;box-shadow:0 0 6px rgba(248,113,113,0.6);animation:ms-badge-pulse 1.8s ease-in-out infinite;flex-shrink:0;">${remaining}</span>`
+      : '';
+    titleLeft.innerHTML = `<span>🎯</span><span>Nhiệm vụ phòng tranh</span>${badgeHtml}`;
 
     const toggleBtn = document.createElement('span');
     toggleBtn.style.cssText = 'color:rgba(104,229,227,0.55);font-size:12px;line-height:1;flex-shrink:0;transition:transform .2s;';
@@ -295,8 +301,7 @@ export class MissionSystem {
       const isDone = this._completed.has(m.mission_index);
       const row = document.createElement('div');
       row.dataset.missionHudRow = m.mission_index;
-      row.style.cssText = `display:flex;align-items:flex-start;gap:8px;padding:7px 9px;border-radius:7px;transition:background .15s;${isDone ? 'background:rgba(104,229,227,0.08);' : 'background:rgba(255,255,255,0.04);cursor:pointer;'}`;
-
+      row.style.cssText = `display:flex;align-items:flex-start;gap:8px;padding:7px 9px;border-radius:7px;transition:background .15s;${isDone ? 'background:rgba(255,255,255,0.15);' : 'background:rgba(255,255,255,0.08);cursor:pointer;'}`;
       const icon  = TYPE_ICON[m.mission_type]  || '•';
       const label = m.title || TYPE_LABEL[m.mission_type] || 'Nhiệm vụ';
 
@@ -329,30 +334,52 @@ export class MissionSystem {
     const prog  = document.createElement('div');
     prog.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-top:2px;';
     prog.innerHTML = `
-      <div style="display:flex;justify-content:space-between;color:rgba(255,255,255,0.45);font-size:9px;">
+      <div style="display:flex;justify-content:space-between;color:rgb(255, 255, 255);font-size:9px;">
         <span>Tiến độ</span><span>${done}/${total}</span>
       </div>
       <div style="height:4px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;">
-        <div style="height:100%;width:${total ? Math.round(done / total * 100) : 0}%;background:linear-gradient(90deg,#68e5e3,#a0f0ef);border-radius:4px;transition:width .4s;"></div>
+        <div style="height:100%;width:${total ? Math.round(done / total * 100) : 0}%;background:linear-gradient(90deg,rgba(118,170,171,1),rgba(35,92,208,0.8));border-radius:4px;transition:width .4s;"></div>
       </div>
     `;
     content.appendChild(prog);
 
     hud.appendChild(content);
 
+    // ── Inject badge CSS (chỉ 1 lần) ──
+    if (!document.getElementById('ms-hud-style')) {
+      const style = document.createElement('style');
+      style.id = 'ms-hud-style';
+      style.textContent = `
+        @keyframes ms-badge-pulse {
+          0%, 100% { transform: scale(1);    box-shadow: 0 0 6px rgba(248,113,113,0.6); }
+          50%       { transform: scale(1.15); box-shadow: 0 0 10px rgba(248,113,113,0.9); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
     // ── Toggle collapse on title click ──
     titleRow.addEventListener('click', () => {
       this._hudCollapsed = !this._hudCollapsed;
+      const badge = hud.querySelector('#ms-hud-badge');
       if (this._hudCollapsed) {
         content.style.display = 'none';
         titleRow.style.paddingBottom = '0';
         toggleBtn.textContent = '▼';
+        if (badge) badge.style.display = 'inline';
       } else {
         content.style.display = 'flex';
         titleRow.style.paddingBottom = '8px';
         toggleBtn.textContent = '▲';
+        if (badge) badge.style.display = 'none';
       }
     });
+
+    // Nếu panel đang mở thì ẩn badge ngay
+    if (!this._hudCollapsed) {
+      const badge = hud.querySelector('#ms-hud-badge');
+      if (badge) badge.style.display = 'none';
+    }
 
     document.body.appendChild(hud);
     this._hudEl = hud;
