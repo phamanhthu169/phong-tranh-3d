@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OBJLoader }  from 'three/addons/loaders/OBJLoader.js';
 import { supabase } from '../utils/supabase.js';
 import { BaseScene } from './BaseScene.js';
@@ -1616,7 +1617,11 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
   async _loadRoomGLB(roomIndex, templateFile = 'scene.glb') {
     return new Promise(resolve => {
       const modelUrl = templateFile.startsWith('http') ? templateFile : `/models/${templateFile}`;
-      new GLTFLoader().load(modelUrl, (gltf) => {
+      const dracoLoader = new DRACOLoader();
+      dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+      const loader = new GLTFLoader();
+      loader.setDRACOLoader(dracoLoader);
+      loader.load(modelUrl, (gltf) => {
         const model = gltf.scene;
         if (roomIndex === 0) {
           const box = new THREE.Box3().setFromObject(model);

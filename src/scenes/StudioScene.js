@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { supabase, STORAGE_BUCKET } from '../utils/supabase.js';
 import { BaseScene } from './BaseScene.js';
@@ -4151,7 +4152,11 @@ async _handleMusicUpload(e) {
   async _loadRoomGLB(templateFile = 'scene.glb') {
     return new Promise(resolve => {
       const modelUrl = templateFile.startsWith('http') ? templateFile : `/models/${templateFile}`;
-      new GLTFLoader().load(modelUrl, (gltf) => {
+      const dracoLoader = new DRACOLoader();
+      dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+      const loader = new GLTFLoader();
+      loader.setDRACOLoader(dracoLoader);
+      loader.load(modelUrl, (gltf) => {
         const model = gltf.scene;
         model.traverse((child) => {
           if (child.isLight) child.intensity = 0;
