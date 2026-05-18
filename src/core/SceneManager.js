@@ -1,41 +1,44 @@
 import * as THREE from 'three';
 import { Header }      from '../ui/Header.js';
+import { Footer }      from '../ui/Footer.js';
 import { AuthManager } from './AuthManager.js';
 
+// Chiều cao header thực tế — dùng bởi các 2D scene để offset overlay
+export const HEADER_H = 90;
 
-export const HEADER_H = 48; // chiều cao header — dùng chung toàn app
+// Scene dùng document-flow (body cuộn, footer hiện)
+const PAGE_SCENES   = ['landing'];
+// Scene dùng Three.js canvas full-screen, ẩn mọi UI
+const FULL3D_SCENES = ['studio', 'viewer', 'preview'];
 
 export class SceneManager {
   constructor() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setSize(innerWidth, innerHeight - HEADER_H);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.toneMapping      = THREE.NoToneMapping;
     this.renderer.shadowMap.enabled = true;
 
-    // đẩy canvas xuống dưới header
     const canvas = this.renderer.domElement;
     canvas.style.position = 'fixed';
     canvas.style.top      = HEADER_H + 'px';
     canvas.style.left     = '0';
+    canvas.style.display  = 'none'; // ẩn mặc định, _setSceneMode sẽ bật lên
     document.body.appendChild(canvas);
 
-    // base body style
-    document.body.style.margin   = '0';
-    document.body.style.overflow = 'hidden';
+    document.body.style.margin = '0';
 
-    this.current          = null;
-    this._registry        = {};
-    this._clock           = new THREE.Clock();
-    this.auth             = new AuthManager();
-    this.currentRoom      = null;   // phòng đang mở trong Studio
-    this.previousScene    = null;   // scene trước đó (để nút Back biết về đâu)
+    this.current           = null;
+    this._registry         = {};
+    this._clock            = new THREE.Clock();
+    this.auth              = new AuthManager();
+    this.currentRoom       = null;
+    this.previousScene     = null;
     this._currentSceneName = null;
-    this.profileTarget    = null;   // set trước khi navigateTo('profile') để xem profile người khác
-    this._headerVisible   = true;
-    this._header          = new Header(this);
+    this.profileTarget     = null;
+    this._is3D             = false;
+    this._header           = new Header(this);
+    this._footer           = new Footer(this);  // bắt đầu ẩn (xem Footer.js)
 
-    // nút Back / Forward của trình duyệt
     window.addEventListener('popstate', (e) => {
       const name = e.state?.scene ?? 'landing';
       this.navigateTo(name, false);
@@ -45,63 +48,92 @@ export class SceneManager {
     this._loop();
   }
 
-  // đăng ký một màn hình với cái tên
   register(name, SceneClass) {
     this._registry[name] = SceneClass;
-    return this; // cho phép chain: manager.register(...).register(...)
+    return this;
   }
 
-  // chiều cao canvas thực tế (thay đổi khi header ẩn/hiện)
-  get canvasH() { return this._headerVisible ? innerHeight - HEADER_H : innerHeight; }
+  // Chiều cao vùng canvas (dưới header)
+  get canvasH() { return innerHeight - HEADER_H; }
 
-  _setHeaderVisible(visible) {
-    this._headerVisible = visible;
-    if (visible) {
-      this._header.show();
-      this.renderer.domElement.style.top = HEADER_H + 'px';
-    } else {
+  // ── Chế độ layout theo loại scene ────────────────────────────────────────────
+  _setSceneMode(name) {
+    const canvas = this.renderer.domElement;
+
+    if (FULL3D_SCENES.includes(name)) {
+      // ── Full 3D: canvas chiếm toàn màn hình, ẩn header + footer ──
+      document.body.style.overflow   = 'hidden';
+      document.body.style.paddingTop = '';
+      canvas.style.display = 'block';
+      canvas.style.top     = '0';
+      this.renderer.setSize(innerWidth, innerHeight);
       this._header.hide();
-      this.renderer.domElement.style.top = '0';
+      this._footer.hide();
+      this._is3D = true;
+
+    } else if (PAGE_SCENES.includes(name)) {
+      // ── Page 2D: document flow, body cuộn, header + footer hiện ──
+      document.body.style.overflow   = 'auto';
+      document.body.style.paddingTop = HEADER_H + 'px';
+      canvas.style.display = 'none';
+      this._header.show();
+      this._footer.show();
+      window.scrollTo(0, 0);
+      this._is3D = false;
+
+    } else {
+      // ── App 2D: canvas dưới header, overlay fixed, footer ẩn ──
+      document.body.style.overflow   = 'hidden';
+      document.body.style.paddingTop = '';
+      canvas.style.display = 'block';
+      canvas.style.top     = HEADER_H + 'px';
+      this.renderer.setSize(innerWidth, this.canvasH);
+      this._header.show();
+      this._footer.hide();
+      this._is3D = false;
     }
-    this.renderer.setSize(innerWidth, this.canvasH);
-    if (this.current) this.current.onResize();
   }
 
-  // chuyển sang màn hình khác
-  // addHistory = false khi gọi từ popstate (nút Back) để không push thêm vào history
+  // ── Chuyển màn hình ──────────────────────────────────────────────────────────
   async navigateTo(name, addHistory = true) {
     if (this.current) {
       this.previousScene = this._currentSceneName;
       this.current.dispose();
       this.current = null;
     }
+
     const SceneClass = this._registry[name];
     if (!SceneClass) {
       console.warn('[SceneManager] Chưa có màn hình:', name);
       return;
     }
 
-    // cập nhật URL
     if (addHistory) {
       const path = name === 'landing' ? '/' : '/' + name;
       history.pushState({ scene: name }, '', path);
     }
 
     this._currentSceneName = name;
-    const hideHeader = name === 'studio' || name === 'viewer' || name === 'preview';
-    this._setHeaderVisible(!hideHeader);
+    this._setSceneMode(name);
+
     this.current = new SceneClass(this.renderer, this);
     await this.current.init();
+
+    // Footer luôn phải là element cuối cùng trong body (sau content của scene)
+    document.body.appendChild(this._footer._el);
   }
 
-  // đọc URL hiện tại để biết nên mở màn hình nào khi load lần đầu
   sceneFromCurrentPath() {
     const path = location.pathname.replace(/^\//, '').replace(/\/$/, '');
     return path || 'landing';
   }
 
   _onResize() {
-    this.renderer.setSize(innerWidth, this.canvasH);
+    const canvas = this.renderer.domElement;
+    if (canvas.style.display !== 'none') {
+      const h = this._is3D ? innerHeight : this.canvasH;
+      this.renderer.setSize(innerWidth, h);
+    }
     if (this.current) this.current.onResize();
   }
 
@@ -110,7 +142,9 @@ export class SceneManager {
     const dt = Math.min(this._clock.getDelta(), 0.1);
     if (this.current) {
       this.current.update(dt);
-      this.renderer.render(this.current.threeScene, this.current.camera);
+      if (this.renderer.domElement.style.display !== 'none') {
+        this.renderer.render(this.current.threeScene, this.current.camera);
+      }
     }
   }
 }

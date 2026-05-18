@@ -34,7 +34,7 @@ export class RegisterScene extends BaseScene {
 
       <div style="display:flex;flex-direction:column;gap:4px">
         <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Tên hiển thị</label>
-        <input id="re-name" type="text" autocomplete="name" placeholder="Tên của bạn..."
+        <input id="re-name" type="text" autocomplete="username" placeholder="Tên của bạn..."
           style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
       </div>
 
@@ -55,6 +55,18 @@ export class RegisterScene extends BaseScene {
         <div style="color:#666;font-size:9px;letter-spacing:.06em;line-height:1.6">
           Artist có thể tạo & publish phòng tranh 3D.
         </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Mật khẩu</label>
+        <input id="re-password" type="password" autocomplete="new-password" placeholder="Tối thiểu 6 ký tự..."
+          style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Xác nhận mật khẩu</label>
+        <input id="re-password2" type="password" autocomplete="new-password" placeholder="Nhập lại mật khẩu..."
+          style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
       </div>
 
       <div id="re-msg" style="font-size:10px;letter-spacing:.06em;display:none;padding:6px 8px;border-radius:3px;"></div>
@@ -96,18 +108,28 @@ export class RegisterScene extends BaseScene {
   }
 
   async _handleRegister() {
-    const name = document.getElementById('re-name').value.trim();
-    const role = document.querySelector('input[name="re-role"]:checked')?.value ?? 'user';
+    const name      = document.getElementById('re-name').value.trim();
+    const role      = document.querySelector('input[name="re-role"]:checked')?.value ?? 'user';
+    const password  = document.getElementById('re-password').value;
+    const password2 = document.getElementById('re-password2').value;
 
-    if (!name) { this._showMsg('Vui lòng nhập tên hiển thị'); return; }
+    if (!name)               { this._showMsg('Vui lòng nhập tên hiển thị'); return; }
+    if (!password)           { this._showMsg('Vui lòng nhập mật khẩu'); return; }
+    if (password.length < 6) { this._showMsg('Mật khẩu phải có ít nhất 6 ký tự'); return; }
+    if (password !== password2) { this._showMsg('Mật khẩu xác nhận không khớp'); return; }
+
+    const sub = document.getElementById('re-submit');
+    sub.disabled = true;
+    sub.textContent = 'Đang tạo...';
 
     try {
-      await this.manager.auth.setProfile(name, role);
+      await this.manager.auth.register(name, role, password);
       this._showMsg('Tạo hồ sơ thành công!', 'success');
       setTimeout(() => this.manager.navigateTo('landing'), 800);
     } catch (err) {
-      console.error(err);
-      this._showMsg('Có lỗi xảy ra, vui lòng thử lại');
+      this._showMsg(err.message || 'Có lỗi xảy ra, vui lòng thử lại');
+      sub.disabled = false;
+      sub.textContent = 'Tạo hồ sơ';
     }
   }
 

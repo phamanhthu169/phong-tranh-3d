@@ -1,7 +1,9 @@
 import { supabase } from '../utils/supabase.js';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
 
 const STORAGE_KEY = 'creatory_user';
+const SALT_ROUNDS = 10;
 
 export class AuthManager {
   constructor() {
@@ -10,12 +12,10 @@ export class AuthManager {
     this._ready     = this._init();
   }
 
-  // Khởi tạo: load từ localStorage, sau đó kiểm tra và đồng bộ với Supabase
   async _init() {
     const localProfile = this._loadFromLocal();
     if (!localProfile) return;
 
-    // Fetch dữ liệu mới nhất từ Supabase
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -23,15 +23,12 @@ export class AuthManager {
       .maybeSingle();
 
     if (!error && data) {
-      // Gộp dữ liệu (ưu tiên Supabase nếu có)
       this._profile = { ...localProfile, ...data };
       this._saveToLocal(this._profile);
     } else if (error && error.code !== 'PGRST116') {
       console.error('Lỗi khi đồng bộ profile từ Supabase:', error);
       this._profile = localProfile;
     } else {
-      // Không tìm thấy trên Supabase -> tạo mới
-      await this._upsertToSupabase(localProfile);
       this._profile = localProfile;
     }
     this._notify();
@@ -45,17 +42,22 @@ export class AuthManager {
   }
 
   _saveToLocal(profile) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+    // Không lưu password_hash vào localStorage
+    const { password_hash, ...safe } = profile;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
   }
 
   async _upsertToSupabase(profile) {
+    const payload = {
+      id: profile.id,
+      display_name: profile.name,
+      role: profile.role,
+    };
+    if (profile.password_hash) payload.password_hash = profile.password_hash;
+
     const { error } = await supabase
       .from('profiles')
-      .upsert({
-        id: profile.id,
-        display_name: profile.name,
-        role: profile.role,
-      }, { onConflict: 'id' });
+      .upsert(payload, { onConflict: 'id' });
 
     if (error) console.error('Lỗi upsert profile lên Supabase:', error);
   }
@@ -67,26 +69,73 @@ export class AuthManager {
   get isLoggedIn() { return !!this._profile; }
   get isArtist() { return this._profile?.role === 'artist'; }
 
-  // Đăng ký / đăng nhập lần đầu
-  async setProfile(name, role) {
+  // Đăng ký tài khoản mới (tên + role + mật khẩu)
+  async register(name, role, password) {
+    // Kiểm tra tên đã tồn tại chưa
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('display_name', name)
+      .maybeSingle();
+
+    if (existing) throw new Error('Tên này đã được sử dụng, vui lòng chọn tên khác');
+
+    const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
     const newProfile = {
-      id: this._profile?.id || uuidv4(),  // giữ nguyên id nếu đã có
+      id: uuidv4(),
       name,
       role,
-      location: this._profile?.location || '',
-      website: this._profile?.website || '',
-      bio: this._profile?.bio || '',
+      location: '',
+      website: '',
+      bio: '',
+      password_hash,
     };
+
+    const { error } = await supabase
+      .from('profiles')
+      .insert({
+        id: newProfile.id,
+        display_name: newProfile.name,
+        role: newProfile.role,
+        password_hash: newProfile.password_hash,
+      });
+
+    if (error) throw new Error('Có lỗi xảy ra khi tạo tài khoản');
+
     this._profile = newProfile;
     this._saveToLocal(newProfile);
-    await this._upsertToSupabase(newProfile);
     this._notify();
   }
 
-  // Cập nhật thông tin (chỉnh sửa profile)
+  // Đăng nhập bằng tên + mật khẩu
+  async login(name, password) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('display_name', name)
+      .maybeSingle();
+
+    if (error || !data) throw new Error('Không tìm thấy tài khoản với tên này');
+    if (!data.password_hash) throw new Error('Tài khoản này chưa có mật khẩu, vui lòng đăng ký lại');
+
+    const ok = await bcrypt.compare(password, data.password_hash);
+    if (!ok) throw new Error('Mật khẩu không đúng');
+
+    this._profile = {
+      id: data.id,
+      name: data.display_name,
+      role: data.role,
+      location: data.location || '',
+      website: data.website || '',
+      bio: data.bio || '',
+    };
+    this._saveToLocal(this._profile);
+    this._notify();
+  }
+
+  // Cập nhật thông tin profile
   async updateProfile(fields) {
     if (!this._profile) throw new Error('Chưa đăng nhập');
-
     const updated = { ...this._profile, ...fields };
     this._profile = updated;
     this._saveToLocal(updated);

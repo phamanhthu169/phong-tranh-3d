@@ -4,6 +4,7 @@ import { OBJLoader }  from 'three/addons/loaders/OBJLoader.js';
 import { supabase } from '../utils/supabase.js';
 import { BaseScene } from './BaseScene.js';
 import { TextEditor } from './TextEditor.js';
+import { MissionSystem } from './MissionSystem.js';
 
 const FRAME_MAT = new THREE.MeshLambertMaterial({ color: 0x2a2018 });
 
@@ -151,12 +152,18 @@ export class ViewerScene extends BaseScene {
       this.keys[e.code] = false;
     });
 
+    this._showLoadingScreen();
     await this._loadRoom();
     if (this._disposed) return;
     this._loadCharacter();
     this._initMultiplayer();
     await this._loadChests();
     if (this._disposed) return;
+
+    this.missionSystem = new MissionSystem(this);
+    await this.missionSystem.init(this._galleryDbKey);
+    if (this._disposed) return;
+
     this._renderMinimapRoomChips();
 
     /* ========== KHỞI TẠO UI ========== */
@@ -179,6 +186,7 @@ export class ViewerScene extends BaseScene {
     this._bindFeatureEvents();
     await this._initLike();
 
+    this._hideLoadingScreen();
     this._updateTopBarInfo();
     this._updateTokenDisplay();
 
@@ -230,11 +238,14 @@ export class ViewerScene extends BaseScene {
 
   _updateTopBarInfo() {
     const galleryName = this._galleryName || this.manager.currentRoom?.name || 'Phòng Tranh 3D';
-    const artistName  = this._artistName  || 'Artist Name';
-    const gnEl = document.getElementById('gallery-name');
-    const anEl = document.getElementById('artist-name');
+    const artistName  = this._artistName || '';
+    const gnEl  = document.getElementById('gallery-name');
+    const anEl  = document.getElementById('artist-name');
+    const sepEl = document.getElementById('gallery-separator');
     if (gnEl) gnEl.textContent = `[${galleryName}]`;
     if (anEl) anEl.textContent = artistName;
+    if (sepEl) sepEl.style.display = artistName ? '' : 'none';
+    if (anEl)  anEl.style.display  = artistName ? '' : 'none';
   }
 
   /* ================================================================
@@ -1256,14 +1267,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
 
     document.getElementById('checkout-btn').addEventListener('click', () => {
       if (this.cartItems.length === 0) return;
-      const payload = this.cartItems.map(ci => ({
-        title:  ci.art.meta?.title  || 'Untitled',
-        artist: ci.art.meta?.artist || '',
-        year:   ci.art.meta?.year   || '',
-        price:  ci.art.meta?.price  || ''
-      }));
-      localStorage.setItem('gallery_cart', JSON.stringify(payload));
-      window.open('checkout.html', '_blank');
+      this._syncCartToStorage();
+      this.manager.navigateTo('checkout');
     });
   }
 
@@ -1341,6 +1346,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     const ctx = c.getContext('2d');
     if (kind === 'model') {
       try { this._renderModelThumb(art.object, c); } catch (e) { }
+    } else if (art.isYouTube && art.sourceImage) {
+      ctx.drawImage(art.sourceImage, 0, 0, 72, 72);
     } else if (art.sourceImage) {
       const img = art.sourceImage;
       const scale = Math.max(72/img.naturalWidth, 72/img.naturalHeight);
@@ -1418,9 +1425,22 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     });
   }
 
+  _syncCartToStorage() {
+    const payload = this.cartItems.map(ci => ({
+      title:  ci.art.meta?.title  || 'Untitled',
+      artist: ci.art.meta?.artist || '',
+      year:   ci.art.meta?.year   || '',
+      price:  ci.art.meta?.price  || '',
+      roomId: this._galleryDbKey  || '',
+    }));
+    localStorage.setItem('gallery_cart', JSON.stringify(payload));
+    window.dispatchEvent(new CustomEvent('cart-updated'));
+  }
+
   _addToCart(art) {
     if (this.cartItems.some(ci => ci.art === art)) return;
     this.cartItems.push({ art, id: ++this.cartIdCnt });
+    this._syncCartToStorage();
     this._renderCart();
     this._toast('Đã thêm vào giỏ hàng ✓', 'success');
     document.querySelectorAll('.product-card').forEach(card => {
@@ -1433,6 +1453,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
   _removeFromCart(id) {
     const idx = this.cartItems.findIndex(ci => ci.id === id);
     if (idx !== -1) this.cartItems.splice(idx, 1);
+    this._syncCartToStorage();
     this._renderCart();
     const addBtn = document.getElementById('ap-add-cart');
     if (addBtn._art && !this.cartItems.some(ci => ci.art === addBtn._art)) {
@@ -1483,12 +1504,14 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       try { this._renderModelThumb(art.object, apCanvas); } catch(e) {}
     } else {
       let ar = 4/3;
-      if (art.sourceImage) ar = art.sourceImage.naturalWidth / art.sourceImage.naturalHeight;
+      if (art.isYouTube) ar = 16/9;
+      else if (art.sourceImage) ar = art.sourceImage.naturalWidth / art.sourceImage.naturalHeight;
       else if (art.videoEl) ar = art.videoEl.videoWidth / art.videoEl.videoHeight || 4/3;
       const popW = 280, popH = Math.round(popW / ar);
       apCanvas.width=popW*2; apCanvas.height=popH*2; apCanvas.style.width=popW+'px'; apCanvas.style.height=popH+'px';
       const ctx = apCanvas.getContext('2d'); ctx.scale(2,2);
-      if (art.sourceImage) ctx.drawImage(art.sourceImage,0,0,popW,popH);
+      if (art.isYouTube && art.sourceImage) ctx.drawImage(art.sourceImage,0,0,popW,popH);
+      else if (art.sourceImage) ctx.drawImage(art.sourceImage,0,0,popW,popH);
       else if (art.videoEl) { ctx.fillStyle='#111'; ctx.fillRect(0,0,popW,popH); ctx.fillStyle='#c8a96e'; ctx.font='30px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('▶',popW/2,popH/2); }
     }
 
@@ -1548,13 +1571,17 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     } else {
       wrap3d.style.display='none'; imgWrap.style.display='block';
       const ec=document.getElementById('expand-canvas');
-      let ar=4/3; if(art.sourceImage) ar=art.sourceImage.naturalWidth/art.sourceImage.naturalHeight; else if(art.videoEl) ar=art.videoEl.videoWidth/art.videoEl.videoHeight||4/3;
+      let ar=4/3;
+      if(art.isYouTube) ar=16/9;
+      else if(art.sourceImage) ar=art.sourceImage.naturalWidth/art.sourceImage.naturalHeight;
+      else if(art.videoEl) ar=art.videoEl.videoWidth/art.videoEl.videoHeight||4/3;
       const maxW=Math.min(Math.round(innerWidth*.75),900), maxH=Math.round(innerHeight*.68);
       let natW=maxW, natH=Math.round(maxW/ar); if(natH>maxH){ natH=maxH; natW=Math.round(maxH*ar); }
       const dpr=devicePixelRatio||1;
       ec.width=natW*dpr; ec.height=natH*dpr; ec.style.width=natW+'px'; ec.style.height=natH+'px';
       const ctx=ec.getContext('2d'); ctx.scale(dpr,dpr);
-      if(art.sourceImage) ctx.drawImage(art.sourceImage,0,0,natW,natH);
+      if(art.isYouTube && art.sourceImage) ctx.drawImage(art.sourceImage,0,0,natW,natH);
+      else if(art.sourceImage) ctx.drawImage(art.sourceImage,0,0,natW,natH);
       else if(art.videoEl){ ctx.fillStyle='#111'; ctx.fillRect(0,0,natW,natH); ctx.fillStyle='#c8a96e'; ctx.font='40px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('▶',natW/2,natH/2); }
 
       this._expandImg={zoom:1,panX:0,panY:0,drag:false,lx:0,ly:0};
@@ -1699,7 +1726,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     }
 
     this._galleryName = sd.gallery_name || this.manager.currentRoom.name || 'Phòng Tranh 3D';
-    this._artistName  = sd.artist_name  || 'Artist Name';
+    this._artistName = (sd.artist_name && sd.artist_name !== 'Artist' && sd.artist_name !== 'Artist Name')
+      ? sd.artist_name : '';
 
     this._trackView();
 
@@ -1712,15 +1740,50 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
         const group = new THREE.Group();
         group.position.copy(pos); group.rotation.set(0, a.ry||0, 0); if (sv) group.scale.copy(sv);
 
-        if (a.isVideo) {
+        // ── Frame options từ data đã lưu ──
+        const frameVisible   = a.frameVisible !== false;
+        const frameColor     = a.frameColor   ?? 0x182D58;
+        const frameThickness = typeof a.frameThickness === 'number' ? a.frameThickness : 0.08;
+        const framePad       = frameThickness * 2;
+        const frameMat = new THREE.MeshLambertMaterial({ color: frameColor });
+
+        if (a.isYouTube && a.youtubeId) {
+          await new Promise(async resolve => {
+            const ytId = a.youtubeId;
+            const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 640, 360);
+            const img = new Image(); img.crossOrigin = 'anonymous';
+            img.src = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+            await new Promise(r => { img.onload = r; img.onerror = r; setTimeout(r, 4000); });
+            if (img.complete && img.naturalWidth) ctx.drawImage(img, 0, 0, 640, 360);
+            ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.arc(320, 180, 56, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(302, 152); ctx.lineTo(302, 208); ctx.lineTo(352, 180); ctx.closePath(); ctx.fill();
+            const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace;
+            const AH = 1.65, AW = AH * (16 / 9);
+            const frame = new THREE.Mesh(new THREE.BoxGeometry(AW + framePad, AH + framePad, frameThickness), frameMat);
+            frame.visible = frameVisible;
+            group.add(frame);
+            const plane = new THREE.Mesh(new THREE.PlaneGeometry(AW, AH), new THREE.MeshBasicMaterial({ map: tex }));
+            plane.position.z = frameThickness / 2 + 0.002;
+            group.add(plane);
+            this.threeScene.add(group);
+            this.artworks.push({ group, isYouTube: true, youtubeId: ytId, sourceImage: canvas, meta, storageUrl: a.storageUrl });
+            resolve();
+          });
+        } else if (a.isVideo) {
           const vid = document.createElement('video'); vid.src = a.storageUrl; vid.loop=true; vid.muted=true; vid.playsInline=true; vid.crossOrigin='anonymous';
           vid.addEventListener('loadeddata', () => {
-            const tex = new THREE.VideoTexture(vid); tex.minFilter = THREE.LinearFilter;
+            const tex = new THREE.VideoTexture(vid); tex.minFilter = THREE.LinearFilter; tex.colorSpace = THREE.SRGBColorSpace;
             const AH = 1.65, AW = AH * (vid.videoWidth / vid.videoHeight || 4/3);
-            group.add(new THREE.Mesh(new THREE.BoxGeometry(AW+.16, AH+.16, .08), FRAME_MAT));
-            const plane = new THREE.Mesh(new THREE.PlaneGeometry(AW, AH), new THREE.MeshBasicMaterial({ map:tex })); plane.position.z=.046; group.add(plane);
+            const frame = new THREE.Mesh(new THREE.BoxGeometry(AW + framePad, AH + framePad, frameThickness), frameMat);
+            frame.visible = frameVisible;
+            group.add(frame);
+            const plane = new THREE.Mesh(new THREE.PlaneGeometry(AW, AH), new THREE.MeshBasicMaterial({ map:tex }));
+            plane.position.z = frameThickness / 2 + 0.002;
+            group.add(plane);
             this.threeScene.add(group);
-            this.artworks.push({ group, isVideo:true, videoTex:tex, videoEl:vid, meta, sourceImage:null });
+            this.artworks.push({ group, isVideo:true, videoTex:tex, videoEl:vid, meta, sourceImage:null, storageUrl: a.storageUrl });
             vid.play();
           });
         } else {
@@ -1729,12 +1792,16 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
             img.onload = () => {
               const canvas = document.createElement('canvas'); canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
               canvas.getContext('2d').drawImage(img,0,0);
-              const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.LinearFilter;
+              const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.LinearFilter; tex.colorSpace = THREE.SRGBColorSpace;
               const AH = 1.65, AW = AH * (img.naturalWidth / img.naturalHeight);
-              group.add(new THREE.Mesh(new THREE.BoxGeometry(AW+.16, AH+.16, .08), FRAME_MAT));
-              const plane = new THREE.Mesh(new THREE.PlaneGeometry(AW, AH), new THREE.MeshBasicMaterial({ map:tex })); plane.position.z=.046; group.add(plane);
+              const frame = new THREE.Mesh(new THREE.BoxGeometry(AW + framePad, AH + framePad, frameThickness), frameMat);
+              frame.visible = frameVisible;
+              group.add(frame);
+              const plane = new THREE.Mesh(new THREE.PlaneGeometry(AW, AH), new THREE.MeshBasicMaterial({ map:tex }));
+              plane.position.z = frameThickness / 2 + 0.002;
+              group.add(plane);
               this.threeScene.add(group);
-              this.artworks.push({ group, sourceImage: img, meta });
+              this.artworks.push({ group, sourceImage: img, meta, storageUrl: a.storageUrl });
               resolve();
             };
             img.onerror = resolve;
@@ -1781,6 +1848,57 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
 
     if (sd.texts?.length) {
       await this.textEditor.loadFromData(sd.texts);
+    }
+
+    if (sd.interiorWalls?.length) {
+      for (const wData of sd.interiorWalls) {
+        const W = wData.width ?? 3;
+        const H = wData.height ?? 3;
+        const T = wData.thickness ?? 0.1;
+
+        const group = new THREE.Group();
+        group.position.set(wData.x, wData.y, wData.z);
+        group.rotation.y = wData.ry || 0;
+
+        // Front face
+        const frontMat = new THREE.MeshLambertMaterial({ color: wData.frontColor || '#f5f0e8', side: THREE.FrontSide });
+        const frontMesh = new THREE.Mesh(new THREE.PlaneGeometry(W, H), frontMat);
+        frontMesh.position.z = T / 2 + 0.001;
+        group.add(frontMesh);
+
+        // Back face
+        const backMat = new THREE.MeshLambertMaterial({ color: wData.backColor || '#f5f0e8', side: THREE.FrontSide });
+        const backMesh = new THREE.Mesh(new THREE.PlaneGeometry(W, H), backMat);
+        backMesh.rotation.y = Math.PI;
+        backMesh.position.z = -(T / 2 + 0.001);
+        group.add(backMesh);
+
+        // Edge
+        const edgeMat = new THREE.MeshLambertMaterial({ color: wData.frontColor || '#d4c5a9' });
+        const edgeMesh = new THREE.Mesh(new THREE.BoxGeometry(W, H, T), edgeMat);
+        group.add(edgeMesh);
+
+        // Apply wallpaper if set
+        const applyWallpaper = (mesh, wallpaperUrl) => {
+          if (!wallpaperUrl) return;
+          new THREE.TextureLoader().load(wallpaperUrl, (tex) => {
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(W / 1.5, H / 1.5);
+            mesh.material.map = tex;
+            mesh.material.color.set(0xffffff);
+            mesh.material.needsUpdate = true;
+          });
+        };
+        applyWallpaper(frontMesh, wData.frontWallpaper);
+        applyWallpaper(backMesh, wData.backWallpaper);
+
+        this.threeScene.add(group);
+        // Add wall meshes to collision list so player can't walk through
+        if (this.modelMeshes) {
+          this.modelMeshes.push(frontMesh, backMesh, edgeMesh);
+        }
+      }
     }
 
     if (sd.musicUrl) {
@@ -1908,8 +2026,15 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       let h = aHits[0].object;
       while (h.parent && !this.artworks.find(a => a.group === h)) h = h.parent;
       const art = this.artworks.find(a => a.group === h);
-      if (art) { this._showArtworkPopup(art, this.artworks.indexOf(art), 'artwork'); return; }
+      if (art) {
+        if (this.missionSystem?.handleCanvasClick(this.raycaster, art)) return;
+        if (art.isYouTube && art.youtubeId) { this._showYouTubeOverlay(art.youtubeId); return; }
+        this._showArtworkPopup(art, this.artworks.indexOf(art), 'artwork');
+        return;
+      }
     }
+
+    if (this.missionSystem?.handleCanvasClick(this.raycaster, null)) return;
 
     const mHits = this.raycaster.intersectObjects(this.models3d.map(m => m.object), true);
     if (mHits.length) {
@@ -1920,6 +2045,22 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     }
 
     document.getElementById('artwork-popup')?.classList.remove('open');
+  }
+
+  _showYouTubeOverlay(youtubeId) {
+    const existing = document.getElementById('yt-overlay');
+    if (existing) existing.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'yt-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(6px);z-index:10000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;';
+    overlay.innerHTML = `
+      <button id="yt-overlay-close" style="position:absolute;top:20px;right:28px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:22px;cursor:pointer;border-radius:6px;padding:4px 12px;font-family:monospace;">✕ Đóng</button>
+      <div style="width:min(880px,90vw);aspect-ratio:16/9;border-radius:10px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.7);">
+        <iframe src="https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0" style="width:100%;height:100%;border:none;" allow="autoplay;encrypted-media;fullscreen" allowfullscreen></iframe>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#yt-overlay-close').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   }
 
   _onMouseMove(e) {
@@ -2070,6 +2211,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     this._drawMinimap();
     this._updateCharacter(dt);
     this._updateRemotePlayers(dt);
+    this.missionSystem?.update();
   }
 
   _updateCharacter(dt) {
@@ -2497,6 +2639,12 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
   }
 
   dispose() {
+    if (this._bgAudio) {
+      this._bgAudio.pause();
+      this._bgAudio.src = '';
+      this._bgAudio = null;
+    }
+    this.missionSystem?.dispose();
     if (this._mpBroadcastInterval) { clearInterval(this._mpBroadcastInterval); this._mpBroadcastInterval = null; }
     if (this._mpChannel) { supabase.removeChannel(this._mpChannel); this._mpChannel = null; }
     for (const uid of Object.keys(this._remotePlayers)) this._removeRemotePlayer(uid);

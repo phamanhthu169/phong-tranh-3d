@@ -1,3 +1,4 @@
+import './style.css';
 import { SceneManager }    from './core/SceneManager.js';
 import { LandingScene }    from './scenes/LandingScene.js';
 import { LoginScene }      from './scenes/LoginScene.js';
@@ -8,7 +9,10 @@ import { ExploreScene }    from './scenes/ExploreScene.js';
 import { ViewerScene }     from './scenes/ViewerScene.js';
 import { ProfileScene }    from './scenes/ProfileScene.js';
 import { ForumScene }      from './scenes/ForumScene.js';
-import { PreviewScene } from './scenes/PreviewScene.js';
+import { PreviewScene }        from './scenes/PreviewScene.js';
+import { CheckoutScene }       from './scenes/CheckoutScene.js';
+import { OrdersScene }         from './scenes/OrdersScene.js';
+import { OrderTrackingScene }  from './scenes/OrderTrackingScene.js';
 
 
 const manager = new SceneManager();
@@ -23,7 +27,10 @@ manager
   .register('viewer',    ViewerScene)
   .register('profile',   ProfileScene)
   .register('forum',     ForumScene)
-  .register('preview', PreviewScene);
+  .register('preview',    PreviewScene)
+  .register('checkout',   CheckoutScene)
+  .register('orders',     OrdersScene)
+  .register('my-orders',  OrderTrackingScene);
 
 // Chờ auth xác định trạng thái trước khi mở scene đầu tiên
 // (tránh nhấp nháy khi đã đăng nhập mà bị redirect về login)

@@ -78,7 +78,7 @@ export class DashboardScene extends BaseScene {
   }
 
   async _loadRooms() {
-    const artistId = this.manager.auth.profile.name;
+    const artistId = this.manager.auth.user.id;
     const prefix   = artistId + ':::';
 
     const { data } = await supabase
@@ -147,7 +147,7 @@ export class DashboardScene extends BaseScene {
   }
 
   _createNewRoom() {
-    const artistId = this.manager.auth.profile.name;
+    const artistId = this.manager.auth.user.id;
     const roomId   = artistId + ':::' + Date.now();
     this.manager.currentRoom = { id: roomId, name: null, artistId, isPublished: false };    this.manager.navigateTo('studio');
   }

@@ -34,27 +34,14 @@ export class LoginScene extends BaseScene {
 
       <div style="display:flex;flex-direction:column;gap:4px">
         <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Tên của bạn</label>
-        <input id="li-name" type="text" autocomplete="name" placeholder="Nhập tên hiển thị..."
+        <input id="li-name" type="text" autocomplete="username" placeholder="Nhập tên hiển thị..."
           style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
       </div>
 
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Vai trò</label>
-        <div style="display:flex;gap:16px">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#1a1a1a;font-size:11px;letter-spacing:.06em;">
-            <input type="radio" name="li-role" value="user" checked
-              style="accent-color:#c8a96e;width:14px;height:14px;cursor:pointer;">
-            Người dùng
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#1a1a1a;font-size:11px;letter-spacing:.06em;">
-            <input type="radio" name="li-role" value="artist"
-              style="accent-color:#c8a96e;width:14px;height:14px;cursor:pointer;">
-            Artist
-          </label>
-        </div>
-        <div style="color:#666;font-size:9px;letter-spacing:.06em;line-height:1.6">
-          Artist có thể tạo & publish phòng tranh 3D.
-        </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Mật khẩu</label>
+        <input id="li-password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu..."
+          style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
       </div>
 
       <div id="li-msg" style="font-size:10px;letter-spacing:.06em;display:none;padding:6px 8px;border-radius:3px;"></div>
@@ -96,17 +83,23 @@ export class LoginScene extends BaseScene {
   }
 
   async _handleLogin() {
-    const name = document.getElementById('li-name').value.trim();
-    const role = document.querySelector('input[name="li-role"]:checked')?.value ?? 'user';
+    const name     = document.getElementById('li-name').value.trim();
+    const password = document.getElementById('li-password').value;
 
-    if (!name) { this._showMsg('Vui lòng nhập tên của bạn'); return; }
+    if (!name)     { this._showMsg('Vui lòng nhập tên của bạn'); return; }
+    if (!password) { this._showMsg('Vui lòng nhập mật khẩu'); return; }
+
+    const sub = document.getElementById('li-submit');
+    sub.disabled = true;
+    sub.textContent = 'Đang xử lý...';
 
     try {
-      await this.manager.auth.setProfile(name, role);
+      await this.manager.auth.login(name, password);
       this.manager.navigateTo('landing');
     } catch (err) {
-      console.error(err);
-      this._showMsg('Có lỗi xảy ra, vui lòng thử lại');
+      this._showMsg(err.message || 'Có lỗi xảy ra, vui lòng thử lại');
+      sub.disabled = false;
+      sub.textContent = 'Vào ngay';
     }
   }
 

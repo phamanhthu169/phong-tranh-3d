@@ -35,6 +35,7 @@ export class ProfileScene extends BaseScene {
     this._target = isSelf
       ? { ...this.manager.auth.profile }
       : { ...this.manager.profileTarget };
+      console.log('profile:', JSON.stringify(this.manager.auth.profile));
 
     // Reset target sau khi đọc
     this.manager.profileTarget = null;
@@ -394,8 +395,9 @@ export class ProfileScene extends BaseScene {
 
       <!-- Gallery section (artist only) -->
       <div id="pf-gallery-section" style="display:none">
-        <div style="color:#888;font-size:9px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px">
-          Phòng triển lãm
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="color:#888;font-size:9px;letter-spacing:.18em;text-transform:uppercase">Phòng triển lãm</div>
+          <button id="pf-new-room-btn" class="pf-btn gold" style="display:none;font-size:10px">＋ Tạo phòng mới</button>
         </div>
         <div id="pf-gallery-loading" style="color:#888;font-size:11px;letter-spacing:.1em;text-align:center;padding:40px">
           Đang tải...
@@ -497,6 +499,12 @@ export class ProfileScene extends BaseScene {
         const addBtn = document.getElementById('pf-add-product-btn');
         addBtn.style.display = 'inline-block';
         addBtn.addEventListener('click', () => this._openProductForm(null));
+
+        const newRoomBtn = document.getElementById('pf-new-room-btn');
+        if (newRoomBtn) {
+          newRoomBtn.style.display = 'inline-block';
+          newRoomBtn.addEventListener('click', () => this._createNewRoom());
+        }
       }
     }
 
@@ -604,7 +612,9 @@ export class ProfileScene extends BaseScene {
 
   // ─── Load galleries của artist ───────────────────────────────────────────────
   async _loadGalleries() {
-    const artistId = this._target.name;
+    const artistId   = this._target.id   || this._target.name;
+    const artistName = this._target.name || '';
+    const prefix     = artistId + ':::';
 
     const { data } = await supabase
       .from('gallery')
@@ -615,12 +625,20 @@ export class ProfileScene extends BaseScene {
 
     document.getElementById('pf-gallery-loading').style.display = 'none';
 
-    // Lọc theo meta.artistId (cùng cách ExploreScene dùng)
+    // Khớp phòng theo meta.artistId HOẶC tiền tố tên phòng (như DashboardScene).
+    // Dùng || riêng biệt để không bị short-circuit khi meta.artistId sai UUID.
     // Nếu xem profile của mình (isSelf) → hiện cả draft lẫn published
     // Nếu xem profile người khác → chỉ hiện published
     const rooms = (data || []).filter(row => {
       const meta = row.scene_data?._meta || {};
-      if ((meta.artistId || row.name.split(':::')[0]) !== artistId) return false;
+      const metaId = meta.artistId;
+
+      const matched =
+        (metaId && (metaId === artistId || metaId === artistName)) ||
+        row.name.startsWith(prefix) ||
+        (!artistId && artistName && row.name.split(':::')[0] === artistName);
+
+      if (!matched) return false;
       return this._isSelf ? true : !!meta.isPublished;
     });
 
@@ -652,9 +670,14 @@ export class ProfileScene extends BaseScene {
           <span style="color:#999;font-size:9px">${date}</span>
         </div>
         <div style="color:#666;font-size:10px;letter-spacing:.06em">${count} tác phẩm</div>
+        ${this._isSelf ? `<div style="display:flex;gap:8px;margin-top:6px">
+          <button class="pf-btn ghost pf-room-edit-btn" style="font-size:10px;padding:5px 12px">✎ Chỉnh sửa</button>
+          <button class="pf-btn danger pf-room-del-btn" style="font-size:10px;padding:5px 12px">🗑 Xoá</button>
+        </div>` : ''}
       `;
-      // Chỉ cho vào viewer nếu published; nếu là draft của chính mình → mở studio
-      card.addEventListener('click', () => {
+
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.pf-room-edit-btn, .pf-room-del-btn')) return;
         if (isPublished) {
           this.manager.currentRoom = { id: row.name, name: roomName, artistId, isPublished: true };
           this.manager.navigateTo('viewer');
@@ -663,6 +686,31 @@ export class ProfileScene extends BaseScene {
           this.manager.navigateTo('studio');
         }
       });
+
+      if (this._isSelf) {
+        card.querySelector('.pf-room-edit-btn').addEventListener('click', () => {
+          this.manager.currentRoom = { id: row.name, name: roomName, artistId, isPublished };
+          this.manager.navigateTo('studio');
+        });
+
+        card.querySelector('.pf-room-del-btn').addEventListener('click', async (e) => {
+          const btn = e.currentTarget;
+          if (btn.dataset.confirm !== '1') {
+            btn.textContent = '? Xác nhận xoá';
+            btn.dataset.confirm = '1';
+            setTimeout(() => { if (btn.dataset.confirm) { btn.textContent = '🗑 Xoá'; btn.dataset.confirm = ''; } }, 2500);
+            return;
+          }
+          btn.dataset.confirm = '';
+          await supabase.from('gallery').delete().eq('name', row.name);
+          card.remove();
+          if (!document.querySelectorAll('#pf-gallery-grid .gallery-card').length) {
+            document.getElementById('pf-gallery-grid').style.display = 'none';
+            document.getElementById('pf-gallery-empty').style.display = 'block';
+          }
+        });
+      }
+
       grid.appendChild(card);
     });
   }
@@ -734,7 +782,7 @@ export class ProfileScene extends BaseScene {
       { name: 'Bất tử',      min_likes: 8000 },
     ];
 
-    const artistId = this._target.name;
+    const artistId = this._target.id || this._target.name;
 
     const { data: allGalleries } = await supabase
       .from('gallery')
@@ -1366,6 +1414,14 @@ export class ProfileScene extends BaseScene {
       thumb.appendChild(rm);
       container.appendChild(thumb);
     });
+  }
+
+  // ─── Tạo phòng mới (chỉ artist xem profile mình) ───────────────────────────
+  _createNewRoom() {
+    const artistId = this._target.id || this._target.name;
+    const roomId   = artistId + ':::' + Date.now();
+    this.manager.currentRoom = { id: roomId, name: null, artistId, isPublished: false };
+    this.manager.navigateTo('studio');
   }
 
   // ─── HTML escape helper ──────────────────────────────────────────────────────

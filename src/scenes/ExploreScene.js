@@ -123,6 +123,19 @@ export class ExploreScene extends BaseScene {
       date: new Date(row.created_at).getTime(),
     }));
 
+    const artistIds = [...new Set(
+      this._rooms
+        .filter(({ row }) => !row.scene_data?._meta?.artistName)
+        .map(({ row }) => row.scene_data?._meta?.artistId || row.name.split(':::')[0])
+        .filter(Boolean)
+    )];
+    this._artistNameMap = {};
+    if (artistIds.length) {
+      const { data: profiles, error: profilesErr } = await supabase.from('profiles').select('id, display_name').in('id', artistIds);
+      if (profilesErr) console.error('[ExploreScene] profiles query error:', profilesErr);
+      (profiles || []).forEach(p => { this._artistNameMap[p.id] = p.display_name; });
+    }
+
     const grid = document.getElementById('ex-grid');
     grid.style.display = 'grid';
     this._renderGrid();
@@ -145,7 +158,10 @@ export class ExploreScene extends BaseScene {
   _addCard(grid, row, likes = 0, views = 0) {
     const meta     = row.scene_data?._meta || {};
     const roomName = meta.roomName || 'Phòng chưa đặt tên';
-    const artistId = meta.artistId || row.name.split(':::')[0] || '—';
+    const artistId   = meta.artistId || row.name.split(':::')[0] || '';
+    const artistName = meta.artistName
+      || (artistId && this._artistNameMap?.[artistId])
+      || artistId || '—';
     const date     = new Date(row.created_at).toLocaleDateString('vi-VN');
     const artCount = row.scene_data?.artworks?.length || 0;
 
@@ -164,7 +180,7 @@ export class ExploreScene extends BaseScene {
     <div class="ex-info-wrap">
       <div class="ex-body">
         <div class="ex-name">${roomName}</div>
-        <div class="ex-artist">${artistId}</div>
+        <div class="ex-artist">${artistName}</div>
         <div class="ex-date">${date}${artCount ? ' · ' + artCount + ' tác phẩm' : ''}</div>
         <div class="ex-stats">
           <span class="ex-stat"><span class="ex-stat-icon">♥</span> ${likes.toLocaleString('vi-VN')}</span>

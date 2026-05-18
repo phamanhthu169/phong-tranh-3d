@@ -6,96 +6,343 @@ export class Header {
 
   _build() {
     const el = document.createElement('div');
-    el.style.cssText = 'position:fixed;top:0;left:0;right:0;height:48px;background:rgba(12,10,9,0.96);border-bottom:1px solid rgba(212,197,169,0.1);display:flex;align-items:center;padding:0 24px;z-index:200;font-family:monospace;user-select:none;';
+    el.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 90px;
+      background: url('/public/header/linear.svg') center/cover no-repeat;
+      display: flex;
+      align-items: center;
+      padding: 0 32px;
+      z-index: 200;
+      font-family: monospace;
+      user-select: none;
+      gap: 20px;
+    `;
 
-    // Logo
+    // ── Logo ──────────────────────────────────────────────────────────────────
     const logo = document.createElement('img');
-    logo.src = '/icons/logo.svg';
+    logo.src = '/public/icons/logo.svg';
     logo.alt = 'CREATORY';
-    logo.style.cssText = 'height:28px;cursor:pointer;opacity:0.9;transition:opacity 0.2s;display:block;';
-    logo.addEventListener('mouseenter', () => logo.style.opacity = '1');
-    logo.addEventListener('mouseleave', () => logo.style.opacity = '0.9');
+    logo.style.cssText = 'height: 48px; cursor: pointer; flex-shrink: 0; transition: opacity 0.2s;';
+    logo.addEventListener('mouseenter', () => logo.style.opacity = '0.85');
+    logo.addEventListener('mouseleave', () => logo.style.opacity = '1');
     logo.addEventListener('click', () => this.manager.navigateTo('landing'));
 
-    // Khu vực auth bên phải
-    this._authArea = document.createElement('div');
-    this._authArea.style.cssText = 'margin-left:auto;display:flex;align-items:center;gap:12px;';
-
-    // Nav links giữa header
+    // ── Nav menu bar — menu.svg 560×72 ────────────────────────────────────────
     this._navArea = document.createElement('div');
-    this._navArea.style.cssText = 'display:flex;align-items:center;gap:6px;margin-left:28px;';
+    this._navArea.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      width: 560px;
+      height: 72px;
+      background: url('/public/header/menu.svg') center/560px 72px no-repeat;
+      flex-shrink: 0;
+      margin: 0 auto;
+    `;
 
     const navItems = [
-      { label: 'Khám phá', scene: 'explore' },
-      { label: 'Cộng đồng', scene: 'forum' },
+      { label: 'KHÁM PHÁ',       scene: 'explore'  },
+      { label: 'DIỄN ĐÀN',       scene: 'forum'    },
+      { label: 'SUPPORT & LEGAL', scene: 'support'  },
+      { label: 'ĐĂNG KÝ GÓI',    scene: 'pricing'  },
     ];
+
     navItems.forEach(({ label, scene }) => {
       const btn = document.createElement('button');
       btn.textContent = label;
-      btn.style.cssText = 'background:none;border:none;color:#4a4038;font-family:monospace;font-size:10px;letter-spacing:.08em;cursor:pointer;padding:4px 10px;border-radius:3px;transition:color .18s;';
-      btn.addEventListener('mouseenter', () => btn.style.color = '#c8a96e');
-      btn.addEventListener('mouseleave', () => btn.style.color = '#4a4038');
+      btn.style.cssText = `
+        background: none;
+        border: none;
+        color: #1a3a6e;
+        font-family: monospace;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        padding: 0 18px;
+        height: 100%;
+        transition: color 0.18s;
+        white-space: nowrap;
+      `;
+      btn.addEventListener('mouseenter', () => btn.style.color = '#4a90e2');
+      btn.addEventListener('mouseleave', () => btn.style.color = '#1a3a6e');
       btn.addEventListener('click', () => this.manager.navigateTo(scene));
       this._navArea.appendChild(btn);
     });
 
+    // ── Cart button — cart.svg 54×50 ──────────────────────────────────────────
+    this._cartBtn = document.createElement('button');
+    this._cartBtn.style.cssText = `
+      background: url('/public/header/cart.svg') center/54px 50px no-repeat;
+      border: none;
+      width: 54px;
+      height: 50px;
+      cursor: pointer;
+      flex-shrink: 0;
+      position: relative;
+      transition: opacity 0.2s, transform 0.2s;
+      display: none;
+    `;
+    this._cartBtn.title = 'Giỏ hàng';
+    this._cartBtn.addEventListener('mouseenter', () => {
+      this._cartBtn.style.opacity = '0.85';
+      this._cartBtn.style.transform = 'scale(1.06)';
+    });
+    this._cartBtn.addEventListener('mouseleave', () => {
+      this._cartBtn.style.opacity = '1';
+      this._cartBtn.style.transform = 'scale(1)';
+    });
+    this._cartBtn.addEventListener('click', () => this.manager.navigateTo('checkout'));
+
+    // Cart badge
+    this._cartBadge = document.createElement('span');
+    this._cartBadge.style.cssText = `
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: #e84040;
+      color: #fff;
+      font-size: 7px;
+      border-radius: 10px;
+      padding: 1px 5px;
+      min-width: 14px;
+      text-align: center;
+      display: none;
+      pointer-events: none;
+    `;
+    this._cartBtn.appendChild(this._cartBadge);
+
+    // ── Auth area ─────────────────────────────────────────────────────────────
+    this._authArea = document.createElement('div');
+    this._authArea.style.cssText = 'display:flex;align-items:center;flex-shrink:0;position:relative;';
+
+    // Assemble
     el.appendChild(logo);
     el.appendChild(this._navArea);
+    el.appendChild(this._cartBtn);
     el.appendChild(this._authArea);
     document.body.appendChild(el);
     this._el = el;
 
-    // Lắng nghe thay đổi auth để cập nhật UI
+    // Auth listener
     this._unsubAuth = this.manager.auth.onChange((user, profile) => this._updateAuthUI(user, profile));
-
-    // Render trạng thái ban đầu sau khi auth sẵn sàng
     this.manager.auth.ready().then(() => {
       this._updateAuthUI(this.manager.auth.user, this.manager.auth.profile);
     });
+
+    // Cart badge listener
+    this._onCartUpdated = () => this._updateCartBadge();
+    window.addEventListener('cart-updated', this._onCartUpdated);
+    this._updateCartBadge();
+
+    // Đóng dropdown khi click ra ngoài
+    this._onDocClick = (e) => {
+      if (this._dropdown && !this._authArea.contains(e.target)) {
+        this._closeDropdown();
+      }
+    };
+    document.addEventListener('click', this._onDocClick);
   }
 
+  // ── Cart badge ──────────────────────────────────────────────────────────────
+  _updateCartBadge() {
+    const cart = JSON.parse(localStorage.getItem('gallery_cart') || '[]');
+    const isLoggedIn = this.manager.auth.isLoggedIn;
+    this._cartBtn.style.display = isLoggedIn ? 'block' : 'none';
+    if (cart.length === 0) {
+      this._cartBadge.style.display = 'none';
+    } else {
+      this._cartBadge.textContent = cart.length > 9 ? '9+' : cart.length;
+      this._cartBadge.style.display = 'inline-block';
+    }
+  }
+
+  // ── Dropdown ──────────────────────────────────────────────────────────────
+  _openDropdown() {
+    if (this._dropdown) return;
+
+    const dd = document.createElement('div');
+    dd.style.cssText = `
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      min-width: 160px;
+      overflow: hidden;
+      z-index: 300;
+      animation: fadeSlideDown 0.18s ease;
+    `;
+
+    // Inject animation keyframes once
+    if (!document.getElementById('header-dd-style')) {
+      const style = document.createElement('style');
+      style.id = 'header-dd-style';
+      style.textContent = `
+        @keyframes fadeSlideDown {
+          from { opacity: 0; transform: translateY(-6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    const logoutBtn = document.createElement('button');
+    logoutBtn.textContent = '🚪  Đăng xuất';
+    logoutBtn.style.cssText = `
+      width: 100%;
+      background: none;
+      border: none;
+      padding: 14px 20px;
+      text-align: left;
+      font-family: monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: #c0392b;
+      cursor: pointer;
+      transition: background 0.15s;
+      letter-spacing: 0.04em;
+    `;
+    logoutBtn.addEventListener('mouseenter', () => logoutBtn.style.background = '#fdf0ee');
+    logoutBtn.addEventListener('mouseleave', () => logoutBtn.style.background = 'none');
+    logoutBtn.addEventListener('click', async () => {
+      this._closeDropdown();
+      await this.manager.auth.signOut();
+      this.manager.navigateTo('landing');
+    });
+
+    dd.appendChild(logoutBtn);
+    this._authArea.appendChild(dd);
+    this._dropdown = dd;
+  }
+
+  _closeDropdown() {
+    if (this._dropdown) {
+      this._dropdown.remove();
+      this._dropdown = null;
+    }
+  }
+
+  _toggleDropdown() {
+    if (this._dropdown) {
+      this._closeDropdown();
+    } else {
+      this._openDropdown();
+    }
+  }
+
+  // ── Auth UI ─────────────────────────────────────────────────────────────────
   _updateAuthUI(user, profile) {
+    this._closeDropdown();
     this._authArea.innerHTML = '';
+    this._updateCartBadge();
 
     if (user) {
-      // Tên có thể click → vào profile của mình
-      const nameBtn = document.createElement('button');
-      nameBtn.textContent = profile?.name || 'Ẩn danh';
-      nameBtn.style.cssText = 'background:none;border:none;color:#7a6e5c;font-family:monospace;font-size:11px;letter-spacing:.08em;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;padding:0;transition:color .2s;';
-      nameBtn.addEventListener('mouseenter', () => nameBtn.style.color = '#c8a96e');
-      nameBtn.addEventListener('mouseleave', () => nameBtn.style.color = '#7a6e5c');
-      nameBtn.addEventListener('click', () => this.manager.navigateTo('profile'));
+      // Wrapper gom profile button + arrow button
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'display:flex;align-items:center;gap:4px;';
 
-      const logoutBtn = document.createElement('button');
-      logoutBtn.textContent = 'Đăng xuất';
-      logoutBtn.style.cssText = 'background:none;border:1px solid rgba(212,197,169,.2);color:#555;font-family:monospace;font-size:10px;padding:4px 12px;border-radius:3px;cursor:pointer;letter-spacing:.06em;transition:all .2s;';
-      logoutBtn.addEventListener('mouseenter', () => { logoutBtn.style.color = '#d4c5a9'; logoutBtn.style.borderColor = 'rgba(212,197,169,.5)'; });
-      logoutBtn.addEventListener('mouseleave', () => { logoutBtn.style.color = '#555';    logoutBtn.style.borderColor = 'rgba(212,197,169,.2)'; });
-      logoutBtn.addEventListener('click', async () => {
-        await this.manager.auth.signOut();
-        this.manager.navigateTo('landing');
+      // Profile button — hình tròn avatar
+      const profileBtn = document.createElement('button');
+      profileBtn.style.cssText = `
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.2s, transform 0.2s;
+      `;
+
+      const avatarCircle = document.createElement('div');
+      avatarCircle.style.cssText = `
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 2px solid rgba(255,255,255,0.6);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #1a3a6e;
+        font-size: 18px;
+      `;
+
+      if (profile?.avatarUrl) {
+        const img = document.createElement('img');
+        img.src = profile.avatarUrl;
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+        avatarCircle.appendChild(img);
+      } else {
+        avatarCircle.textContent = '👤';
+      }
+
+      profileBtn.appendChild(avatarCircle);
+      profileBtn.addEventListener('mouseenter', () => profileBtn.style.opacity = '0.85');
+      profileBtn.addEventListener('mouseleave', () => profileBtn.style.opacity = '1');
+      profileBtn.addEventListener('click', () => this.manager.navigateTo('profile'));
+
+      // Arrow button
+      const arrowBtn = document.createElement('button');
+      arrowBtn.style.cssText = `
+        background: rgba(255,255,255,0.15);
+        border: 1.5px solid rgba(255,255,255,0.35);
+        border-radius: 6px;
+        width: 28px;
+        height: 28px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.18s, transform 0.2s;
+        flex-shrink: 0;
+        padding: 0;
+      `;
+      arrowBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 4L6 8L10 4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>`;
+      arrowBtn.addEventListener('mouseenter', () => arrowBtn.style.background = 'rgba(255,255,255,0.28)');
+      arrowBtn.addEventListener('mouseleave', () => arrowBtn.style.background = 'rgba(255,255,255,0.15)');
+      arrowBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Xoay mũi tên khi mở/đóng
+        const isOpen = !!this._dropdown;
+        arrowBtn.querySelector('svg').style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+        arrowBtn.querySelector('svg').style.transition = 'transform 0.2s';
+        this._toggleDropdown();
       });
 
-      this._authArea.appendChild(nameBtn);
-      this._authArea.appendChild(logoutBtn);
+      wrapper.appendChild(profileBtn);
+      wrapper.appendChild(arrowBtn);
+      this._authArea.appendChild(wrapper);
+
     } else {
-      // Hiện nút đăng nhập + đăng ký
+      // Login button — login.svg 283×89
       const loginBtn = document.createElement('button');
-      loginBtn.textContent = 'Đăng nhập';
-      loginBtn.style.cssText = 'background:none;border:1px solid rgba(212,197,169,.2);color:#d4c5a9;font-family:monospace;font-size:10px;padding:4px 12px;border-radius:3px;cursor:pointer;letter-spacing:.06em;transition:all .2s;';
-      loginBtn.addEventListener('mouseenter', () => loginBtn.style.borderColor = '#c8a96e');
-      loginBtn.addEventListener('mouseleave', () => loginBtn.style.borderColor = 'rgba(212,197,169,.2)');
+      loginBtn.style.cssText = `
+        background: url('/public/header/login.svg') center/283px 89px no-repeat;
+        border: none;
+        width: 283px;
+        height: 89px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.2s, transform 0.2s;
+      `;
+
+      loginBtn.addEventListener('mouseenter', () => loginBtn.style.opacity = '0.85');
+      loginBtn.addEventListener('mouseleave', () => loginBtn.style.opacity = '1');
       loginBtn.addEventListener('click', () => this.manager.navigateTo('login'));
 
-      const registerBtn = document.createElement('button');
-      registerBtn.textContent = 'Đăng ký';
-      registerBtn.style.cssText = 'background:rgba(200,169,110,.12);border:1px solid rgba(200,169,110,.4);color:#c8a96e;font-family:monospace;font-size:10px;padding:4px 12px;border-radius:3px;cursor:pointer;letter-spacing:.06em;transition:all .2s;';
-      registerBtn.addEventListener('mouseenter', () => registerBtn.style.background = 'rgba(200,169,110,.25)');
-      registerBtn.addEventListener('mouseleave', () => registerBtn.style.background = 'rgba(200,169,110,.12)');
-      registerBtn.addEventListener('click', () => this.manager.navigateTo('register'));
-
       this._authArea.appendChild(loginBtn);
-      this._authArea.appendChild(registerBtn);
     }
   }
 
@@ -104,6 +351,8 @@ export class Header {
 
   dispose() {
     if (this._unsubAuth) this._unsubAuth();
+    if (this._onCartUpdated) window.removeEventListener('cart-updated', this._onCartUpdated);
+    if (this._onDocClick) document.removeEventListener('click', this._onDocClick);
     this._el?.parentNode?.removeChild(this._el);
   }
 }
