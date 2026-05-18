@@ -71,6 +71,12 @@ export class ViewerScene extends BaseScene {
     await this.manager.auth.ready();
     if (this._disposed) return;
 
+    const _urlParams  = new URLSearchParams(location.search);
+    const _urlRoomId  = _urlParams.get('room');
+    this._kioskMode   = _urlParams.has('kiosk');
+    if (!this.manager.currentRoom && _urlRoomId) {
+      this.manager.currentRoom = { id: decodeURIComponent(_urlRoomId), name: null, artistId: null, isPublished: true };
+    }
     if (!this.manager.currentRoom) { this.manager.navigateTo('explore'); return; }
     this._galleryDbKey = this.manager.currentRoom.id;
 
@@ -229,7 +235,11 @@ export class ViewerScene extends BaseScene {
     img.style.cssText = 'position:fixed;top:16px;left:20px;height:32px;cursor:pointer;opacity:0.85;transition:opacity 0.2s;z-index:100;';
     img.addEventListener('mouseenter', () => img.style.opacity = '1');
     img.addEventListener('mouseleave', () => img.style.opacity = '0.85');
-    img.addEventListener('click', () => this.manager.navigateTo('landing'));
+    if (!this._kioskMode) {
+      img.addEventListener('click', () => this.manager.navigateTo('landing'));
+    } else {
+      img.style.cursor = 'default';
+    }
     document.body.appendChild(img);
     this._el(img);
   }
@@ -255,7 +265,9 @@ export class ViewerScene extends BaseScene {
     <div id="topbar-right"></div>
   `;
     document.body.appendChild(bar);
-    document.querySelector('#logo-area img').addEventListener('click', () => this.manager.navigateTo('landing'));
+    if (!this._kioskMode) {
+      document.querySelector('#logo-area img')?.addEventListener('click', () => this.manager.navigateTo('landing'));
+    }
 
     this._el(bar);
   }
@@ -2519,7 +2531,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
   if (el) {
     el.style.display = 'flex';
     el.style.marginLeft = '160px';
-    el.onclick = () => this.manager.navigateTo('profile');
+    if (!this._kioskMode) el.onclick = () => this.manager.navigateTo('profile');
   }
   const valEl = document.getElementById('vw-token-val');
   if (valEl) valEl.textContent = balance.toLocaleString('vi-VN');

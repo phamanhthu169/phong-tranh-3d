@@ -37,5 +37,5 @@ manager
 await manager.auth.ready();
 
 const initialScene = manager.sceneFromCurrentPath();
-history.replaceState({ scene: initialScene }, '', location.pathname);
+history.replaceState({ scene: initialScene }, '', location.pathname + location.search);
 manager.navigateTo(initialScene, false);

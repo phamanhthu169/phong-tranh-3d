@@ -109,7 +109,10 @@ export class SceneManager {
     }
 
     if (addHistory) {
-      const path = name === 'landing' ? '/' : '/' + name;
+      let path = name === 'landing' ? '/' : '/' + name;
+      if (name === 'viewer' && this.currentRoom?.id) {
+        path += '?room=' + encodeURIComponent(this.currentRoom.id);
+      }
       history.pushState({ scene: name }, '', path);
     }
 
