@@ -5,6 +5,7 @@ import { OBJLoader }  from 'three/addons/loaders/OBJLoader.js';
 import { supabase } from '../utils/supabase.js';
 import { BaseScene } from './BaseScene.js';
 import { TextEditor } from './TextEditor.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { MissionSystem } from './MissionSystem.js';
 
 const FRAME_MAT = new THREE.MeshLambertMaterial({ color: 0x2a2018 });
@@ -81,7 +82,13 @@ export class ViewerScene extends BaseScene {
     this._galleryDbKey = this.manager.currentRoom.id;
 
     /* ---- scene ---- */
-    this.threeScene.background = new THREE.Color(0x87ceeb);
+    new RGBELoader().load('/hdr/kloofendal_48d_partly_cloudy_puresky_4k.hdr', (texture) => {
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      const envMap = pmrem.fromEquirectangular(texture).texture;
+      this.threeScene.background = envMap;
+      texture.dispose();
+      pmrem.dispose();
+    });
 
     // Khởi tạo đèn với giá trị mặc định (sẽ được cập nhật sau khi load dữ liệu)
     this.ambLight = new THREE.AmbientLight(this._lighting.ambientColor, this._lighting.ambientIntensity);
@@ -163,6 +170,7 @@ export class ViewerScene extends BaseScene {
     });
 
     this._showLoadingScreen();
+    this._showTutorialSlides();
     await this._loadRoom();
     if (this._disposed) return;
     this._loadCharacter();
@@ -194,6 +202,7 @@ export class ViewerScene extends BaseScene {
     this._renderProductList();
     this._renderCart();
     this._bindFeatureEvents();
+    { const show = document.getElementById('toggle-discs')?.checked !== false; this.pathMarkers.forEach(m => { if (m.mesh) m.mesh.visible = show; if (m.line) m.line.visible = show; }); }
     await this._initLike();
 
     // Pre-compile shader + warm-up GPU để tránh lag frame đầu khi đi lại
@@ -220,12 +229,178 @@ export class ViewerScene extends BaseScene {
       });
     }
 
-    if (!localStorage.getItem('gallery_visited')) {
-      setTimeout(() => {
-        document.getElementById('help-overlay')?.classList.add('open');
-        localStorage.setItem('gallery_visited', '1');
-      }, 800);
+    this._enableTutorialEnter();
+  }
+
+  _showTutorialSlides(replay = false) {
+    const SLIDES = [
+      '/tutorialviewer/slide1.svg',
+      '/tutorialviewer/slide2.svg',
+      '/tutorialviewer/slide3.svg',
+      '/tutorialviewer/slide4.svg',
+      '/tutorialviewer/slide5.svg',
+    ];
+    const TOTAL = SLIDES.length;
+    let current = 0;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'tutorial-overlay';
+    overlay.style.cssText = `
+      position:fixed;inset:0;z-index:10000;
+      background:rgba(0,0,0,0.55);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+    `;
+
+    // Wrapper bao quanh ảnh, dùng để đặt nav bên trong (position relative)
+    const slideWrap = document.createElement('div');
+    slideWrap.style.cssText = `
+      position:relative;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    `;
+
+    const img = document.createElement('img');
+    img.style.cssText = `
+      width:803px;max-width:95vw;height:auto;
+      border-radius:16px;
+      box-shadow:0 8px 40px rgba(0,0,0,0.45);
+      display:block;
+    `;
+
+    // Nav nằm bên trong slide, absolute ở phía dưới
+    const nav = document.createElement('div');
+    nav.style.cssText = `
+      position:absolute;
+      bottom:22px;
+      left:50%;
+      transform:translateX(-50%);
+      display:flex;flex-direction:column;align-items:center;gap:10px;
+    `;
+
+    // Pill container 145x39, màu rgba(199,217,237,1), bo góc 24.5
+    const pill = document.createElement('div');
+    pill.style.cssText = `
+      width:145px;height:39px;border-radius:24.5px;
+      background:rgba(199,217,237,1);
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 4px;
+      box-sizing:border-box;
+    `;
+
+    const btnPrev = document.createElement('button');
+    btnPrev.style.cssText = `
+      width:31px;height:31px;border-radius:50%;border:none;
+      background:transparent;
+      cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      padding:0;
+      transition:opacity 0.15s, background 0.15s;
+      flex-shrink:0;
+    `;
+    const prevIcon = document.createElement('img');
+    prevIcon.src = '/tutorialviewer/previous.svg';
+    prevIcon.style.cssText = `width:18.5px;height:21.37px;display:block;`;
+    btnPrev.appendChild(prevIcon);
+
+    const slideCount = document.createElement('span');
+    slideCount.style.cssText = `
+      font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;
+      color:#2d4a6e;letter-spacing:.03em;text-align:center;flex:1;
+    `;
+
+    const btnNext = document.createElement('button');
+    btnNext.style.cssText = `
+      width:31px;height:31px;border-radius:50%;border:none;
+      background:transparent;
+      cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      padding:0;
+      transition:opacity 0.15s, background 0.15s;
+      flex-shrink:0;
+    `;
+    const nextIcon = document.createElement('img');
+    nextIcon.src = '/tutorialviewer/next.svg';
+    nextIcon.style.cssText = `width:18.5px;height:21.37px;display:block;`;
+    btnNext.appendChild(nextIcon);
+
+    pill.append(btnPrev, slideCount, btnNext);
+
+    // Nút vào phòng (slide cuối): background là enter.svg, size 160x39, bo tròn 24.5
+    const btnEnter = document.createElement('button');
+    btnEnter.style.cssText = `
+      width:160px;height:39px;border-radius:24.5px;border:none;
+      background:url('/tutorialviewer/enter.svg') center/cover no-repeat;
+      cursor:${replay ? 'pointer' : 'not-allowed'};
+      padding:0;
+      display:none;
+      opacity:${replay ? '1' : '0.45'};
+      pointer-events:${replay ? 'auto' : 'none'};
+    `;
+    if (!replay) this._tutorialEnterBtn = btnEnter;
+
+    const render = () => {
+      img.src = SLIDES[current];
+      slideCount.textContent = `${current + 1} / ${TOTAL}`;
+      btnPrev.style.opacity = current === 0 ? '0.35' : '1';
+      btnPrev.style.pointerEvents = current === 0 ? 'none' : 'auto';
+
+      if (current === TOTAL - 1) {
+        // Slide cuối: hiện nút enter phía trên, pill vẫn hiển thị bên dưới
+        btnEnter.style.display = 'flex';
+        btnNext.style.opacity = '0.35';
+        btnNext.style.pointerEvents = 'none';
+      } else {
+        btnEnter.style.display = 'none';
+        btnNext.style.opacity = '1';
+        btnNext.style.pointerEvents = 'auto';
+      }
+    };
+
+    const close = () => {
+      overlay.remove();
+      if (!localStorage.getItem('gallery_visited')) {
+        setTimeout(() => {
+          document.getElementById('help-overlay')?.classList.add('open');
+          localStorage.setItem('gallery_visited', '1');
+        }, 800);
+      }
+    };
+
+    btnPrev.addEventListener('click', () => { if (current > 0) { current--; render(); } });
+    btnNext.addEventListener('click', () => { if (current < TOTAL - 1) { current++; render(); } });
+    btnEnter.addEventListener('click', () => { close(); });
+
+    nav.append(btnEnter, pill);
+    slideWrap.append(img, nav);
+
+    const loadingWrap = document.createElement('div');
+    loadingWrap.style.cssText = `width:803px;max-width:95vw;${replay ? 'display:none;' : ''}`;
+    const loadingBarBg = document.createElement('div');
+    loadingBarBg.style.cssText = `height:3px;background:rgba(212,197,169,0.1);border-radius:2px;overflow:hidden;`;
+    const loadingBarFill = document.createElement('div');
+    loadingBarFill.id = 'tutorial-loading-fill';
+    loadingBarFill.style.cssText = `height:100%;width:0%;background:linear-gradient(90deg,#a07840,#c8a96e);border-radius:2px;transition:width 0.25s ease;`;
+    loadingBarBg.appendChild(loadingBarFill);
+    loadingWrap.appendChild(loadingBarBg);
+
+    if (replay) {
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
     }
+
+    overlay.append(slideWrap, loadingWrap);
+    document.body.appendChild(overlay);
+
+    render();
+  }
+
+  _enableTutorialEnter() {
+    const btn = this._tutorialEnterBtn;
+    if (!btn) return;
+    this._tutorialEnterBtn = null;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+    btn.style.pointerEvents = 'auto';
   }
 
   _buildLogo() {
@@ -474,11 +649,13 @@ export class ViewerScene extends BaseScene {
       #chat-fake-input::placeholder { color:#888; }
       #chat-label { font-family:var(--font-mono); font-size:8px; letter-spacing:.14em; color:var(--gold-dim); text-transform:uppercase; }
       #chat-unread {
+        position:absolute; top:-4px; right:-4px;
         background:var(--danger); color:#fff;
         font-family:var(--font-mono); font-size:7px;
-        border-radius:10px; padding:1px 5px; display:none;
+        border-radius:50%; width:14px; height:14px;
+        display:none; align-items:center; justify-content:center;
       }
-      #chat-unread.show { display:inline; }
+      #chat-unread.show { display:flex; }
 
       #chat-box {
         width:260px; background:linear-gradient(135deg, rgba(118,170,171,1), rgba(35,92,208,0.5));
@@ -892,7 +1069,7 @@ export class ViewerScene extends BaseScene {
           </div>
         </div>
         <div id="chat-toggle-btn">
-          <img src="/icons/chat-bar.svg" style="width:220px;height:44px;display:block;pointer-events:none">
+          <img src="/icons/chat-bar.svg" style="height:41px;display:block;pointer-events:none">
           <span id="chat-unread"></span>
         </div>
       </div>
@@ -1051,7 +1228,7 @@ export class ViewerScene extends BaseScene {
     });
 
     document.getElementById('btn-help').addEventListener('click', () => {
-      document.getElementById('help-overlay').classList.toggle('open');
+      this._showTutorialSlides(true);
     });
 
     document.getElementById('minimap-expand-btn').addEventListener('click', () => {
@@ -1907,7 +2084,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
         this._setLoadingProgress(80 + Math.round(_modDone / _modTotal * 15), `Đang tải mô hình 3D... ${_modDone}/${_modTotal}`);
       };
       const modelTasks = sd.models.filter(m => m.storageUrl).map(m => {
-        const ext = (m.name||m.storageUrl).split('.').pop().toLowerCase();
+        const ext = m.storageUrl.split('.').pop().toLowerCase();
         const pos = new THREE.Vector3(m.x, m.y, m.z);
         const sv  = m.sx ? new THREE.Vector3(m.sx, m.sy, m.sz) : null;
         const meta = m.meta || {};
@@ -1915,6 +2092,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
           if (sv) obj.scale.copy(sv);
           else { const box = new THREE.Box3().setFromObject(obj); const sz = box.getSize(new THREE.Vector3()); obj.scale.setScalar(1.2/Math.max(sz.x,sz.y,sz.z)); }
           obj.position.copy(pos); obj.position.y = .88;
+          if (m.ry) obj.rotation.y = m.ry;
           this.threeScene.add(obj);
           const pl = new THREE.PointLight(0xfff0dd, 1.5, 4); pl.position.set(pos.x, pos.y+2, pos.z); this.threeScene.add(pl);
           this._makePedestal(new THREE.Vector3(pos.x, 0, pos.z));
@@ -2043,10 +2221,10 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       const fy = this.floorY;
       const disc = new THREE.Mesh(
         new THREE.CircleGeometry(0.55, 32),
-        new THREE.MeshBasicMaterial({ map: this._makeWpTex(idx + 1, false), transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })
+        new THREE.MeshBasicMaterial({ map: this._makeWpTex(idx + 1, false), transparent: true, depthWrite: false, depthTest: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })
       );
       disc.rotation.x = -Math.PI / 2;
-      disc.position.set(wp.x, fy + 0.012, wp.z);
+      disc.position.set(wp.x, fy + 0.08, wp.z);
       disc.userData.waypointIdx = idx;
       this.threeScene.add(disc);
 
@@ -2054,12 +2232,12 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       if (idx > 0) {
         const prev = waypoints[idx - 1];
         const pts = [
-          new THREE.Vector3(prev.x, fy + 0.015, prev.z),
-          new THREE.Vector3(wp.x,   fy + 0.015, wp.z)
+          new THREE.Vector3(prev.x, fy + 0.08, prev.z),
+          new THREE.Vector3(wp.x,   fy + 0.08, wp.z)
         ];
         line = new THREE.Line(
           new THREE.BufferGeometry().setFromPoints(pts),
-          new THREE.LineBasicMaterial({ color: 0xc8a96e, transparent: true, opacity: 0.55 })
+          new THREE.LineBasicMaterial({ color: 0xc8a96e, transparent: true, opacity: 0.55, depthTest: true })
         );
         this.threeScene.add(line);
       }

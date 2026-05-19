@@ -5,13 +5,13 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { supabase, STORAGE_BUCKET } from '../utils/supabase.js';
 import { BaseScene } from './BaseScene.js';
 import { TextEditor } from './TextEditor.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { MissionBuilder } from './MissionBuilder.js';
 
 export class StudioScene extends BaseScene {
   async init() {
     /* ── Route guard: chỉ Artist mới vào được ── */
     await this.manager.auth.ready();
-    console.log('user_metadata:', JSON.stringify(this.manager.auth.user?.user_metadata));
     if (this._disposed) return;
 
     if (!this.manager.auth.isLoggedIn) {
@@ -25,7 +25,13 @@ export class StudioScene extends BaseScene {
     }
 
     /* ── Scene ── */
-    this.threeScene.background = new THREE.Color(0x87ceeb);
+    new RGBELoader().load('/hdr/kloofendal_48d_partly_cloudy_puresky_4k.hdr', (texture) => {
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      const envMap = pmrem.fromEquirectangular(texture).texture;
+      this.threeScene.background = envMap;
+      texture.dispose();
+      pmrem.dispose();
+    });
 
     /* ── Đèn (giá trị mặc định) ── */
     this.ambLight  = new THREE.AmbientLight(0xffffff, 1.2);
@@ -54,7 +60,10 @@ export class StudioScene extends BaseScene {
     this.selectedSource = null;
     this.selectedItem   = null;
     this.frameMat       = new THREE.MeshLambertMaterial({ color: 0x182D58 });
+    this.dracoLoader    = new DRACOLoader();
+    this.dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
     this.gltfLoader     = new GLTFLoader();
+    this.gltfLoader.setDRACOLoader(this.dracoLoader);
     this.objLoader      = new OBJLoader();
     this.mode           = 'select';
     this._undoStack     = [];
@@ -572,7 +581,6 @@ export class StudioScene extends BaseScene {
       <div id="studio-room-name-wrap">
         <img id="studio-room-name-bg" src="/studio/roomname.svg" alt="">
         <input id="studio-room-name-input" type="text" placeholder="Tên căn phòng này là gì vậy?" maxlength="60" style="color:#FFFFFF;">      </div>
-          <span id="studio-artist-name" style="color:rgba(255,255,255,0.6);font-family:monospace;font-size:11px;letter-spacing:.08em;align-self:center;white-space:nowrap;"></span>
         <div id="studio-draft-badge" title="Trạng thái Draft">
         <img src="/studio/draft.svg" alt="Draft">
       </div>
@@ -607,14 +615,6 @@ roomNameInput.addEventListener('blur', function() {
     }
 });
     if (this.manager.currentRoom?.name) {
-      const artistNameEl = document.getElementById('studio-artist-name');
-      if (artistNameEl) {
-        const name = this.manager.auth.user?.user_metadata?.full_name
-          || this.manager.auth.user?.user_metadata?.display_name
-          || this.manager.auth.user?.user_metadata?.name
-          || '';
-        artistNameEl.textContent = name ? '— ' + name : '';
-      }
     roomNameInput.value = this.manager.currentRoom?.name || '';
     }
 
@@ -1368,6 +1368,7 @@ _buildStudioLeftBtns() {
       .rp-decor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
       .rp-decor-item { aspect-ratio: 1; border-radius: 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-size: 20px; }
       .rp-decor-item:hover { background: rgba(104,229,227,0.12); border-color: rgba(104,229,227,0.4); }
+      #rp-decor-grid .rp-tpl-card { width: auto; height: auto; aspect-ratio: 1; padding: 6px; gap: 3px; border-radius: 8px; background-size: cover; }
       /* ── Path (bước 04) ── */
       .rp-wp-item { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px 8px; cursor: pointer; transition: all 0.2s; }
       .rp-wp-item:hover { background: rgba(104,229,227,0.08); border-color: rgba(104,229,227,0.3); }
@@ -1638,8 +1639,8 @@ _buildStudioLeftBtns() {
       },
       // Bước 03: Chỉnh sửa phòng
       {
-        subtabs: ['Âm thanh', 'Đồ decor', 'Ánh sáng', 'Path đường', 'Tường'],
-        panes: ['pane-music', 'pane-decor', 'pane-light', 'pane-path', 'pane-wall'],
+        subtabs: ['Âm thanh', 'Đồ decor', 'Ánh sáng', 'Path đường', 'Tường', 'HDR'],
+        panes: ['pane-music', 'pane-decor', 'pane-light', 'pane-path', 'pane-wall', 'pane-hdr'],
       },
       // Bước 04: Thêm câu đố
       {
@@ -1679,6 +1680,8 @@ _buildStudioLeftBtns() {
     'Đồ decor': 'decor.svg',
     'Ánh sáng': 'light.svg',
     'Path đường': 'path.svg',
+    'Tường': 'wall.svg',
+    'HDR': 'view.svg'
   };
 
   if (svgMap[label]) {
@@ -2209,7 +2212,14 @@ async _handleMusicUpload(e) {
 
       // ── Bước 03: Tường nội thất ──
       case 'pane-wall':
-        pane.style.paddingTop = '10px';
+        pane.style.background = "linear-gradient(135deg, rgba(18,47,106,1), rgba(118,170,171,1))";
+        pane.style.fontFamily = "'Montserrat', sans-serif";
+        pane.style.color = "#FFFFFF";
+        pane.style.padding = '20px';
+        pane.style.boxSizing = 'border-box';
+        pane.style.width = '418px';
+        pane.style.minHeight = '409.81px';
+        pane.style.borderRadius = '17px';
         {
           // Tiêu đề + mô tả
           const title = document.createElement('div');
@@ -2539,6 +2549,24 @@ async _handleMusicUpload(e) {
 
         pane.appendChild(decorGrid);
         this._loadRpDecorList(decorGrid);
+        break;
+
+      // ── Bước 03: HDR cảnh ngoài ──
+      case 'pane-hdr':
+        pane.style.backgroundSize = '100% 100%';
+        pane.style.width = '418px';
+        pane.style.minHeight = '409.81px';
+        pane.style.borderRadius = '17px';
+        pane.style.padding = '20px';
+        pane.style.boxSizing = 'border-box';
+        pane.innerHTML = `<div class="rp-section-title">Cảnh ngoài (HDR)</div>`;
+        {
+          const hdrGrid = document.createElement('div');
+          hdrGrid.id = 'rp-hdr-grid';
+          hdrGrid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;';
+          pane.appendChild(hdrGrid);
+          this._loadRpHDRList(hdrGrid);
+        }
         break;
 
       // ── Bước 02: Đèn ──
@@ -3501,7 +3529,6 @@ async _handleMusicUpload(e) {
         const thumbUrl = `/decor/${thumbFile}`;
         const card = document.createElement('div');
         card.className = 'rp-tpl-card';
-        card.style.cssText = 'width:100%;height:auto;aspect-ratio:1/1;flex-shrink:0;';
         card.innerHTML = `
           <span class="rp-tpl-name">${d.name}</span>
           <img class="rp-tpl-thumb" src="${thumbUrl}" alt="${d.name}" onerror="this.style.opacity='0.15';">
@@ -3514,6 +3541,39 @@ async _handleMusicUpload(e) {
         container.appendChild(card);
       });
     } catch { container.innerHTML = '<div style="color:rgba(255,255,255,0.2);font-size:9px;">Không load được manifest</div>'; }
+  }
+
+  async _loadRpHDRList(container) {
+    try {
+      const res = await fetch('/hdr/manifest.json');
+      const hdrs = await res.json();
+      container.innerHTML = '';
+      hdrs.forEach(h => {
+        const thumbUrl = `/hdr/${h.thumb || h.file.replace(/\.hdr$/i, '.jpg')}`;
+        const card = document.createElement('div');
+        card.className = 'rp-tpl-card';
+        card.innerHTML = `
+          <span class="rp-tpl-name">${h.name}</span>
+          <img class="rp-tpl-thumb" src="${thumbUrl}" alt="${h.name}" onerror="this.style.opacity='0.15';">
+        `;
+        card.addEventListener('click', () => {
+          container.querySelectorAll('.rp-tpl-card').forEach(c => c.classList.remove('active'));
+          card.classList.add('active');
+          this._applyHDR(`/hdr/${h.file}`);
+        });
+        container.appendChild(card);
+      });
+    } catch { container.innerHTML = '<div style="color:rgba(255,255,255,0.2);font-size:9px;">Không load được manifest</div>'; }
+  }
+
+  _applyHDR(path) {
+    new RGBELoader().load(path, (texture) => {
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      const envMap = pmrem.fromEquirectangular(texture).texture;
+      this.threeScene.background = envMap;
+      texture.dispose();
+      pmrem.dispose();
+    });
   }
 
   /* ══════════════════════════════════════════════ HUD ══════════════════════════════════════════════ */
@@ -4752,10 +4812,18 @@ async _handleMusicUpload(e) {
   }
 
   async saveGallery() {
+    if (this._disposed) return;
     if (!this._isRoomNameValid()) return;
+
+    if (this._saving) {
+      this._pendingSave = true;
+      return;
+    }
+    this._saving = true;
+
     const room = this.manager.currentRoom;
-    const btn = document.getElementById('btn-save');
-    if (btn) btn.textContent = '⏳ Saving...';
+    const btn = document.getElementById('btn-studio-save');
+    if (btn) btn.style.opacity = '0.5';
 
     const galleryData = {
       _meta: {
@@ -4794,6 +4862,7 @@ async _handleMusicUpload(e) {
         x: m.object.position.x,
         y: m.object.position.y,
         z: m.object.position.z,
+        ry: m.object.rotation.y,
         sx: m.object.scale.x,
         sy: m.object.scale.y,
         sz: m.object.scale.z,
@@ -4826,21 +4895,29 @@ async _handleMusicUpload(e) {
       uploadedSources: this._buildUploadedSourcesSaveData(),
     };
 
-    console.log('[Save] uploadedSources count:', galleryData.uploadedSources?.length, galleryData.uploadedSources);
-    const { error } = await supabase
-      .from('gallery')
-      .upsert({ name: room.id, scene_data: galleryData }, { onConflict: 'name' });
+    console.log('[Save] models count:', galleryData.models?.length, 'uploadedSources:', galleryData.uploadedSources?.length);
+    try {
+      const { error } = await supabase
+        .from('gallery')
+        .upsert({ name: room.id, scene_data: galleryData }, { onConflict: 'name' });
 
-    if (this._missionData?.some(d => d?.mission_type)) {
-      await this.missionBuilder.saveMissionsSilent();
-    }
+      if (this._missionData?.some(d => d?.mission_type)) {
+        await this.missionBuilder.saveMissionsSilent();
+      }
 
-    if (btn) btn.textContent = '💾 Save';
-    if (error) {
-      console.error('Upsert error:', error);
-      this.toast('Lưu thất bại: ' + error.message, 'error');
-    } else {
-      this.toast('Đã lưu ✓', 'success');
+      if (btn) btn.style.opacity = '1';
+      if (error) {
+        console.error('Upsert error:', error);
+        this.toast('Lưu thất bại: ' + error.message, 'error');
+      } else {
+        this.toast('Đã lưu ✓', 'success');
+      }
+    } finally {
+      this._saving = false;
+      if (this._pendingSave) {
+        this._pendingSave = false;
+        this._triggerAutosave();
+      }
     }
   }
 
@@ -4850,7 +4927,7 @@ async _handleMusicUpload(e) {
     const { data, error } = await supabase.from('gallery').select('*').eq('name', roomId).limit(1);
     if (error || !data || !data.length) return;
     const sd = data[0].scene_data;
-    console.log('[Load] uploadedSources from DB:', sd.uploadedSources?.length, sd.uploadedSources);
+    console.log('[Load] models:', sd.models?.length, 'uploadedSources:', sd.uploadedSources?.length);
 
     // Khôi phục metadata phòng
     const room = this.manager.currentRoom;
@@ -4940,19 +5017,21 @@ async _handleMusicUpload(e) {
       }
     }
     if (sd.models?.length) {
-      for (const m of sd.models) {
-        if (!m.storageUrl) continue;
-        const ext = (m.name || m.storageUrl).split('.').pop().toLowerCase();
+      const modelTasks = sd.models.filter(m => m.storageUrl).map(m => new Promise(resolve => {
+        const ext = m.storageUrl.split('.').pop().toLowerCase();
         const pos = new THREE.Vector3(m.x, m.y, m.z);
         const sv  = m.sx ? new THREE.Vector3(m.sx, m.sy, m.sz) : null;
-        await new Promise(resolve => {
-          const onLoad = obj => { this.place3DModel(obj, pos, m.storageUrl, m.name || null, m.meta || {}, sv); resolve(); };
-          const onErr  = () => resolve();
-          if (ext === 'glb' || ext === 'gltf') this.gltfLoader.load(m.storageUrl, g => onLoad(g.scene), null, onErr);
-          else if (ext === 'obj') this.objLoader.load(m.storageUrl, obj => { obj.traverse(c => { if (c.isMesh) c.material = new THREE.MeshLambertMaterial({ color: 0xccbbaa }); }); onLoad(obj); }, null, onErr);
-          else resolve();
-        });
-      }
+        const onLoad = obj => {
+          const placed = this.place3DModel(obj, pos, m.storageUrl, m.name || null, m.meta || {}, sv);
+          if (placed && m.ry) placed.object.rotation.y = m.ry;
+          resolve();
+        };
+        const onErr = () => resolve();
+        if (ext === 'glb' || ext === 'gltf') this.gltfLoader.load(m.storageUrl, g => onLoad(g.scene), null, onErr);
+        else if (ext === 'obj') this.objLoader.load(m.storageUrl, obj => { obj.traverse(c => { if (c.isMesh) c.material = new THREE.MeshLambertMaterial({ color: 0xccbbaa }); }); onLoad(obj); }, null, onErr);
+        else resolve();
+      }));
+      await Promise.all(modelTasks);
     }
     if (sd.waypoints?.length) {
       this.clearWaypoints();
@@ -5602,6 +5681,9 @@ async _handleMusicUpload(e) {
   }
 
   dispose() {
+    clearTimeout(this._autosaveTimer);
+    this._autosaveTimer = null;
+
     if (this.backgroundMusic) {
       this.backgroundMusic.pause();
       this.backgroundMusic.src = '';

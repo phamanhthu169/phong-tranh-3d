@@ -18,7 +18,7 @@ export class MissionBuilder {
 
   // ─── Style constants ─────────────────────────────────────────────────────────
   _st() {
-    const IS = 'width:100%;background:rgba(255,255,255,0.06);border:.5px solid rgba(255,255,255,0.2);border-radius:6px;color:#fff;font-family:"Montserrat",sans-serif;font-size:11px;padding:7px 10px;outline:none;box-sizing:border-box;';
+    const IS = 'width:100%;background:rgba(255, 255, 255, 0.08);border:.5px solid rgba(255,255,255,0.2);border-radius:6px;color:#fff;font-family:"Montserrat",sans-serif;font-size:14px;padding:7px 10px;outline:none;box-sizing:border-box;';
     return { IS, TS: IS + 'min-height:58px;resize:vertical;' };
   }
 
@@ -28,6 +28,8 @@ export class MissionBuilder {
     this._IS = IS;
     this._TS = TS;
     pane.style.cssText += 'padding:16px 14px 14px;gap:10px;';
+  pane.style.fontFamily = "'Montserrat', sans-serif";
+  pane.style.color = '#FFFFFF';
 
     if (!this._s._missionData) this._s._missionData = [];
 
@@ -35,7 +37,7 @@ export class MissionBuilder {
     const top = document.createElement('div');
     top.innerHTML = `
       <div class="rp-section-title">🗝 Rương câu đố</div>
-      <div style="font-size:10px;color:rgba(255,255,255,0.4);line-height:1.6;margin-bottom:4px;">
+      <div style="font-size:13px;color:rgba(255,255,255,1);line-height:1.6;margin-bottom:4px;">
         Đặt <b style="color:#c8a96e">ít nhất 1 rương</b> câu đố trong phòng. Khách phải giải hết tất cả rương để hoàn thành phòng tranh.
       </div>
     `;
@@ -48,7 +50,7 @@ export class MissionBuilder {
 
     // Add chest button
     const addBtn = document.createElement('button');
-    addBtn.style.cssText = 'width:100%;padding:8px;background:rgba(200,169,110,0.07);border:.5px dashed rgba(200,169,110,0.4);border-radius:8px;color:#c8a96e;font-family:"Montserrat",sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:background .2s;';
+    addBtn.style.cssText = 'width:100%;padding:8px;background:rgba(200, 168, 110, 0.27);border:.5px dashed rgba(200,169,110,0.4);border-radius:8px;color:rgb(255, 215, 83);font-family:"Montserrat",sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s;';
     addBtn.textContent = '+ Thêm rương câu đố';
     addBtn.addEventListener('mouseenter', () => addBtn.style.background = 'rgba(200,169,110,0.14)');
     addBtn.addEventListener('mouseleave', () => addBtn.style.background = 'rgba(200,169,110,0.07)');
@@ -72,15 +74,15 @@ export class MissionBuilder {
     const msgWrap = document.createElement('div');
     msgWrap.style.cssText = 'display:flex;flex-direction:column;gap:5px;';
     msgWrap.innerHTML = `
-      <div class="rp-section-title" style="font-size:12px;">💌 Lời nhắn khi hoàn thành <span style="color:#f87171;font-size:10px;">*bắt buộc</span></div>
-      <div style="font-size:10px;color:rgba(255,255,255,0.35);">Hiện ra cho khách khi giải xong tất cả rương câu đố</div>
+      <div class="rp-section-title" style="font-size:15px;">💌 Lời nhắn khi hoàn thành <span style="color:#f87171;font-size:13px;">*bắt buộc</span></div>
+      <div style="font-size:13px;color:rgba(255,255,255,1);">Hiện ra cho khách khi giải xong tất cả rương câu đố</div>
       <textarea id="ms-completion-msg" style="${TS}" placeholder="Viết lời nhắn cho khách..."></textarea>
     `;
     pane.appendChild(msgWrap);
 
     // Save button
     const saveBtn = document.createElement('button');
-    saveBtn.style.cssText = 'width:100%;padding:10px;background:rgba(104,229,227,0.12);border:.5px solid rgba(104,229,227,0.45);border-radius:8px;color:#68e5e3;font-family:"Montserrat",sans-serif;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.04em;transition:background .2s;';
+    saveBtn.style.cssText = 'width:100%;padding:10px;background:rgba(104,229,227,0.12);border:.5px solid rgba(104,229,227,0.45);border-radius:8px;color:#68e5e3;font-family:"Montserrat",sans-serif;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.04em;transition:background .2s;';
     saveBtn.textContent = '💾 Lưu';
     saveBtn.addEventListener('mouseenter', () => saveBtn.style.background = 'rgba(104,229,227,0.22)');
     saveBtn.addEventListener('mouseleave', () => saveBtn.style.background = 'rgba(104,229,227,0.12)');
@@ -98,7 +100,7 @@ export class MissionBuilder {
     const chests = this._s._missionData.filter(Boolean);
     if (!chests.length) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.28);text-align:center;padding:12px 0;border:.5px dashed rgba(255,255,255,0.1);border-radius:8px;';
+      empty.style.cssText = 'font-size:13px;color:rgba(255,255,255,1);text-align:center;padding:12px 0;border:.5px dashed rgba(255,255,255,0.1);border-radius:8px;';
       empty.textContent = 'Chưa có rương nào. Thêm ít nhất 1 rương câu đố.';
       this._chestListEl.appendChild(empty);
       return;
@@ -117,21 +119,21 @@ export class MissionBuilder {
     const TS   = this._TS;
 
     const wrap = document.createElement('div');
-    wrap.style.cssText = 'background:rgba(255,255,255,0.04);border:.5px solid rgba(200,169,110,0.2);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;';
+    wrap.style.cssText = 'background:linear-gradient(135deg, rgba(18,47,106,1), rgba(118,170,171,1));border:.5px solid rgba(200,169,110,0.2);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;';
 
     // Header: number badge + title + delete
     const hdr = document.createElement('div');
     hdr.style.cssText = 'display:flex;align-items:center;gap:8px;';
     hdr.innerHTML = `
-      <div style="width:22px;height:22px;background:rgba(200,169,110,0.15);border:.5px solid rgba(200,169,110,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#c8a96e;font-size:11px;font-weight:700;font-family:'Montserrat',sans-serif;flex-shrink:0;">${idx + 1}</div>
-      <span style="color:#fff;font-size:12px;font-weight:600;font-family:'Montserrat',sans-serif;flex:1;">🗝 Rương ${idx + 1}</span>
+      <div style="width:22px;height:22px;background:rgba(200,169,110,0.15);border:.5px solid rgba(200,169,110,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#c8a96e;font-size:14px;font-weight:700;font-family:'Montserrat',sans-serif;flex-shrink:0;">${idx + 1}</div>
+      <span style="color:#fff;font-size:15px;font-weight:600;font-family:'Montserrat',sans-serif;flex:1;">🗝 Rương ${idx + 1}</span>
     `;
 
     // Only show delete if more than 1 chest
     if (s._missionData.filter(Boolean).length > 1) {
       const delBtn = document.createElement('button');
       delBtn.textContent = '✕';
-      delBtn.style.cssText = 'padding:2px 7px;background:rgba(255,80,80,0.1);border:.5px solid rgba(255,80,80,0.3);border-radius:4px;color:rgba(255,120,120,0.9);font-size:10px;cursor:pointer;flex-shrink:0;';
+      delBtn.style.cssText = 'padding:2px 7px;background:rgba(255,80,80,0.1);border:.5px solid rgba(255,80,80,0.3);border-radius:4px;color:rgba(255,120,120,0.9);font-size:13px;cursor:pointer;flex-shrink:0;';
       delBtn.addEventListener('click', () => {
         s._missionData.splice(idx, 1);
         this._reloadAllEggs();
@@ -142,7 +144,7 @@ export class MissionBuilder {
     wrap.appendChild(hdr);
 
     const note = document.createElement('div');
-    note.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.38);line-height:1.5;';
+    note.style.cssText = 'font-size:13px;color:rgba(255,255,255,1);line-height:1.5;';
     note.textContent = 'Đặt rương vào phòng — khách tìm và giải đố để hoàn thành nhiệm vụ này.';
     wrap.appendChild(note);
 
@@ -172,11 +174,11 @@ export class MissionBuilder {
     // Place button + status
     const chestPos = data.easter_eggs?.[0] || {};
     const placeBtn = document.createElement('button');
-    placeBtn.style.cssText = 'width:100%;padding:6px;background:rgba(200,169,110,0.08);border:.5px solid rgba(200,169,110,0.35);border-radius:6px;color:#c8a96e;font-family:"Montserrat",sans-serif;font-size:10px;cursor:pointer;';
+    placeBtn.style.cssText = 'width:100%;padding:6px;background:rgba(200,169,110,0.08);border:.5px solid rgba(200,169,110,0.35);border-radius:6px;color:#c8a96e;font-family:"Montserrat",sans-serif;font-size:13px;cursor:pointer;';
     placeBtn.textContent = '📍 Click vào phòng để đặt rương';
 
     const placeStatus = document.createElement('div');
-    placeStatus.style.cssText = 'font-size:9px;color:rgba(200,169,110,0.55);text-align:center;';
+    placeStatus.style.cssText = 'font-size:12px;color:rgb(200, 168, 110);text-align:center;';
     placeStatus.textContent = (chestPos.pos_x !== null && chestPos.pos_x !== undefined)
       ? `✓ (${(+chestPos.pos_x).toFixed(1)}, ${(+chestPos.pos_z).toFixed(1)})` : 'Chưa đặt vị trí';
 
@@ -192,7 +194,7 @@ export class MissionBuilder {
     wrap.append(placeBtn, placeStatus);
 
     const toolbarHint = document.createElement('div');
-    toolbarHint.style.cssText = 'font-size:9px;color:rgba(104,229,227,0.5);line-height:1.5;text-align:center;';
+    toolbarHint.style.cssText = 'font-size:12px;color:rgba(104,229,227,0.5);line-height:1.5;text-align:center;';
     toolbarHint.textContent = 'Chọn rương trong phòng → dùng toolbar để di chuyển / xoay / phóng to';
     wrap.appendChild(toolbarHint);
 
