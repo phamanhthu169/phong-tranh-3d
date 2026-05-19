@@ -1200,7 +1200,7 @@ export class ViewerScene extends BaseScene {
     });
 
     document.getElementById('btn-help').addEventListener('click', () => {
-      document.getElementById('help-overlay').classList.toggle('open');
+      this._showTutorialSlides();
     });
 
     document.getElementById('minimap-expand-btn').addEventListener('click', () => {
