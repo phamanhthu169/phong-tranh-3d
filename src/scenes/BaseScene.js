@@ -97,17 +97,14 @@ export class BaseScene {
   }
 
   _setLoadingProgress(pct, label) {
+    if (!this._loadingOverlay) return;
     const clamped = Math.min(100, Math.max(0, Math.round(pct)));
-    if (this._loadingOverlay) {
-      const fill = this._loadingOverlay.querySelector('#rl-bar-fill');
-      const pctEl = this._loadingOverlay.querySelector('#rl-pct-label');
-      const textEl = this._loadingOverlay.querySelector('#rl-status-text');
-      if (fill) fill.style.width = clamped + '%';
-      if (pctEl) pctEl.textContent = clamped + '%';
-      if (textEl && label) textEl.textContent = label;
-    }
-    const tutFill = document.getElementById('tutorial-loading-fill');
-    if (tutFill) tutFill.style.width = clamped + '%';
+    const fill = this._loadingOverlay.querySelector('#rl-bar-fill');
+    const pctEl = this._loadingOverlay.querySelector('#rl-pct-label');
+    const textEl = this._loadingOverlay.querySelector('#rl-status-text');
+    if (fill) fill.style.width = clamped + '%';
+    if (pctEl) pctEl.textContent = clamped + '%';
+    if (textEl && label) textEl.textContent = label;
   }
 
   _hideLoadingScreen() {

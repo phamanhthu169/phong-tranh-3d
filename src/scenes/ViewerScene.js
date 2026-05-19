@@ -170,7 +170,6 @@ export class ViewerScene extends BaseScene {
     });
 
     this._showLoadingScreen();
-    this._showTutorialSlides();
     await this._loadRoom();
     if (this._disposed) return;
     this._loadCharacter();
@@ -229,10 +228,10 @@ export class ViewerScene extends BaseScene {
       });
     }
 
-    this._enableTutorialEnter();
+    this._showTutorialSlides();
   }
 
-  _showTutorialSlides(replay = false) {
+  _showTutorialSlides() {
     const SLIDES = [
       '/tutorialviewer/slide1.svg',
       '/tutorialviewer/slide2.svg',
@@ -246,9 +245,9 @@ export class ViewerScene extends BaseScene {
     const overlay = document.createElement('div');
     overlay.id = 'tutorial-overlay';
     overlay.style.cssText = `
-      position:fixed;inset:0;z-index:10000;
+      position:fixed;inset:0;z-index:9999;
       background:rgba(0,0,0,0.55);
-      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+      display:flex;align-items:center;justify-content:center;
     `;
 
     // Wrapper bao quanh ảnh, dùng để đặt nav bên trong (position relative)
@@ -291,7 +290,7 @@ export class ViewerScene extends BaseScene {
     const btnPrev = document.createElement('button');
     btnPrev.style.cssText = `
       width:31px;height:31px;border-radius:50%;border:none;
-      background:transparent;
+      background:rgba(255,255,255,0.55);
       cursor:pointer;
       display:flex;align-items:center;justify-content:center;
       padding:0;
@@ -312,7 +311,7 @@ export class ViewerScene extends BaseScene {
     const btnNext = document.createElement('button');
     btnNext.style.cssText = `
       width:31px;height:31px;border-radius:50%;border:none;
-      background:transparent;
+      background:rgba(255,255,255,0.55);
       cursor:pointer;
       display:flex;align-items:center;justify-content:center;
       padding:0;
@@ -331,13 +330,10 @@ export class ViewerScene extends BaseScene {
     btnEnter.style.cssText = `
       width:160px;height:39px;border-radius:24.5px;border:none;
       background:url('/tutorialviewer/enter.svg') center/cover no-repeat;
-      cursor:${replay ? 'pointer' : 'not-allowed'};
+      cursor:pointer;
       padding:0;
       display:none;
-      opacity:${replay ? '1' : '0.45'};
-      pointer-events:${replay ? 'auto' : 'none'};
     `;
-    if (!replay) this._tutorialEnterBtn = btnEnter;
 
     const render = () => {
       img.src = SLIDES[current];
@@ -373,34 +369,10 @@ export class ViewerScene extends BaseScene {
 
     nav.append(btnEnter, pill);
     slideWrap.append(img, nav);
-
-    const loadingWrap = document.createElement('div');
-    loadingWrap.style.cssText = `width:803px;max-width:95vw;${replay ? 'display:none;' : ''}`;
-    const loadingBarBg = document.createElement('div');
-    loadingBarBg.style.cssText = `height:3px;background:rgba(212,197,169,0.1);border-radius:2px;overflow:hidden;`;
-    const loadingBarFill = document.createElement('div');
-    loadingBarFill.id = 'tutorial-loading-fill';
-    loadingBarFill.style.cssText = `height:100%;width:0%;background:linear-gradient(90deg,#a07840,#c8a96e);border-radius:2px;transition:width 0.25s ease;`;
-    loadingBarBg.appendChild(loadingBarFill);
-    loadingWrap.appendChild(loadingBarBg);
-
-    if (replay) {
-      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-    }
-
-    overlay.append(slideWrap, loadingWrap);
+    overlay.appendChild(slideWrap);
     document.body.appendChild(overlay);
 
     render();
-  }
-
-  _enableTutorialEnter() {
-    const btn = this._tutorialEnterBtn;
-    if (!btn) return;
-    this._tutorialEnterBtn = null;
-    btn.style.opacity = '1';
-    btn.style.cursor = 'pointer';
-    btn.style.pointerEvents = 'auto';
   }
 
   _buildLogo() {
@@ -1228,7 +1200,7 @@ export class ViewerScene extends BaseScene {
     });
 
     document.getElementById('btn-help').addEventListener('click', () => {
-      this._showTutorialSlides(true);
+      document.getElementById('help-overlay').classList.toggle('open');
     });
 
     document.getElementById('minimap-expand-btn').addEventListener('click', () => {
