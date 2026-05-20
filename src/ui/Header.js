@@ -12,7 +12,7 @@ export class Header {
       left: 0;
       right: 0;
       height: 90px;
-      background: url('/public/header/linear.svg') center/cover no-repeat;
+      background: url('/header/linear.svg') center/cover no-repeat;
       display: flex;
       align-items: center;
       padding: 0 32px;
@@ -24,7 +24,7 @@ export class Header {
 
     // ── Logo ──────────────────────────────────────────────────────────────────
     const logo = document.createElement('img');
-    logo.src = '/public/icons/logo.svg';
+    logo.src = '/icons/logo.svg';
     logo.alt = 'CREATORY';
     logo.style.cssText = 'height: 48px; cursor: pointer; flex-shrink: 0; transition: opacity 0.2s;';
     logo.addEventListener('mouseenter', () => logo.style.opacity = '0.85');
@@ -40,7 +40,7 @@ export class Header {
       gap: 0;
       width: 560px;
       height: 72px;
-      background: url('/public/header/menu.svg') center/560px 72px no-repeat;
+      background: url('/header/menu.svg') center/560px 72px no-repeat;
       flex-shrink: 0;
       margin: 0 auto;
     `;
@@ -78,7 +78,7 @@ export class Header {
     // ── Cart button — cart.svg 54×50 ──────────────────────────────────────────
     this._cartBtn = document.createElement('button');
     this._cartBtn.style.cssText = `
-      background: url('/public/header/cart.svg') center/58px 54px no-repeat;
+      background: url('/header/cart.svg') center/58px 54px no-repeat;
       border: none;
       width: 58px;
       height: 54px;
@@ -315,7 +315,7 @@ export class Header {
       `;
 
       const avatarImg = document.createElement('img');
-      avatarImg.src = '/public/header/avatar.svg';
+      avatarImg.src = '/header/avatar.svg';
       avatarImg.alt = 'Avatar';
       avatarImg.style.cssText = 'width:100%;height:100%;object-fit:cover;';
       avatarCircle.appendChild(avatarImg);
@@ -328,7 +328,7 @@ export class Header {
       // Arrow button
       const arrowBtn = document.createElement('button');
       arrowBtn.style.cssText = `
-        background: url('/public/header/arrow.svg') center/54px 54px no-repeat;
+        background: url('/header/arrow.svg') center/54px 54px no-repeat;
         border: none;
         width: 54px;
         height: 54px;
@@ -355,7 +355,7 @@ export class Header {
       // Login button — login.svg 283×89
       const loginBtn = document.createElement('button');
       loginBtn.style.cssText = `
-        background: url('/public/header/login.svg') center/283px 89px no-repeat;
+        background: url('/header/login.svg') center/283px 89px no-repeat;
         border: none;
         width: 283px;
         height: 89px;

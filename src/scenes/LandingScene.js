@@ -303,7 +303,7 @@ export class LandingScene extends BaseScene {
     const ctaBtn = document.createElement('button');
     ctaBtn.style.cssText = 'background:none;border:none;padding:0;cursor:pointer;align-self:flex-start;transition:transform 0.2s,filter 0.2s;';
     const ctaImg = document.createElement('img');
-    ctaImg.src = '/public/landingpage/cta.svg';
+    ctaImg.src = '/landingpage/cta.svg';
     ctaImg.alt = 'BẮT ĐẦU XÂY PHÒNG NGAY';
     ctaImg.style.cssText = 'height:57px;width:auto;display:block;';
     ctaBtn.appendChild(ctaImg);

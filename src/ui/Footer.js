@@ -37,7 +37,7 @@ export class Footer {
 
     // Logo
     const logo = document.createElement('img');
-    logo.src = '/public/icons/logo.svg';
+    logo.src = '/icons/logo.svg';
     logo.alt = 'CREATORY';
     logo.style.cssText = `
       height: 56px;
@@ -75,14 +75,14 @@ export class Footer {
 
     // Email row
     const emailRow = _makeContactRow(
-      `<img src="/public/footer/mail.svg" width="20" height="20">`,
+      `<img src="/footer/mail.svg" width="20" height="20">`,
       'creatorygallery@gmail.com',
       'mailto:creatorygallery@gmail.com'
     );
 
     // Phone row
     const phoneRow = _makeContactRow(
-      `<img src="/public/footer/phone.svg" width="20" height="20">`,
+      `<img src="/footer/phone.svg" width="20" height="20">`,
       '093 214 27 03 - Ms. Minh Quyên',
       'tel:0932142703'
     );
@@ -97,9 +97,9 @@ export class Footer {
     `;
 
     const socials = [
-      { name: 'Facebook',  href: 'https://facebook.com',  svg: `<img src="/public/footer/facebook.svg" width="22" height="22">` },
-      { name: 'TikTok',    href: 'https://tiktok.com',    svg: `<img src="/public/footer/tiktok.svg"   width="22" height="22">` },
-      { name: 'Instagram', href: 'https://instagram.com', svg: `<img src="/public/footer/insta.svg"    width="22" height="22">` },
+      { name: 'Facebook',  href: 'https://facebook.com',  svg: `<img src="/footer/facebook.svg" width="22" height="22">` },
+      { name: 'TikTok',    href: 'https://tiktok.com',    svg: `<img src="/footer/tiktok.svg"   width="22" height="22">` },
+      { name: 'Instagram', href: 'https://instagram.com', svg: `<img src="/footer/insta.svg"    width="22" height="22">` },
     ];
 
     socials.forEach(({ name, href, svg }) => {
