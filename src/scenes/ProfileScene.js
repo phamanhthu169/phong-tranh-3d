@@ -44,7 +44,7 @@ export class ProfileScene extends BaseScene {
     this._isEditing = false;
 
     // Three.js background
-    this.threeScene.background = new THREE.Color(0xffffff);
+    this.threeScene.background = new THREE.Color(0xF1FAFF);
     this.camera.position.set(0, 0, 5);
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.2));
     this._createParticles();
@@ -76,14 +76,42 @@ export class ProfileScene extends BaseScene {
   // ─── Build toàn bộ UI ────────────────────────────────────────────────────────
   _buildOverlay() {
     const overlay = document.createElement('div');
+    overlay.id = 'pf-overlay';
     overlay.style.cssText = `
       position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;
-      overflow-y:auto;z-index:100;font-family:monospace;
-      padding:40px;box-sizing:border-box;
+      overflow-y:auto;z-index:100;font-family:'Montserrat',sans-serif;
+      padding:40px 100px;box-sizing:border-box;background:#F1FAFF;font-size:17px;
     `;
 
     overlay.innerHTML = `
       <style>
+        /* ── Global: Montserrat + #182D58 cho toàn overlay ── */
+        #pf-overlay, #pf-overlay * {
+          font-family: 'Montserrat', sans-serif !important;
+          color: #182D58;
+        }
+        /* Giữ màu trắng cho nút có background tối */
+        #pf-overlay .pf-btn,
+        #pf-overlay .pf-btn.gold { color: #FFFFFF !important; }
+        #pf-overlay .pf-btn.ghost { color: #182D58 !important; }
+        #pf-overlay .pf-btn.danger { color: rgba(181,74,58,.6) !important; }
+        #pf-overlay .pf-btn.danger:hover { color: #ff9090 !important; }
+        /* Giữ màu chuyên biệt */
+        #pf-overlay .pf-label { color: #888 !important; }
+        #pf-overlay .pf-toast { color: #6aaa7a !important; }
+        #pf-overlay .badge-pub { color: #6aaa7a !important; }
+        #pf-overlay .pf-role-badge { color: #76AAAB !important; }
+        #pf-overlay .product-price { color: #76AAAB !important; }
+        #pf-overlay .review-stars { color: #76AAAB !important; }
+        #pf-overlay .pf-avatar-circle { color: #76AAAB !important; }
+        #pf-overlay .fr-time,
+        #pf-overlay .pf-time { color: #aaa !important; }
+        #pf-overlay input::placeholder,
+        #pf-overlay textarea::placeholder { color: #aaa !important; }
+        #pf-overlay .pgal-counter { color: #fff !important; }
+        #pf-overlay .pgal-arrow { color: #fff !important; }
+        #pf-overlay .pf-btn.ghost:hover { color: #182D58 !important; }
+
         .pf-section {
           background: #ffffff;
           border: 1px solid rgba(0,0,0,.1);
@@ -94,14 +122,14 @@ export class ProfileScene extends BaseScene {
         }
         .pf-label {
           color: #888;
-          font-size: 9px;
+          font-size:11px;
           letter-spacing: .18em;
           text-transform: uppercase;
           margin-bottom: 6px;
         }
         .pf-value {
-          color: #1a1a1a;
-          font-size: 13px;
+          color: #182D58;
+          font-size:15px;
           letter-spacing: .04em;
           min-height: 20px;
         }
@@ -110,15 +138,15 @@ export class ProfileScene extends BaseScene {
           border: 1px solid rgba(0,0,0,.12);
           border-radius: 3px;
           color: #1a1a1a;
-          font-family: monospace;
-          font-size: 13px;
+          font-family: 'Montserrat', sans-serif;
+          font-size:15px;
           padding: 8px 12px;
           width: 100%;
           box-sizing: border-box;
           outline: none;
           transition: border-color .2s;
         }
-        .pf-input:focus { border-color: rgba(200,169,110,.5); }
+        .pf-input:focus { border-color: rgba(118,170,171,.5); }
         .pf-input::placeholder { color: #aaa; }
         .pf-textarea {
           resize: vertical;
@@ -126,26 +154,33 @@ export class ProfileScene extends BaseScene {
         }
         .pf-btn {
           padding: 8px 20px;
-          font-size: 10px;
+          font-size:12px;
           cursor: pointer;
-          font-family: monospace;
-          letter-spacing: .1em;
-          border-radius: 3px;
+          font-family: 'Montserrat', sans-serif;
+          font-weight: 700;
+          letter-spacing: .08em;
+          border-radius: 26px;
           transition: all .2s;
-          border: 1px solid;
+          border: 2px solid rgba(255,255,255,.25);
+          background: #122F6A;
+          color: #FFFFFF;
+          box-shadow: 0 4px 12px rgba(118,170,171,.55);
+          text-align: center;
         }
+        .pf-btn:hover { box-shadow: 0 6px 18px rgba(118,170,171,.75); transform: translateY(-1px); }
         .pf-btn.gold {
-          background: rgba(200,169,110,.15);
-          border-color: rgba(200,169,110,.5);
-          color: #c8a96e;
+          background: #122F6A;
+          border-color: rgba(255,255,255,.35);
+          color: #FFFFFF;
         }
-        .pf-btn.gold:hover { background: rgba(200,169,110,.28); }
+        .pf-btn.gold:hover { box-shadow: 0 6px 18px rgba(118,170,171,.75); transform: translateY(-1px); }
         .pf-btn.ghost {
           background: none;
-          border-color: rgba(0,0,0,.12);
+          border: 2px solid rgba(0,0,0,.15);
           color: #555;
+          box-shadow: none;
         }
-        .pf-btn.ghost:hover { border-color: rgba(0,0,0,.3); color: #222; }
+        .pf-btn.ghost:hover { border-color: rgba(0,0,0,.3); color: #222; box-shadow: none; transform: none; }
         .pf-btn.danger {
           background: none;
           border-color: rgba(181,74,58,.25);
@@ -165,22 +200,22 @@ export class ProfileScene extends BaseScene {
           cursor: pointer;
           box-shadow: 0 1px 4px rgba(0,0,0,.05);
         }
-        .gallery-card:hover { border-color: rgba(200,169,110,.5); }
+        .gallery-card:hover { border-color: rgba(118,170,171,.5); }
         .badge-pub {
-          display:inline-block;padding:2px 9px;font-size:9px;
+          display:inline-block;padding:2px 9px;font-size:11px;
           letter-spacing:.12em;text-transform:uppercase;border-radius:2px;
           background:rgba(106,170,122,.15);border:1px solid rgba(106,170,122,.35);color:#6aaa7a;
         }
         .pf-role-badge {
           display: inline-block;
           padding: 3px 12px;
-          font-size: 9px;
+          font-size:11px;
           letter-spacing: .18em;
           text-transform: uppercase;
           border-radius: 2px;
-          border: 1px solid rgba(200,169,110,.3);
-          color: #c8a96e;
-          background: rgba(200,169,110,.08);
+          border: 1px solid rgba(118,170,171,.3);
+          color: #76AAAB;
+          background: rgba(118,170,171,.08);
         }
         .pf-toast {
           position: fixed;
@@ -191,8 +226,8 @@ export class ProfileScene extends BaseScene {
           border: 1px solid rgba(106,170,122,.4);
           color: #6aaa7a;
           padding: 10px 24px;
-          font-family: monospace;
-          font-size: 11px;
+          font-family: 'Montserrat', sans-serif;
+          font-size:13px;
           letter-spacing: .1em;
           border-radius: 4px;
           opacity: 0;
@@ -202,15 +237,31 @@ export class ProfileScene extends BaseScene {
           box-shadow: 0 2px 12px rgba(0,0,0,.1);
         }
         .pf-avatar-circle {
-          width: 64px; height: 64px;
+          width: 46px; height: 46px;
           border-radius: 50%;
-          background: rgba(200,169,110,.12);
-          border: 2px solid rgba(200,169,110,.3);
+          background: rgba(118,170,171,.12);
+          border: 2px solid rgba(118,170,171,.3);
           display: flex; align-items: center; justify-content: center;
-          font-size: 24px;
-          color: #c8a96e;
+          font-size:20px;
+          color: #76AAAB;
           flex-shrink: 0;
+          position: relative;
+          overflow: hidden;
+          cursor: pointer;
         }
+        .pf-avatar-circle img {
+          width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+        }
+        .pf-avatar-overlay {
+          position: absolute; inset: 0;
+          background: rgba(0,0,0,.38);
+          display: flex; align-items: center; justify-content: center;
+          opacity: 0;
+          transition: opacity .2s;
+          font-size:15px;
+          border-radius: 50%;
+        }
+        .pf-avatar-circle:hover .pf-avatar-overlay { opacity: 1; }
 
         /* ── Products ── */
         .product-card {
@@ -224,24 +275,24 @@ export class ProfileScene extends BaseScene {
         .product-card:hover { border-color: rgba(0,0,0,.2); }
         .product-img { width:100%; height:220px; object-fit:cover; background:#f0f0f0; display:block; }
         .product-body { padding: 20px 24px 16px; }
-        .product-title { color:#1a1a1a; font-size:14px; font-style:italic; letter-spacing:.06em; margin-bottom:10px; }
-        .product-desc { color:#555; font-size:11px; line-height:1.75; margin-bottom:14px; white-space:pre-wrap; }
-        .product-price { color:#c8a96e; font-size:15px; letter-spacing:.04em; margin-bottom:16px; }
+        .product-title { color:#182D58; font-family:'Montserrat',sans-serif; font-size:16px; font-weight:700; margin-bottom:10px; }
+        .product-desc { color:#555; font-size:13px; line-height:1.75; margin-bottom:14px; white-space:pre-wrap; }
+        .product-price { color:#76AAAB; font-size:17px; letter-spacing:.04em; margin-bottom:16px; }
         .product-actions { display:flex; gap:8px; flex-wrap:wrap; }
 
         /* ── Reviews ── */
         .review-section { border-top:.5px solid rgba(0,0,0,.06); padding:14px 24px 20px; }
-        .review-toggle-btn { background:none; border:none; cursor:pointer; color:#666; font-size:9px; font-family:monospace; letter-spacing:.14em; text-transform:uppercase; padding:0; transition:color .2s; }
+        .review-toggle-btn { background:none; border:none; cursor:pointer; color:#666; font-size:11px; font-family:'Montserrat',sans-serif; letter-spacing:.14em; text-transform:uppercase; padding:0; transition:color .2s; }
         .review-toggle-btn:hover { color:#222; }
         .review-item { padding:10px 0; border-bottom:.5px solid rgba(0,0,0,.06); }
         .review-item:last-child { border-bottom:none; }
         .review-meta { display:flex; align-items:center; gap:10px; margin-bottom:5px; }
-        .review-stars { font-size:11px; letter-spacing:1px; color:#c8a96e; }
-        .review-author { color:#666; font-size:9px; letter-spacing:.1em; }
-        .review-body { color:#555; font-size:11px; line-height:1.65; }
+        .review-stars { font-size:13px; letter-spacing:1px; color:#76AAAB; }
+        .review-author { color:#666; font-size:11px; letter-spacing:.1em; }
+        .review-body { color:#555; font-size:13px; line-height:1.65; }
         .review-form { margin-top:16px; padding-top:14px; border-top:.5px solid rgba(0,0,0,.06); }
         .star-picker { display:flex; gap:4px; margin-bottom:12px; }
-        .star-pick-btn { background:none; border:none; cursor:pointer; font-size:20px; padding:0; line-height:1; opacity:.25; transition:opacity .15s,transform .1s; }
+        .star-pick-btn { background:none; border:none; cursor:pointer; font-size:22px; padding:0; line-height:1; opacity:.25; transition:opacity .15s,transform .1s; }
         .star-pick-btn.on { opacity:1; }
         .star-pick-btn:hover { transform:scale(1.15); }
 
@@ -250,83 +301,133 @@ export class ProfileScene extends BaseScene {
         .pgal-main { width:100%; height:260px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
         .pgal-main img { width:100%; height:100%; object-fit:cover; display:block; }
         .pgal-main video { width:100%; height:100%; object-fit:contain; background:#000; display:block; }
-        .pgal-arrow { position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,.4); border:none; color:#fff; font-size:20px; padding:6px 12px; cursor:pointer; z-index:2; transition:background .15s; border-radius:3px; line-height:1; }
+        .pgal-arrow { position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,.4); border:none; color:#fff; font-size:22px; padding:6px 12px; cursor:pointer; z-index:2; transition:background .15s; border-radius:3px; line-height:1; }
         .pgal-arrow:hover { background:rgba(0,0,0,.7); }
         .pgal-arrow.left { left:8px; }
         .pgal-arrow.right { right:8px; }
-        .pgal-counter { position:absolute; bottom:8px; right:10px; background:rgba(0,0,0,.5); color:#fff; font-size:9px; font-family:monospace; padding:2px 8px; border-radius:10px; letter-spacing:.06em; }
+        .pgal-counter { position:absolute; bottom:8px; right:10px; background:rgba(0,0,0,.5); color:#fff; font-size:11px; font-family:'Montserrat',sans-serif; padding:2px 8px; border-radius:10px; letter-spacing:.06em; }
         .pgal-thumbs { display:flex; gap:4px; padding:4px; background:#f5f5f5; overflow-x:auto; }
         .pgal-thumbs::-webkit-scrollbar { height:2px; }
         .pgal-thumbs::-webkit-scrollbar-thumb { background:rgba(0,0,0,.15); }
         .pgal-thumb { width:52px; height:40px; flex-shrink:0; cursor:pointer; border-radius:2px; overflow:hidden; opacity:.45; transition:opacity .15s; border:1.5px solid transparent; }
-        .pgal-thumb.active { opacity:1; border-color:rgba(200,169,110,.7); }
+        .pgal-thumb.active { opacity:1; border-color:rgba(118,170,171,.7); }
         .pgal-thumb img,.pgal-thumb video { width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
 
         /* ── Upload zone ── */
         .pm-upload-zone { border:1.5px dashed rgba(0,0,0,.15); border-radius:5px; padding:24px 16px; text-align:center; cursor:pointer; transition:border-color .2s,background .2s; }
-        .pm-upload-zone:hover,.pm-upload-zone.drag-over { border-color:rgba(200,169,110,.5); background:rgba(200,169,110,.05); }
+        .pm-upload-zone:hover,.pm-upload-zone.drag-over { border-color:rgba(118,170,171,.5); background:rgba(118,170,171,.05); }
         .pm-upload-zone input[type=file] { display:none; }
         .pm-previews { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
         .pm-thumb { position:relative; width:72px; height:56px; border-radius:3px; overflow:hidden; border:1px solid rgba(0,0,0,.1); flex-shrink:0; }
         .pm-thumb img,.pm-thumb video { width:100%; height:100%; object-fit:cover; display:block; }
-        .pm-thumb-rm { position:absolute; top:2px; right:2px; background:rgba(0,0,0,.7); border:none; color:#fff; font-size:10px; width:16px; height:16px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; padding:0; }
+        .pm-thumb-rm { position:absolute; top:2px; right:2px; background:rgba(0,0,0,.7); border:none; color:#fff; font-size:12px; width:16px; height:16px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; padding:0; }
         .pm-thumb-rm:hover { background:rgba(181,74,58,.85); }
         .pm-upload-progress { margin-top:8px; height:3px; background:rgba(0,0,0,.08); border-radius:2px; overflow:hidden; display:none; }
-        .pm-upload-progress-bar { height:100%; background:linear-gradient(90deg,rgba(200,169,110,.5),rgba(200,169,110,1)); border-radius:2px; transition:width .2s; width:0%; }
+        .pm-upload-progress-bar { height:100%; background:linear-gradient(90deg,rgba(118,170,171,.5),rgba(118,170,171,1)); border-radius:2px; transition:width .2s; width:0%; }
 
         /* ── Product modal ── */
         .pf-product-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:3000; }
         .pf-modal-inner { background:#ffffff; border:1px solid rgba(0,0,0,.12); border-radius:8px; padding:32px; width:min(540px,92vw); max-height:90vh; overflow-y:auto; box-sizing:border-box; box-shadow:0 8px 40px rgba(0,0,0,.15); }
 
-        /* ── Cart FAB & Drawer ── */
-        #pf-cart-fab { position:fixed; bottom:32px; right:32px; background:rgba(200,169,110,.15); border:1px solid rgba(200,169,110,.4); color:#c8a96e; font-family:monospace; font-size:11px; letter-spacing:.08em; padding:11px 20px; border-radius:24px; cursor:pointer; display:none; align-items:center; gap:8px; z-index:600; transition:background .2s; }
-        #pf-cart-fab:hover { background:rgba(200,169,110,.28); }
-        #pf-cart-count-badge { background:rgba(200,169,110,.9); color:#1a1510; font-size:8px; border-radius:10px; padding:1px 5px; min-width:16px; text-align:center; }
-        #pf-cart-drawer { position:fixed; bottom:84px; right:32px; width:300px; background:#ffffff; border:1px solid rgba(0,0,0,.1); border-radius:8px; padding:16px; z-index:600; display:none; box-shadow:0 4px 20px rgba(0,0,0,.1); }
-        .pf-cart-row { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:.5px solid rgba(0,0,0,.06); }
-        .pf-cart-row:last-of-type { border-bottom:none; }
-        .pf-cart-row-name { flex:1; font-size:10px; color:#1a1a1a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .pf-cart-row-price { font-size:9px; color:#c8a96e; white-space:nowrap; }
-        .pf-cart-row-rm { background:none; border:none; color:#888; cursor:pointer; font-size:11px; padding:0 2px; transition:color .2s; }
-        .pf-cart-row-rm:hover { color:rgba(181,74,58,.8); }
+        /* ── Product detail modal (toàn cảnh) ── */
+        .pf-detail-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.65); display:flex; align-items:center; justify-content:center; z-index:3500; padding:16px; box-sizing:border-box; }
+        .pf-detail-modal-inner {
+          background:#ffffff; border-radius:10px; width:min(900px,96vw); max-height:78vh;
+          overflow-y:auto; box-sizing:border-box; box-shadow:0 16px 60px rgba(0,0,0,.25);
+          display:grid; grid-template-columns:1fr 1fr; gap:0;
+        }
+        .pf-detail-media { background:#f0f0f0; border-radius:10px 0 0 10px; overflow:hidden; position:relative; min-height:280px; }
+        .pf-detail-media .pgal-main { height:100%; min-height:280px; }
+        .pf-detail-info { padding:32px 28px; display:flex; flex-direction:column; overflow-y:auto; }
+        .pf-detail-close {
+          position:absolute; top:14px; right:14px; background:rgba(0,0,0,.45); border:none;
+          color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer;
+          font-size:18px; display:flex; align-items:center; justify-content:center;
+          z-index:10; transition:background .15s; line-height:1;
+        }
+        .pf-detail-close:hover { background:rgba(0,0,0,.75); }
+        @media(max-width:640px) {
+          .pf-detail-modal-inner { grid-template-columns:1fr; }
+          .pf-detail-media { border-radius:10px 10px 0 0; min-height:200px; }
+          .pf-detail-media .pgal-main { min-height:200px; height:200px; }
+          #pf-products-list { grid-template-columns:repeat(2,1fr) !important; }
+        }
+        @media(max-width:480px) {
+          #pf-products-list { grid-template-columns:1fr !important; }
+          #pf-top-row { grid-template-columns:1fr !important; }
+        }
+        /* product card grid: ảnh chiếm toàn width, body nhỏ gọn */
+        .product-card { cursor:pointer; }
+        .product-card:hover { border-color:rgba(118,170,171,.5); box-shadow:0 4px 16px rgba(0,0,0,.1); transform:translateY(-2px); transition:all .2s; }
+        .product-img-wrap { width:100%; aspect-ratio:1/1; overflow:hidden; background:#f0f0f0; }
+        .product-img-wrap .pgal-main { height:100%; aspect-ratio:1/1; }
+        .product-img-wrap img, .product-img-wrap video { width:100%; height:100%; object-fit:cover; display:block; }
+
+        /* ── Cover photo ── */
+        .pf-cover { width:100%; height:180px; background:linear-gradient(135deg,#c8e6e9 0%,#e0f2f3 100%); border-radius:8px; overflow:hidden; margin-bottom:20px; position:relative; flex-shrink:0; }
+        .pf-cover img { width:100%; height:100%; object-fit:cover; display:block; }
+        .pf-cover-edit-btn { position:absolute; top:12px; right:14px; background:rgba(255,255,255,.88); border:1px solid rgba(0,0,0,.1); border-radius:20px; padding:5px 14px; cursor:pointer; font-size:12px; font-family:'Montserrat',sans-serif; letter-spacing:.06em; align-items:center; gap:6px; transition:background .15s; color:#182D58 !important; }
+        .pf-cover-edit-btn:hover { background:rgba(255,255,255,1); }
+        /* ── Subtabs ── */
+        .pf-subtab-btn { padding:10px 20px; font-size:12px; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; border:none; background:none; color:#888 !important; font-family:'Montserrat',sans-serif; font-weight:600; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .2s; white-space:nowrap; }
+        .pf-subtab-btn.active { color:#182D58 !important; border-bottom-color:#182D58; }
+        .pf-subtab-btn:hover { color:#182D58 !important; }
+        /* ── Follow user card ── */
+        .pf-follow-card { background:#fff; border:1px solid rgba(0,0,0,.1); border-radius:6px; padding:14px 16px; display:flex; align-items:center; gap:12px; cursor:pointer; transition:border-color .2s; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+        .pf-follow-card:hover { border-color:rgba(118,170,171,.5); }
+
       </style>
 
       <!-- Toast -->
       <div id="pf-toast" class="pf-toast">✓ Đã lưu thông tin</div>
 
       <!-- Header row -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">
-        <button id="pf-back" class="pf-btn ghost" style="font-size:11px">← Quay lại</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <button id="pf-back" class="pf-btn ghost" style="font-size:13px">← Quay lại</button>
         <div id="pf-actions" style="display:flex;gap:10px"></div>
       </div>
 
+      <!-- Cover photo -->
+      <div id="pf-cover" class="pf-cover">
+        <img id="pf-cover-img" style="display:none" />
+        <div id="pf-cover-edit-btn" class="pf-cover-edit-btn" style="display:none">
+          📷 Đổi ảnh bìa
+          <input type="file" id="pf-cover-input" accept="image/*" style="display:none" />
+        </div>
+      </div>
+
+      <!-- Profile + Rank row -->
+      <div id="pf-top-row" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+
       <!-- Profile card -->
-      <div class="pf-section">
-        <div style="display:flex;align-items:center;gap:20px;margin-bottom:24px">
+      <div class="pf-section" style="margin-bottom:0;padding:14px 18px">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
           <div class="pf-avatar-circle" id="pf-avatar-display">
             <span id="pf-avatar-initial"></span>
+            <div class="pf-avatar-overlay">📷</div>
+            <input type="file" id="pf-avatar-input" accept="image/*" style="display:none" />
           </div>
           <div>
-            <div style="color:#1a1a1a;font-size:18px;font-weight:bold;letter-spacing:.12em" id="pf-name-display"></div>
-            <div style="margin-top:6px"><span class="pf-role-badge" id="pf-role-display"></span></div>
+            <div style="color:#1a1a1a;font-size:15px;font-weight:bold;letter-spacing:.08em" id="pf-name-display"></div>
+            <div style="margin-top:4px"><span class="pf-role-badge" id="pf-role-display"></span></div>
           </div>
         </div>
 
         <!-- View mode -->
         <div id="pf-view-mode">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px" id="pf-fields-view">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-bottom:10px" id="pf-fields-view">
             <div>
               <div class="pf-label">Website / Mạng xã hội</div>
-              <div class="pf-value" id="pf-website-view" style="color:#666">—</div>
+              <div class="pf-value" id="pf-website-view" style="color:#666;font-size:13px">—</div>
             </div>
             <div>
               <div class="pf-label">Địa điểm</div>
-              <div class="pf-value" id="pf-location-view" style="color:#666">—</div>
+              <div class="pf-value" id="pf-location-view" style="color:#666;font-size:13px">—</div>
             </div>
           </div>
           <div>
             <div class="pf-label">Giới thiệu</div>
-            <div class="pf-value" id="pf-bio-view" style="color:#555;line-height:1.7">—</div>
+            <div class="pf-value" id="pf-bio-view" style="color:#555;line-height:1.6;font-size:13px">—</div>
           </div>
         </div>
 
@@ -353,90 +454,102 @@ export class ProfileScene extends BaseScene {
         </div>
       </div>
 
+      <!-- Rank column (right side) -->
+      <div id="pf-rank-col" style="display:flex;flex-direction:column;gap:10px;height:100%">
+
       <!-- Rank & Token -->
-      <div id="pf-rank-section" class="pf-section" style="display:none">
-        <div style="display:flex;align-items:center;gap:20px">
-          <div id="pf-rank-icon" style="width:52px;height:52px;border-radius:50%;background:rgba(200,169,110,.1);border:.5px solid rgba(200,169,110,.25);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">⭐</div>
+      <div id="pf-rank-section" class="pf-section" style="display:none;margin-bottom:0;padding:14px 16px;flex:1">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="pf-rank-icon" style="width:38px;height:38px;border-radius:50%;background:rgba(118,170,171,.1);border:.5px solid rgba(118,170,171,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">⭐</div>
           <div>
-            <div style="color:#c8a96e;font-size:15px;letter-spacing:.08em" id="pf-rank-name">—</div>
-            <div style="color:#666;font-size:10px;margin-top:4px" id="pf-token-count"></div>
+            <div style="color:#76AAAB;font-size:14px;letter-spacing:.06em" id="pf-rank-name">—</div>
+            <div style="color:#666;font-size:11px;margin-top:3px" id="pf-token-count"></div>
           </div>
         </div>
-        <div style="margin-top:18px">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-            <span style="color:#888;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Tiến độ lên rank</span>
-            <span style="color:#666;font-size:9px" id="pf-rank-progress-text"></span>
+        <div style="margin-top:12px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+            <span style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase">Tiến độ</span>
+            <span style="color:#666;font-size:10px" id="pf-rank-progress-text"></span>
           </div>
-          <div style="height:4px;background:rgba(0,0,0,.08);border-radius:2px;overflow:hidden">
-            <div id="pf-rank-bar" style="height:100%;background:linear-gradient(90deg,rgba(200,169,110,.5),rgba(200,169,110,1));border-radius:2px;transition:width .6s;width:0%"></div>
+          <div style="height:3px;background:rgba(0,0,0,.08);border-radius:2px;overflow:hidden">
+            <div id="pf-rank-bar" style="height:100%;background:linear-gradient(90deg,rgba(118,170,171,.5),rgba(118,170,171,1));border-radius:2px;transition:width .6s;width:0%"></div>
           </div>
         </div>
       </div>
 
       <!-- Artist Rank (hiện khi là artist) -->
-      <div id="pf-artist-rank-section" class="pf-section" style="display:none">
-        <div style="display:flex;align-items:center;gap:20px">
-          <div id="pf-artist-rank-icon" style="width:52px;height:52px;border-radius:50%;background:rgba(200,169,110,.1);border:.5px solid rgba(200,169,110,.25);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🎨</div>
+      <div id="pf-artist-rank-section" class="pf-section" style="display:none;margin-bottom:0;padding:14px 16px;flex:1">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="pf-artist-rank-icon" style="width:38px;height:38px;border-radius:50%;background:rgba(118,170,171,.1);border:.5px solid rgba(118,170,171,.25);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🎨</div>
           <div>
-            <div style="color:#c8a96e;font-size:15px;letter-spacing:.08em" id="pf-artist-rank-name">—</div>
-            <div style="color:#666;font-size:10px;margin-top:4px" id="pf-artist-like-count"></div>
+            <div style="color:#76AAAB;font-size:14px;letter-spacing:.06em" id="pf-artist-rank-name">—</div>
+            <div style="color:#666;font-size:11px;margin-top:3px" id="pf-artist-like-count"></div>
           </div>
         </div>
-        <div style="margin-top:18px">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-            <span style="color:#888;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Tiến độ lên rank</span>
-            <span style="color:#666;font-size:9px" id="pf-artist-rank-progress-text"></span>
+        <div style="margin-top:12px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+            <span style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase">Tiến độ</span>
+            <span style="color:#666;font-size:10px" id="pf-artist-rank-progress-text"></span>
           </div>
-          <div style="height:4px;background:rgba(0,0,0,.08);border-radius:2px;overflow:hidden">
-            <div id="pf-artist-rank-bar" style="height:100%;background:linear-gradient(90deg,rgba(200,169,110,.5),rgba(200,169,110,1));border-radius:2px;transition:width .6s;width:0%"></div>
+          <div style="height:3px;background:rgba(0,0,0,.08);border-radius:2px;overflow:hidden">
+            <div id="pf-artist-rank-bar" style="height:100%;background:linear-gradient(90deg,rgba(118,170,171,.5),rgba(118,170,171,1));border-radius:2px;transition:width .6s;width:0%"></div>
           </div>
         </div>
-      </div>
+      </div><!-- end pf-artist-rank-section -->
+      </div><!-- end pf-rank-col -->
+      </div><!-- end pf-top-row -->
 
-      <!-- Gallery section (artist only) -->
-      <div id="pf-gallery-section" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-          <div style="color:#888;font-size:9px;letter-spacing:.18em;text-transform:uppercase">Phòng triển lãm</div>
-          <button id="pf-new-room-btn" class="pf-btn gold" style="display:none;font-size:10px">＋ Tạo phòng mới</button>
-        </div>
-        <div id="pf-gallery-loading" style="color:#888;font-size:11px;letter-spacing:.1em;text-align:center;padding:40px">
-          Đang tải...
-        </div>
-        <div id="pf-gallery-empty" style="display:none;color:#888;font-size:11px;letter-spacing:.1em;text-align:center;padding:40px">
-          Chưa có phòng triển lãm nào
-        </div>
-        <div id="pf-gallery-grid" style="display:none;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px"></div>
-      </div>
+      <!-- Subtabs container -->
+      <div id="pf-subtabs-container" style="margin-top:8px">
+        <div id="pf-subtabs-nav" style="display:flex;border-bottom:2px solid rgba(0,0,0,.07);margin-bottom:24px;overflow-x:auto"></div>
 
-      <!-- Products section (artist only) -->
-      <div id="pf-products-section" style="display:none;margin-top:8px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-          <div style="color:#888;font-size:9px;letter-spacing:.18em;text-transform:uppercase">Sản phẩm</div>
-          <button id="pf-add-product-btn" class="pf-btn gold" style="display:none">+ Thêm sản phẩm</button>
+        <!-- Gallery tab (artist only) -->
+        <div id="pf-tab-gallery" style="display:none">
+          <div id="pf-gallery-section" style="display:none">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:20px;font-weight:700;letter-spacing:.02em;text-transform:none">Phòng triển lãm</div>          <button id="pf-new-room-btn" class="pf-btn gold" style="display:none;font-size:12px">＋ Tạo phòng mới</button>
+            </div>
+            <div id="pf-gallery-loading" style="color:#888;font-size:13px;letter-spacing:.1em;text-align:center;padding:40px">
+              Đang tải...
+            </div>
+            <div id="pf-gallery-empty" style="display:none;color:#888;font-size:13px;letter-spacing:.1em;text-align:center;padding:40px">
+              Chưa có phòng triển lãm nào
+            </div>
+            <div id="pf-gallery-grid" style="display:none;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px"></div>
+          </div>
         </div>
-        <div id="pf-products-loading" style="color:#888;font-size:11px;letter-spacing:.1em;text-align:center;padding:40px">Đang tải...</div>
-        <div id="pf-products-empty" style="display:none;color:#888;font-size:11px;letter-spacing:.1em;text-align:center;padding:40px">Chưa có sản phẩm nào</div>
-        <div id="pf-products-list" style="display:none;flex-direction:column;gap:20px"></div>
-      </div>
 
-      <!-- Cart FAB (fixed) -->
-      <button id="pf-cart-fab">🛒 Giỏ hàng <span id="pf-cart-count-badge">0</span></button>
-
-      <!-- Cart drawer (fixed) -->
-      <div id="pf-cart-drawer">
-        <div style="color:#888;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px">Giỏ hàng</div>
-        <div id="pf-cart-drawer-items"></div>
-        <div id="pf-cart-drawer-total-row" style="display:none;justify-content:space-between;align-items:center;padding:10px 0 0;margin-top:4px;border-top:.5px solid rgba(0,0,0,.08)">
-          <span style="color:#888;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Tổng cộng</span>
-          <span id="pf-cart-drawer-total" style="color:#c8a96e;font-size:14px"></span>
+        <!-- Products tab (artist only) -->
+        <div id="pf-tab-products" style="display:none">
+          <div id="pf-products-section" style="display:none">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:20px;font-weight:700;letter-spacing:.02em;text-transform:none">Sản phẩm</div>          <button id="pf-add-product-btn" class="pf-btn gold" style="display:none">+ Thêm sản phẩm</button>
+            </div>
+            <div id="pf-products-loading" style="color:#888;font-size:13px;letter-spacing:.1em;text-align:center;padding:40px">Đang tải...</div>
+            <div id="pf-products-empty" style="display:none;color:#888;font-size:13px;letter-spacing:.1em;text-align:center;padding:40px">Chưa có sản phẩm nào</div>
+            <div id="pf-products-list" style="display:none;grid-template-columns:repeat(3,1fr);gap:20px"></div>
+          </div>
         </div>
-        <button id="pf-cart-checkout-btn" class="pf-btn gold" style="width:100%;margin-top:10px;justify-content:center;display:flex">✦ Thanh toán →</button>
+
+        <!-- Following tab -->
+        <div id="pf-tab-following" style="display:none">
+          <div id="pf-following-loading" style="color:#888;font-size:13px;letter-spacing:.1em;text-align:center;padding:40px">Đang tải...</div>
+          <div id="pf-following-empty" style="display:none;color:#888;font-size:13px;letter-spacing:.1em;text-align:center;padding:40px">Chưa theo dõi ai</div>
+          <div id="pf-following-list" style="display:none;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+        </div>
+
+        <!-- Followers tab -->
+        <div id="pf-tab-followers" style="display:none">
+          <div id="pf-followers-loading" style="color:#888;font-size:13px;letter-spacing:.1em;text-align:center;padding:40px">Đang tải...</div>
+          <div id="pf-followers-empty" style="display:none;color:#888;font-size:13px;letter-spacing:.1em;text-align:center;padding:40px">Chưa có người theo dõi</div>
+          <div id="pf-followers-list" style="display:none;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+        </div>
       </div>
 
       <!-- Product form modal -->
       <div id="pf-product-modal" style="display:none" class="pf-product-modal-overlay">
         <div class="pf-modal-inner">
-          <div style="color:#1a1a1a;font-size:13px;letter-spacing:.1em;margin-bottom:24px" id="pf-modal-title">Thêm sản phẩm</div>
+          <div style="color:#1a1a1a;font-size:15px;letter-spacing:.1em;margin-bottom:24px" id="pf-modal-title">Thêm sản phẩm</div>
           <div style="margin-bottom:14px">
             <div class="pf-label">Tên sản phẩm *</div>
             <input id="pm-title" class="pf-input" placeholder="VD: Tranh sơn dầu – Bình minh tháng Ba" />
@@ -449,13 +562,33 @@ export class ProfileScene extends BaseScene {
             <div class="pf-label">Giá (VD: 2,500,000 ₫)</div>
             <input id="pm-price" class="pf-input" placeholder="2,500,000 ₫" style="max-width:200px" />
           </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+            <div>
+              <div class="pf-label">Chất liệu</div>
+              <input id="pm-material" class="pf-input" placeholder="VD: Sơn dầu trên canvas" />
+            </div>
+            <div>
+              <div class="pf-label">Kích thước</div>
+              <input id="pm-dimensions" class="pf-input" placeholder="VD: 60×80 cm" />
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+            <div>
+              <div class="pf-label">Số lượng còn lại</div>
+              <input id="pm-stock" class="pf-input" type="number" min="0" placeholder="VD: 1" />
+            </div>
+            <div>
+              <div class="pf-label">Mẫu mã / Biến thể (phân cách bằng dấu phẩy)</div>
+              <input id="pm-variants" class="pf-input" placeholder="VD: Nhỏ, Vừa, Lớn" />
+            </div>
+          </div>
           <div style="margin-bottom:4px">
             <div class="pf-label" style="margin-bottom:8px">Ảnh / Video sản phẩm</div>
             <div class="pm-upload-zone" id="pm-upload-zone">
               <input type="file" id="pm-file-input" multiple accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" />
-              <div style="font-size:22px;margin-bottom:6px">📁</div>
-              <div style="color:#555;font-size:11px;margin-bottom:4px">Kéo thả hoặc <span style="color:#c8a96e;text-decoration:underline">click để chọn file</span></div>
-              <div style="color:#999;font-size:9px;letter-spacing:.08em">JPG · PNG · GIF · WEBP · MP4 · MOV · WEBM &nbsp;|&nbsp; tối đa 50 MB / file</div>
+              <div style="font-size:24px;margin-bottom:6px">📁</div>
+              <div style="color:#555;font-size:13px;margin-bottom:4px">Kéo thả hoặc <span style="color:#76AAAB;text-decoration:underline">click để chọn file</span></div>
+              <div style="color:#999;font-size:11px;letter-spacing:.08em">JPG · PNG · GIF · WEBP · MP4 · MOV · WEBM &nbsp;|&nbsp; tối đa 50 MB / file</div>
             </div>
             <div class="pm-previews" id="pm-previews"></div>
             <div class="pm-upload-progress" id="pm-upload-progress">
@@ -487,6 +620,16 @@ export class ProfileScene extends BaseScene {
     document.getElementById('pf-avatar-initial').textContent = name.charAt(0).toUpperCase();
     document.getElementById('pf-role-display').textContent = t.role === 'artist' ? 'Artist' : 'Visitor';
 
+    // Hiện ảnh đại diện nếu có
+    if (t.avatarUrl) {
+      const avatarEl = document.getElementById('pf-avatar-display');
+      const initial  = document.getElementById('pf-avatar-initial');
+      if (initial) initial.style.display = 'none';
+      const img = document.createElement('img');
+      img.src = t.avatarUrl;
+      avatarEl?.insertBefore(img, avatarEl.querySelector('.pf-avatar-overlay'));
+    }
+
     document.getElementById('pf-website-view').textContent = t.website || '—';
     document.getElementById('pf-location-view').textContent = t.location || '—';
     document.getElementById('pf-bio-view').textContent = t.bio || '—';
@@ -508,6 +651,30 @@ export class ProfileScene extends BaseScene {
       }
     }
 
+    // Ảnh bìa
+    if (t.coverUrl) {
+      const coverImg = document.getElementById('pf-cover-img');
+      if (coverImg) { coverImg.src = t.coverUrl; coverImg.style.display = 'block'; }
+    }
+    if (this._isSelf) {
+      const coverEditBtn = document.getElementById('pf-cover-edit-btn');
+      if (coverEditBtn) coverEditBtn.style.display = 'flex';
+    }
+
+    // Subtabs
+    const artistTabs = [
+      { id: 'gallery',   label: 'Phòng triển lãm' },
+      { id: 'products',  label: 'Sản phẩm' },
+      { id: 'following', label: 'Đang theo dõi' },
+      { id: 'followers', label: 'Người theo dõi' },
+    ];
+    const visitorTabs = [
+      { id: 'following', label: 'Đang theo dõi' },
+      { id: 'followers', label: 'Người theo dõi' },
+    ];
+    const tabs = t.role === 'artist' ? artistTabs : visitorTabs;
+    this._setupSubtabs(tabs, tabs[0].id);
+
     // Nút action
     const actionsEl = document.getElementById('pf-actions');
     if (this._isSelf) {
@@ -525,19 +692,60 @@ export class ProfileScene extends BaseScene {
       this.manager.navigateTo(prev);
     });
 
-    const fab = document.getElementById('pf-cart-fab');
-    if (fab) fab.addEventListener('click', () => this._toggleCartDrawer());
-
-    const checkoutBtn = document.getElementById('pf-cart-checkout-btn');
-    if (checkoutBtn) {
-      checkoutBtn.addEventListener('click', () => {
-        const items = JSON.parse(localStorage.getItem('gallery_cart') || '[]');
-        if (!items.length) return;
-        window.open('checkout.html', '_blank');
+    // ── Avatar upload ──
+    const avatarEl  = document.getElementById('pf-avatar-display');
+    const avatarInp = document.getElementById('pf-avatar-input');
+    if (avatarEl && avatarInp) {
+      avatarEl.addEventListener('click', () => {
+        if (this._isSelf) avatarInp.click();
+      });
+      avatarInp.addEventListener('change', async () => {
+        const file = avatarInp.files?.[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) { this._showToast('Ảnh quá lớn (tối đa 5 MB)'); return; }
+        const ext  = file.name.split('.').pop().toLowerCase();
+        const path = `avatars/${this._target.id || this._target.name}_${Date.now()}.${ext}`;
+        const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { upsert: true });
+        if (error) { this._showToast('Lỗi tải ảnh: ' + error.message); return; }
+        const { data: { publicUrl } } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+        // Cập nhật UI
+        const initial = document.getElementById('pf-avatar-initial');
+        if (initial) initial.style.display = 'none';
+        // Xoá img cũ nếu có
+        avatarEl.querySelector('img')?.remove();
+        const img = document.createElement('img');
+        img.src = publicUrl;
+        avatarEl.insertBefore(img, avatarEl.querySelector('.pf-avatar-overlay'));
+        // Lưu vào profile
+        this.manager.auth.updateProfile({ avatarUrl: publicUrl });
+        this._showToast('✓ Đã cập nhật ảnh đại diện');
+        avatarInp.value = '';
       });
     }
 
-    this._updateCartFab();
+    // ── Cover upload ──
+    const coverEditBtn = document.getElementById('pf-cover-edit-btn');
+    const coverInp     = document.getElementById('pf-cover-input');
+    if (coverEditBtn && coverInp && this._isSelf) {
+      coverEditBtn.addEventListener('click', (e) => {
+        if (e.target !== coverInp) coverInp.click();
+      });
+      coverInp.addEventListener('change', async () => {
+        const file = coverInp.files?.[0];
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) { this._showToast('Ảnh quá lớn (tối đa 10 MB)'); return; }
+        const ext  = file.name.split('.').pop().toLowerCase();
+        const path = `covers/${this._target.id || this._target.name}_${Date.now()}.${ext}`;
+        const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { upsert: true });
+        if (error) { this._showToast('Lỗi tải ảnh: ' + error.message); return; }
+        const { data: { publicUrl } } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+        const coverImg = document.getElementById('pf-cover-img');
+        if (coverImg) { coverImg.src = publicUrl; coverImg.style.display = 'block'; }
+        this.manager.auth.updateProfile({ coverUrl: publicUrl });
+        this._showToast('✓ Đã cập nhật ảnh bìa');
+        coverInp.value = '';
+      });
+    }
   }
 
   // ─── Vào chế độ edit ─────────────────────────────────────────────────────────
@@ -588,18 +796,10 @@ export class ProfileScene extends BaseScene {
       return;
     }
 
-    // Lưu tất cả fields vào AuthManager (merge, giữ nguyên role)
-    this.manager.auth.updateProfile({
-      name: newName,
-      location: newLocation,
-      website: newWebsite,
-      bio: newBio,
-    });
+    this.manager.auth.updateProfile({ name: newName, location: newLocation, website: newWebsite, bio: newBio });
 
-    // Cập nhật target local
     this._target = { ...this.manager.auth.profile };
 
-    // Cập nhật UI view
     document.getElementById('pf-name-display').textContent = newName;
     document.getElementById('pf-avatar-initial').textContent = newName.charAt(0).toUpperCase();
     document.getElementById('pf-website-view').textContent = newWebsite || '—';
@@ -659,20 +859,20 @@ export class ProfileScene extends BaseScene {
 
       const badgeHtml = isPublished
         ? `<span class="badge-pub">✓ Published</span>`
-        : `<span style="display:inline-block;padding:2px 9px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;border-radius:2px;background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#777">Draft</span>`;
+        : `<span style="display:inline-block;padding:2px 9px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-radius:2px;background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#777">Draft</span>`;
 
       const card = document.createElement('div');
       card.className = 'gallery-card';
       card.innerHTML = `
-        <div style="color:#1a1a1a;font-size:13px;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${roomName}</div>
+        <div style="color:#1a1a1a;font-size:15px;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${roomName}</div>
         <div style="display:flex;align-items:center;justify-content:space-between">
           ${badgeHtml}
-          <span style="color:#999;font-size:9px">${date}</span>
+          <span style="color:#999;font-size:11px">${date}</span>
         </div>
-        <div style="color:#666;font-size:10px;letter-spacing:.06em">${count} tác phẩm</div>
+        <div style="color:#666;font-size:12px;letter-spacing:.06em">${count} tác phẩm</div>
         ${this._isSelf ? `<div style="display:flex;gap:8px;margin-top:6px">
-          <button class="pf-btn ghost pf-room-edit-btn" style="font-size:10px;padding:5px 12px">✎ Chỉnh sửa</button>
-          <button class="pf-btn danger pf-room-del-btn" style="font-size:10px;padding:5px 12px">🗑 Xoá</button>
+          <button class="pf-btn ghost pf-room-edit-btn" style="font-size:12px;padding:5px 12px">✎ Chỉnh sửa</button>
+          <button class="pf-btn danger pf-room-del-btn" style="font-size:12px;padding:5px 12px">🗑 Xoá</button>
         </div>` : ''}
       `;
 
@@ -859,12 +1059,12 @@ export class ProfileScene extends BaseScene {
   _renderProducts(products) {
     const listEl = document.getElementById('pf-products-list');
     if (!listEl) return;
-    listEl.style.display = 'flex';
-    listEl.innerHTML = '';
+    listEl.style.display = 'grid';
+    listEl.style.gridTemplateColumns = 'repeat(3,1fr)';
     products.forEach(p => listEl.appendChild(this._buildProductCard(p)));
   }
 
-  // ─── Build product card DOM element ─────────────────────────────────────────
+  // ─── Build product card DOM element (grid thumbnail) ────────────────────────
   _buildProductCard(product) {
     const card = document.createElement('div');
     card.className = 'product-card';
@@ -877,10 +1077,244 @@ export class ProfileScene extends BaseScene {
       ? product.media_urls
       : (product.image_url ? [product.image_url] : []);
 
+    const isVideo = url => /\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(url);
+    const firstUrl = urls[0] || '';
+    const thumbHtml = firstUrl
+      ? (isVideo(firstUrl)
+          ? `<video src="${this._esc(firstUrl)}" muted preload="metadata" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none"></video>`
+          : `<img src="${this._esc(firstUrl)}" alt="${this._esc(product.title)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.opacity='.2'" />`)
+      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:32px">🖼</div>`;
+
+    card.innerHTML = `
+      <div style="width:100%;aspect-ratio:1/1;overflow:hidden;background:#f0f0f0;position:relative">
+        ${thumbHtml}
+        ${urls.length > 1 ? `<div style="position:absolute;bottom:6px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:10px;font-family:'Montserrat',sans-serif;padding:2px 7px;border-radius:10px;letter-spacing:.06em">${urls.length} ảnh</div>` : ''}
+      </div>
+      <div class="product-body" style="padding:14px 14px 12px">
+        <div class="product-title" style="font-size:13px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${this._esc(product.title)}</div>
+        <div class="product-price" style="font-size:13px;margin-bottom:0">${this._esc(product.price || '—')}</div>
+      </div>
+    `;
+
+    // Click card → mở modal chi tiết
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.prod-edit-btn, .prod-delete-btn')) return;
+      this._openProductDetail(product, card);
+    });
+
+    return card;
+  }
+
+  // ─── Open product detail modal (toàn cảnh) ───────────────────────────────────
+  _openProductDetail(product, cardEl) {
+    const existing = document.getElementById('pf-detail-modal');
+    if (existing) existing.remove();
+
+    const canEdit = this._isSelf;
+    const urls = Array.isArray(product.media_urls)
+      ? product.media_urls
+      : (product.image_url ? [product.image_url] : []);
+    const isVideo = url => /\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(url);
+
+    const modal = document.createElement('div');
+    modal.id = 'pf-detail-modal';
+    modal.className = 'pf-detail-modal-overlay';
+
+    const editBtnsHtml = canEdit
+      ? `<div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:14px">
+           <button class="pf-btn ghost prod-edit-btn" style="font-size:11px;padding:5px 14px">✎ Sửa</button>
+           <button class="pf-btn danger prod-delete-btn" style="font-size:11px;padding:5px 14px">✕ Xoá</button>
+         </div>`
+      : '';
+
+    const cartBtnHtml = !canEdit
+      ? `<div style="margin-top:auto;padding-top:16px;border-top:.5px solid rgba(0,0,0,.06)">
+           <button class="pf-btn gold pf-detail-cart-btn" style="font-size:13px;width:100%">🛒 Thêm vào giỏ hàng</button>
+         </div>`
+      : '';
+
+    const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
+    const variantsHtml = hasVariants
+      ? `<div style="margin-bottom:14px">
+           <div style="color:#888;font-size:10px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:8px">Mẫu mã</div>
+           <div style="display:flex;flex-wrap:wrap;gap:6px" id="pdm-variants-wrap">
+             ${product.variants.map((v, i) => `<button class="pdm-variant-chip" data-v="${this._esc(v)}" style="padding:5px 14px;font-size:12px;border-radius:20px;border:1.5px solid ${i===0?'rgba(118,170,171,.8)':'rgba(0,0,0,.15)'};background:${i===0?'rgba(118,170,171,.12)':'#fff'};cursor:pointer;font-family:'Montserrat',sans-serif;color:#182D58;letter-spacing:.04em;transition:all .15s">${this._esc(v)}</button>`).join('')}
+           </div>
+         </div>`
+      : '';
+
+    const extraInfoRows = [];
+    if (product.material)   extraInfoRows.push(`<div><div style="color:#888;font-size:10px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:3px">Chất liệu</div><div style="color:#182D58;font-size:13px">${this._esc(product.material)}</div></div>`);
+    if (product.dimensions) extraInfoRows.push(`<div><div style="color:#888;font-size:10px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:3px">Kích thước</div><div style="color:#182D58;font-size:13px">${this._esc(product.dimensions)}</div></div>`);
+    if (product.stock_qty != null) extraInfoRows.push(`<div><div style="color:#888;font-size:10px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:3px">Còn lại</div><div style="color:${product.stock_qty > 0 ? '#6aaa7a' : '#cc6666'};font-size:13px">${product.stock_qty > 0 ? product.stock_qty + ' sản phẩm' : 'Hết hàng'}</div></div>`);
+    const extraInfoHtml = extraInfoRows.length > 0
+      ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px 16px;margin-bottom:14px;padding:10px 12px;background:rgba(0,0,0,.025);border-radius:5px">${extraInfoRows.join('')}</div>`
+      : '';
+
+    const galleryHtml = urls.length > 0
+      ? `<div class="pf-detail-media">
+           <div class="pgal-main" id="pdm-main"></div>
+           ${urls.length > 1 ? `
+             <button class="pgal-arrow left" id="pdm-prev">&#8249;</button>
+             <button class="pgal-arrow right" id="pdm-next">&#8250;</button>
+             <div class="pgal-counter" id="pdm-counter">1 / ${urls.length}</div>
+           ` : ''}
+           ${urls.length > 1 ? `<div class="pgal-thumbs" id="pdm-thumbs"></div>` : ''}
+           <button class="pf-detail-close" id="pdm-close">✕</button>
+         </div>`
+      : `<div class="pf-detail-media" style="display:flex;align-items:center;justify-content:center;color:#ccc;font-size:48px;position:relative">
+           🖼
+           <button class="pf-detail-close" id="pdm-close">✕</button>
+         </div>`;
+
+    modal.innerHTML = `
+      <div class="pf-detail-modal-inner">
+        ${galleryHtml}
+        <div class="pf-detail-info">
+          ${editBtnsHtml}
+          <div style="font-size:18px;font-weight:700;letter-spacing:.06em;color:#182D58;margin-bottom:8px">${this._esc(product.title)}</div>
+          <div style="color:#76AAAB;font-size:17px;letter-spacing:.04em;margin-bottom:14px">${this._esc(product.price || '—')}</div>
+          ${variantsHtml}
+          ${extraInfoHtml}
+          ${product.description
+            ? `<div style="color:#555;font-size:13px;line-height:1.8;white-space:pre-wrap;margin-bottom:14px">${this._esc(product.description)}</div>`
+            : ''}
+          <!-- Review toggle -->
+          <div class="review-section" style="border-top:.5px solid rgba(0,0,0,.06);padding:12px 0 0;margin-top:4px">
+            <button class="review-toggle-btn" data-open="0">▸ Đánh giá (đang tải...)</button>
+            <div class="review-content" style="display:none"></div>
+          </div>
+          ${cartBtnHtml}
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    this._el(modal);
+
+    // Variant chip selection
+    let selectedVariant = hasVariants ? product.variants[0] : null;
+    if (hasVariants) {
+      const varWrap = modal.querySelector('#pdm-variants-wrap');
+      varWrap?.querySelectorAll('.pdm-variant-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          selectedVariant = chip.dataset.v;
+          varWrap.querySelectorAll('.pdm-variant-chip').forEach(c => {
+            const active = c === chip;
+            c.style.borderColor = active ? 'rgba(118,170,171,.8)' : 'rgba(0,0,0,.15)';
+            c.style.background  = active ? 'rgba(118,170,171,.12)' : '#fff';
+          });
+        });
+      });
+    }
+
+    // Gallery logic
+    if (urls.length > 0) {
+      const galMain  = modal.querySelector('#pdm-main');
+      const counter  = modal.querySelector('#pdm-counter');
+      const thumbsEl = modal.querySelector('#pdm-thumbs');
+      let idx = 0;
+
+      const showMedia = i => {
+        idx = (i + urls.length) % urls.length;
+        const url = urls[idx];
+        galMain.innerHTML = isVideo(url)
+          ? `<video src="${this._esc(url)}" controls muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:contain;background:#000;display:block"></video>`
+          : `<img src="${this._esc(url)}" alt="${this._esc(product.title)}" loading="lazy" style="width:100%;height:100%;object-fit:contain;display:block" onerror="this.style.opacity='.2'" />`;
+        if (counter) counter.textContent = `${idx + 1} / ${urls.length}`;
+        if (thumbsEl) thumbsEl.querySelectorAll('.pgal-thumb').forEach((t, ti) => t.classList.toggle('active', ti === idx));
+      };
+
+      showMedia(0);
+
+      if (urls.length > 1) {
+        modal.querySelector('#pdm-prev').addEventListener('click', () => showMedia(idx - 1));
+        modal.querySelector('#pdm-next').addEventListener('click', () => showMedia(idx + 1));
+        urls.forEach((url, i) => {
+          const thumb = document.createElement('div');
+          thumb.className = 'pgal-thumb' + (i === 0 ? ' active' : '');
+          thumb.innerHTML = isVideo(url)
+            ? `<video src="${this._esc(url)}" preload="metadata" muted></video>`
+            : `<img src="${this._esc(url)}" loading="lazy" />`;
+          thumb.addEventListener('click', () => showMedia(i));
+          thumbsEl.appendChild(thumb);
+        });
+      }
+    }
+
+    // Close button
+    modal.querySelector('#pdm-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    // Reviews
+    const toggleBtn    = modal.querySelector('.review-toggle-btn');
+    const reviewContent = modal.querySelector('.review-content');
+    let reviewsLoaded  = false;
+
+    this._getReviewCount(product.id).then(count => {
+      if (this._disposed || !toggleBtn.isConnected) return;
+      toggleBtn.textContent = `▸ Đánh giá (${count})`;
+    });
+
+    toggleBtn.addEventListener('click', async () => {
+      const isOpen = toggleBtn.dataset.open === '1';
+      if (!isOpen) {
+        toggleBtn.dataset.open = '1';
+        reviewContent.style.display = 'block';
+        if (!reviewsLoaded) {
+          reviewsLoaded = true;
+          toggleBtn.textContent = '▾ Đang tải...';
+          await this._loadAndRenderReviews(product.id, reviewContent, toggleBtn);
+        } else {
+          const count = reviewContent.querySelectorAll('.review-item').length;
+          toggleBtn.textContent = `▾ Đánh giá (${count})`;
+        }
+      } else {
+        toggleBtn.dataset.open = '0';
+        reviewContent.style.display = 'none';
+        const count = reviewContent.querySelectorAll('.review-item').length;
+        toggleBtn.textContent = `▸ Đánh giá (${count})`;
+      }
+    });
+
+    // Cart button (visitor)
+    const cartBtn = modal.querySelector('.pf-detail-cart-btn');
+    if (cartBtn) {
+      const inCart = JSON.parse(localStorage.getItem('gallery_cart') || '[]').some(it => it.productId === product.id);
+      if (inCart) { cartBtn.textContent = '✓ Đã có trong giỏ'; cartBtn.disabled = true; }
+      cartBtn.addEventListener('click', () => this._addProductToCart(product, cartBtn, selectedVariant));
+    }
+
+    // Edit/Delete buttons (artist self)
+    if (canEdit) {
+      modal.querySelector('.prod-edit-btn')?.addEventListener('click', () => {
+        modal.remove();
+        this._openProductForm(product, cardEl);
+      });
+      modal.querySelector('.prod-delete-btn')?.addEventListener('click', () => {
+        modal.remove();
+        this._deleteProduct(product.id, cardEl);
+      });
+    }
+  }
+
+  // ─── (old) Build product card – replaced by grid version above ───────────────
+  _buildProductCard_UNUSED(product) {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    card.dataset.id = product.id;
+
+    const canEdit = this._isSelf;
+
+    // Normalize media_urls: accept jsonb array or legacy image_url string
+    const urls = Array.isArray(product.media_urls)
+      ? product.media_urls
+      : (product.image_url ? [product.image_url] : []);
+
     const actionsBtnHtml = canEdit
-      ? `<button class="pf-btn ghost prod-edit-btn" style="font-size:10px">✎ Sửa</button>
-         <button class="pf-btn danger prod-delete-btn" style="font-size:10px">✕ Xoá</button>`
-      : `<button class="pf-btn gold prod-cart-btn" style="font-size:10px">🛒 Thêm vào giỏ hàng</button>`;
+      ? `<button class="pf-btn ghost prod-edit-btn" style="font-size:12px">✎ Sửa</button>
+         <button class="pf-btn danger prod-delete-btn" style="font-size:12px">✕ Xoá</button>`
+      : ``;
 
     card.innerHTML = `
       <div class="product-gallery" style="${urls.length === 0 ? 'display:none' : ''}">
@@ -981,8 +1415,6 @@ export class ProfileScene extends BaseScene {
     if (canEdit) {
       card.querySelector('.prod-edit-btn').addEventListener('click', () => this._openProductForm(product, card));
       card.querySelector('.prod-delete-btn').addEventListener('click', () => this._deleteProduct(product.id, card));
-    } else {
-      card.querySelector('.prod-cart-btn').addEventListener('click', e => this._addProductToCart(product, e.currentTarget));
     }
 
     return card;
@@ -1010,8 +1442,10 @@ export class ProfileScene extends BaseScene {
     const reviews = data || [];
     if (toggleBtn) toggleBtn.textContent = `▾ Đánh giá (${reviews.length})`;
 
+    const currentUserIsArtist = this.manager.auth.profile?.role === 'artist';
+
     const listHtml = reviews.length === 0
-      ? '<div style="color:#888;font-size:10px;letter-spacing:.1em;padding:8px 0">Chưa có đánh giá nào</div>'
+      ? '<div style="color:#888;font-size:12px;letter-spacing:.1em;padding:8px 0">Chưa có đánh giá nào</div>'
       : reviews.map(r => `
           <div class="review-item">
             <div class="review-meta">
@@ -1022,13 +1456,12 @@ export class ProfileScene extends BaseScene {
           </div>
         `).join('');
 
-    container.innerHTML = `
-      <div class="review-list">${listHtml}</div>
+    const reviewFormHtml = !currentUserIsArtist ? `
       <div class="review-form">
-        <div style="color:#888;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px">Viết đánh giá</div>
+        <div style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px">Viết đánh giá</div>
         <div style="margin-bottom:10px">
           <div class="pf-label">Tên của bạn</div>
-          <input class="pf-input rv-name" style="font-size:11px;padding:6px 10px" placeholder="Tên (để trống là ẩn danh)" />
+          <input class="pf-input rv-name" style="font-size:13px;padding:6px 10px" placeholder="Tên (để trống là ẩn danh)" />
         </div>
         <div style="margin-bottom:10px">
           <div class="pf-label">Đánh giá sao</div>
@@ -1038,35 +1471,42 @@ export class ProfileScene extends BaseScene {
         </div>
         <div style="margin-bottom:12px">
           <div class="pf-label">Nhận xét</div>
-          <textarea class="pf-input pf-textarea rv-comment" style="min-height:70px;font-size:11px" placeholder="Chia sẻ cảm nhận của bạn về sản phẩm..."></textarea>
+          <textarea class="pf-input pf-textarea rv-comment" style="min-height:70px;font-size:13px" placeholder="Chia sẻ cảm nhận của bạn về sản phẩm..."></textarea>
         </div>
-        <button class="pf-btn gold rv-submit-btn" style="font-size:10px">Gửi đánh giá</button>
+        <button class="pf-btn gold rv-submit-btn" style="font-size:12px">Gửi đánh giá</button>
       </div>
+    ` : '';
+
+    container.innerHTML = `
+      <div class="review-list">${listHtml}</div>
+      ${reviewFormHtml}
     `;
 
-    // Star picker interaction
-    let selectedRating = 0;
-    const starBtns = container.querySelectorAll('.star-pick-btn');
-    starBtns.forEach(btn => {
-      btn.addEventListener('mouseenter', () => {
-        const v = +btn.dataset.v;
-        starBtns.forEach(b => b.classList.toggle('on', +b.dataset.v <= v));
+    if (!currentUserIsArtist) {
+      // Star picker interaction
+      let selectedRating = 0;
+      const starBtns = container.querySelectorAll('.star-pick-btn');
+      starBtns.forEach(btn => {
+        btn.addEventListener('mouseenter', () => {
+          const v = +btn.dataset.v;
+          starBtns.forEach(b => b.classList.toggle('on', +b.dataset.v <= v));
+        });
+        btn.addEventListener('mouseleave', () => {
+          starBtns.forEach(b => b.classList.toggle('on', +b.dataset.v <= selectedRating));
+        });
+        btn.addEventListener('click', () => {
+          selectedRating = +btn.dataset.v;
+          starBtns.forEach(b => b.classList.toggle('on', +b.dataset.v <= selectedRating));
+        });
       });
-      btn.addEventListener('mouseleave', () => {
-        starBtns.forEach(b => b.classList.toggle('on', +b.dataset.v <= selectedRating));
-      });
-      btn.addEventListener('click', () => {
-        selectedRating = +btn.dataset.v;
-        starBtns.forEach(b => b.classList.toggle('on', +b.dataset.v <= selectedRating));
-      });
-    });
 
-    container.querySelector('.rv-submit-btn').addEventListener('click', async () => {
-      if (!selectedRating) { this._showToast('Vui lòng chọn số sao'); return; }
-      const name    = container.querySelector('.rv-name').value.trim();
-      const comment = container.querySelector('.rv-comment').value.trim();
-      await this._submitReview(productId, name, selectedRating, comment, container, toggleBtn);
-    });
+      container.querySelector('.rv-submit-btn').addEventListener('click', async () => {
+        if (!selectedRating) { this._showToast('Vui lòng chọn số sao'); return; }
+        const name    = container.querySelector('.rv-name').value.trim();
+        const comment = container.querySelector('.rv-comment').value.trim();
+        await this._submitReview(productId, name, selectedRating, comment, container, toggleBtn);
+      });
+    }
   }
 
   // ─── Submit review ───────────────────────────────────────────────────────────
@@ -1099,9 +1539,13 @@ export class ProfileScene extends BaseScene {
     const isEdit = !!product;
 
     document.getElementById('pf-modal-title').textContent = isEdit ? 'Chỉnh sửa sản phẩm' : 'Thêm sản phẩm';
-    document.getElementById('pm-title').value = product?.title       || '';
-    document.getElementById('pm-desc').value  = product?.description || '';
-    document.getElementById('pm-price').value = product?.price       || '';
+    document.getElementById('pm-title').value      = product?.title       || '';
+    document.getElementById('pm-desc').value       = product?.description || '';
+    document.getElementById('pm-price').value      = product?.price       || '';
+    document.getElementById('pm-material').value   = product?.material    || '';
+    document.getElementById('pm-dimensions').value = product?.dimensions  || '';
+    document.getElementById('pm-stock').value      = product?.stock_qty != null ? String(product.stock_qty) : '';
+    document.getElementById('pm-variants').value   = Array.isArray(product?.variants) ? product.variants.join(', ') : (product?.variants || '');
 
     // File state for this form session
     const existingUrls = Array.isArray(product?.media_urls)
@@ -1160,10 +1604,16 @@ export class ProfileScene extends BaseScene {
       const saveBtn = document.getElementById('pm-save-btn');
       saveBtn.disabled = true; saveBtn.textContent = 'Đang lưu...';
 
+      const variantsRaw = document.getElementById('pm-variants').value.trim();
+      const stockRaw    = document.getElementById('pm-stock').value.trim();
       const formData = {
         title,
         description: document.getElementById('pm-desc').value.trim(),
         price:       document.getElementById('pm-price').value.trim(),
+        material:    document.getElementById('pm-material').value.trim(),
+        dimensions:  document.getElementById('pm-dimensions').value.trim(),
+        stock_qty:   stockRaw !== '' ? (parseInt(stockRaw) || 0) : null,
+        variants:    variantsRaw ? variantsRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
       };
       await this._saveProduct(formData, product?.id, cardEl);
       modal.style.display = 'none';
@@ -1243,19 +1693,21 @@ export class ProfileScene extends BaseScene {
   }
 
   // ─── Add product to localStorage cart ───────────────────────────────────────
-  _addProductToCart(product, btn) {
+  _addProductToCart(product, btn, variant) {
     const existing = JSON.parse(localStorage.getItem('gallery_cart') || '[]');
     if (existing.some(it => it.productId === product.id)) {
       this._showToast('Đã có trong giỏ hàng');
       return;
     }
     existing.push({
-      title: product.title,
-      artist: this._target.name,
-      year: '',
-      price: product.price || '',
+      title:    product.title,
+      artist:   this._target.name,
+      artistId: this._target.id || '',
+      year:     '',
+      price:    product.price || '',
       productId: product.id,
-      type: 'product',
+      type:     'product',
+      variant:  variant || null,
     });
     localStorage.setItem('gallery_cart', JSON.stringify(existing));
 
@@ -1303,7 +1755,7 @@ export class ProfileScene extends BaseScene {
     if (!itemsEl) return;
 
     if (items.length === 0) {
-      itemsEl.innerHTML = '<div style="color:#888;font-size:10px;letter-spacing:.1em;padding:8px 0">Giỏ hàng trống</div>';
+      itemsEl.innerHTML = '<div style="color:#888;font-size:12px;letter-spacing:.1em;padding:8px 0">Giỏ hàng trống</div>';
       if (totalRow) totalRow.style.display = 'none';
       return;
     }
@@ -1424,6 +1876,105 @@ export class ProfileScene extends BaseScene {
     this.manager.navigateTo('studio');
   }
 
+  // ─── Subtabs ─────────────────────────────────────────────────────────────────
+  _setupSubtabs(tabs, activeId) {
+    const nav = document.getElementById('pf-subtabs-nav');
+    if (!nav) return;
+
+    this._followLoaded = {};
+    const allTabIds = ['gallery', 'products', 'following', 'followers'];
+
+    const activateTab = (id) => {
+      nav.querySelectorAll('.pf-subtab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === id);
+      });
+      allTabIds.forEach(tid => {
+        const panel = document.getElementById('pf-tab-' + tid);
+        if (panel) panel.style.display = tid === id ? 'block' : 'none';
+      });
+      if ((id === 'following' || id === 'followers') && !this._followLoaded[id]) {
+        this._followLoaded[id] = true;
+        this._loadFollows(id);
+      }
+    };
+
+    tabs.forEach(tab => {
+      const btn = document.createElement('button');
+      btn.className = 'pf-subtab-btn';
+      btn.dataset.tab = tab.id;
+      btn.textContent = tab.label;
+      btn.addEventListener('click', () => activateTab(tab.id));
+      nav.appendChild(btn);
+    });
+
+    activateTab(activeId);
+  }
+
+  // ─── Load following / followers list ─────────────────────────────────────────
+  async _loadFollows(type) {
+    const loadingEl = document.getElementById('pf-' + type + '-loading');
+    const emptyEl   = document.getElementById('pf-' + type + '-empty');
+    const listEl    = document.getElementById('pf-' + type + '-list');
+    if (!loadingEl || !emptyEl || !listEl) return;
+
+    const targetId = this._target.id;
+    if (!targetId) {
+      loadingEl.style.display = 'none';
+      emptyEl.style.display = 'block';
+      return;
+    }
+
+    const filterCol = type === 'following' ? 'follower_id'  : 'following_id';
+    const resultCol = type === 'following' ? 'following_id' : 'follower_id';
+
+    const { data: follows, error } = await supabase
+      .from('follows')
+      .select(resultCol)
+      .eq(filterCol, targetId);
+
+    if (this._disposed) return;
+    loadingEl.style.display = 'none';
+
+    if (error || !follows || follows.length === 0) {
+      emptyEl.style.display = 'block';
+      return;
+    }
+
+    const ids = follows.map(r => r[resultCol]).filter(Boolean);
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, name, role, avatar_url')
+      .in('id', ids);
+
+    if (this._disposed) return;
+
+    if (!profiles || profiles.length === 0) {
+      emptyEl.style.display = 'block';
+      return;
+    }
+
+    listEl.style.display = 'grid';
+    profiles.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'pf-follow-card';
+      const avatarHtml = p.avatar_url
+        ? `<img src="${this._esc(p.avatar_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />`
+        : `<span>${(p.name || '?').charAt(0).toUpperCase()}</span>`;
+      card.innerHTML = `
+        <div class="pf-avatar-circle" style="width:38px;height:38px;font-size:16px;flex-shrink:0;cursor:default">${avatarHtml}</div>
+        <div>
+          <div style="font-size:13px;font-weight:600;letter-spacing:.04em">${this._esc(p.name || 'Ẩn danh')}</div>
+          <div style="font-size:11px;letter-spacing:.1em;color:#888;text-transform:uppercase;margin-top:2px">${p.role === 'artist' ? 'Artist' : 'Visitor'}</div>
+        </div>
+      `;
+      card.addEventListener('click', () => {
+        this.manager.profileTarget = { ...p, avatarUrl: p.avatar_url };
+        this.manager.navigateTo('profile');
+      });
+      listEl.appendChild(card);
+    });
+  }
+
   // ─── HTML escape helper ──────────────────────────────────────────────────────
   _esc(str) {
     return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -1433,4 +1984,3 @@ export class ProfileScene extends BaseScene {
     if (this._particles) this._particles.rotation.y += _dt * 0.01;
   }
 }
-

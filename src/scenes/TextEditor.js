@@ -169,8 +169,8 @@ export class TextEditor {
       .te-btn:hover { background: rgba(255, 255, 255, 0.28); border-color: #FFFFFF; color: #fff; }
       .te-btn.primary { background: rgba(200, 169, 110, 0.15); border-color: rgba(200, 169, 110, 0.5); color: #c8a96e; }
       .te-btn.primary:hover { background: rgba(200, 169, 110, 0.3); color: #fff; }
-      .te-btn.danger { border-color: rgba(181, 74, 58, 0.4); color: rgba(181, 74, 58, 0.8); }
-      .te-btn.danger:hover { background: rgba(181, 74, 58, 0.15); color: #ffaaaa; }
+      .te-btn.danger { border-color: rgba(181, 74, 58, 0.4); color: rgba(255, 99, 75, 0.83); }
+      .te-btn.danger:hover { background: rgba(181, 74, 58, 0.15); color: rgba(255, 99, 75, 0.83); }
       .te-toolbar {
         display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;
         padding: 5px; background: rgba(0, 0, 0, 0.3); border-radius: 4px;
@@ -213,78 +213,77 @@ export class TextEditor {
     panel.id = 'advanced-text-panel';
     panel.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-        <h3 style="margin:0;">&#128221; Advanced Text Editor</h3>
-        <button id="te-close-panel" style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:20px;cursor:pointer;line-height:1;padding:0 2px;" title="Dong panel">&#10005;</button>
+        <h3 style="margin:0;">&#128221; Chỉnh sửa văn bản</h3>
+        <button id="te-close-panel" style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:20px;cursor:pointer;line-height:1;padding:0 2px;" title="Đóng panel">&#10005;</button>
       </div>
 
-      <textarea id="te-content-input" class="te-textarea" placeholder="Nhap noi dung text (toi da 2000 tu)..."></textarea>
-      <div style="font-size: 7px; color: #555; text-align: right;"><span id="te-word-count">0</span>/2000 tu</div>
+      <textarea id="te-content-input" class="te-textarea" placeholder="Nhập nội dung văn bản (tối đa 2000 từ)..."></textarea>
+      <div style="font-size: 7px; color: #555; text-align: right;"><span id="te-word-count">0</span>/2000 từ</div>
 
       <div class="te-section">
-        <div class="te-section-title">Preview</div>
+        <div class="te-section-title">Xem trước</div>
         <div id="text-preview-area">
           <div id="text-preview">Text preview will appear here</div>
         </div>
       </div>
 
       <div class="te-section">
-        <div class="te-section-title">Font Style</div>
+        <div class="te-section-title">Kiểu chữ</div>
         <div class="te-toolbar">
           <button class="te-tool-btn" id="te-bold" data-style="bold"><b>B</b></button>
           <button class="te-tool-btn" id="te-italic" data-style="italic"><i>I</i></button>
           <button class="te-tool-btn" id="te-underline" data-style="underline"><u>U</u></button>
         </div>
         <div class="te-row">
-          <span class="te-label">Mau chu</span>
+          <span class="te-label">Màu chữ</span>
           <input type="color" id="te-text-color" class="te-color" value="#ffffff">
-          <span class="te-label">Co chu</span>
+          <span class="te-label">Cỡ chữ</span>
           <input type="range" id="te-font-size" class="te-range" min="0.3" max="2.5" step="0.01" value="0.8">
-          <span id="te-font-size-val" style="color:#7a6e5c;font-size:9px;width:35px">0.80</span>
+          <span id="te-font-size-val" style="color:#FFFFFF;font-size:9px;width:35px">0.80</span>
         </div>
         <div class="te-row">
-          <span class="te-label">Do rong</span>
+          <span class="te-label">Độ rộng khung văn bản</span>
           <input type="range" id="te-box-width" class="te-range" min="0.5" max="8" step="0.1" value="2.4">
-          <span id="te-box-width-val" style="color:#7a6e5c;font-size:9px;width:35px">2.40</span>
+          <span id="te-box-width-val" style="color:#FFFFFF;font-size:9px;width:35px">2.40</span>
         </div>
       </div>
 
       <div class="te-section">
-        <div class="te-section-title">Alignment</div>
+        <div class="te-section-title">Căn lề</div>
         <div class="align-group">
-          <button class="align-btn" id="te-align-left" data-align="left">Trai</button>
-          <button class="align-btn" id="te-align-center" data-align="center">Giua</button>
-          <button class="align-btn" id="te-align-right" data-align="right">Phai</button>
+          <button class="align-btn" id="te-align-left" data-align="left">Trái</button>
+          <button class="align-btn" id="te-align-center" data-align="center">Giữa</button>
+          <button class="align-btn" id="te-align-right" data-align="right">Phải</button>
         </div>
       </div>
 
       <div class="te-section">
-        <div class="te-section-title">Effects</div>
+        <div class="te-section-title">Hiệu ứng</div>
         <div class="te-row">
-          <span class="te-label">Outline</span>
+          <span class="te-label">Viền ngoài</span>
           <input type="color" id="te-outline-color" class="te-color" value="#000000">
           <input type="range" id="te-outline-width" min="0" max="8" step="0.5" value="0">
-          <span id="te-outline-val" style="color:#7a6e5c;font-size:9px;width:30px">0</span>
+          <span id="te-outline-val" style="color:#FFFFFF;font-size:9px;width:30px">0</span>
         </div>
         <div class="te-row">
-          <span class="te-label">Do bong</span>
+          <span class="te-label">Đổ bóng</span>
           <input type="range" id="te-shadow-blur" min="0" max="20" step="0.5" value="0">
-          <span id="te-shadow-val" style="color:#7a6e5c;font-size:9px;width:35px">0</span>
+          <span id="te-shadow-val" style="color:#FFFFFF;font-size:9px;width:35px">0</span>
         </div>
       </div>
 
       <div id="position-controls" style="display:none;"></div>
 
       <div class="te-row" style="gap: 8px; margin-top: 5px;">
-        <button class="te-btn primary" id="te-start-placing">Bat dau dat chu len tuong</button>
-        <button class="te-btn danger" id="te-cancel">Huy</button>
+        <button class="te-btn primary" id="te-start-placing" style="color:#FFD700;">Bắt đầu đặt chữ lên tường</button>        <button class="te-btn danger" id="te-cancel">Hủy</button>
       </div>
 
       <hr style="border-color: rgba(212,197,169,0.1); margin: 8px 0;">
 
       <div class="te-section">
-        <div class="te-section-title">Danh sach text</div>
+        <div class="te-section-title">Danh sách văn bản</div>
         <div id="advanced-text-list"></div>
-        <button class="te-btn danger" id="te-clear-all" style="width:100%; margin-top: 8px;">Xoa het text</button>
+        <button class="te-btn danger" id="te-clear-all" style="width:100%; margin-top: 8px;">Xóa hết văn bản</button>
       </div>
     `;
 
@@ -347,6 +346,11 @@ export class TextEditor {
     });
 
     document.getElementById('te-start-placing')?.addEventListener('click', () => {
+      // Nếu đang chỉnh sửa text đã đặt → lưu thay đổi luôn
+      if (this.selectedTextIndex >= 0) {
+        this.applyUpdateToSelected();
+        return;
+      }
       const content = document.getElementById('te-content-input')?.value || '';
       if (!content.trim()) {
         this.toast('Vui long nhap noi dung text truoc', 'error');
@@ -764,37 +768,35 @@ export class TextEditor {
     if (index < 0 || index >= this.texts.length) return null;
 
     const oldText = this.texts[index];
-    const oldPos = oldText.data.position;
-    const oldNormal = oldText.data.normal;
 
-    this.scene.remove(oldText.group);
+    // Tạo texture mới với nội dung/style mới
+    const { texture, canvas, planeWidth, planeHeight } = this.createTextTexture(content, styles);
+
+    // Cập nhật texture trực tiếp vào material đang có — giữ nguyên toàn bộ
+    // vị trí, góc xoay, scale mà user đã chỉnh sau khi đặt lên tường
     if (oldText.texture) oldText.texture.dispose();
-    if (oldText.material) oldText.material.dispose();
+    oldText.material.map = texture;
+    oldText.material.needsUpdate = true;
 
-    const pos = new THREE.Vector3(oldPos.x, oldPos.y, oldPos.z);
-    const normal = new THREE.Vector3(oldNormal.x, oldNormal.y, oldNormal.z);
+    // Cập nhật kích thước geometry nếu text thay đổi tỉ lệ
+    oldText.plane.geometry.dispose();
+    oldText.plane.geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
 
-    const { group, plane, material, texture, canvas } = this.createTextGroup(content, styles, pos, normal);
-    this.scene.add(group);
-
-    this.texts[index] = {
-      group: group,
-      plane: plane,
-      material: material,
-      texture: texture,
-      canvas: canvas,
-      data: {
-        content: content,
-        styles: { ...styles },
-        position: oldPos,
-        rotation: group.rotation.y,
-        normal: oldNormal
-      }
+    // Cập nhật data lưu trữ, giữ nguyên position/rotation/normal thực tế trên scene
+    oldText.texture = texture;
+    oldText.canvas  = canvas;
+    oldText.data.content = content;
+    oldText.data.styles  = { ...styles };
+    oldText.data.position = {
+      x: oldText.group.position.x,
+      y: oldText.group.position.y,
+      z: oldText.group.position.z
     };
+    oldText.data.rotation = oldText.group.rotation.y;
 
     this.renderTextList();
     this.onTextsChanged?.();
-    return this.texts[index];
+    return oldText;
   }
 
   selectTextForEdit(idx) {
@@ -842,12 +844,12 @@ export class TextEditor {
 
     const startBtn = document.getElementById('te-start-placing');
     if (startBtn) {
-      startBtn.textContent = 'Cap nhat text';
+      startBtn.textContent = 'Cập nhật text';
       startBtn.style.borderColor = '#6aaa7a';
-      startBtn.style.color = '#6aaa7a';
+      startBtn.style.color = '#7ae494';
     }
 
-    this.toast('Da chon text, chinh sua va nhan "Cap nhat text" de luu', 'info');
+    this.toast('Da chon text, chinh sua va nhan "Cập nhật text" de luu', 'info');
   }
 
   applyUpdateToSelected() {
@@ -867,7 +869,7 @@ export class TextEditor {
 
       const startBtn = document.getElementById('te-start-placing');
       if (startBtn) {
-        startBtn.textContent = 'Bat dau dat chu len tuong';
+        startBtn.textContent = 'Bắt đầu đặt chữ lên tường';
         startBtn.style.borderColor = '';
         startBtn.style.color = '';
       }
@@ -913,7 +915,7 @@ export class TextEditor {
 
       const startBtn = document.getElementById('te-start-placing');
       if (startBtn) {
-        startBtn.textContent = 'Bat dau dat chu len tuong';
+        startBtn.textContent = 'Bắt đầu đặt chữ lên tường';
         startBtn.style.borderColor = '';
         startBtn.style.color = '';
       }
@@ -1016,8 +1018,8 @@ export class TextEditor {
 
     const startBtn = document.getElementById('te-start-placing');
     if (startBtn) {
-      startBtn.textContent = 'Bat dau dat chu len tuong';
-      startBtn.style.borderColor = '';
+      startBtn.textContent = 'Bắt đầu đặt chữ lên tường';
+      startBtn.style.color = '#ffed88';      startBtn.style.borderColor = '';
       startBtn.style.color = '';
     }
   }
@@ -1056,6 +1058,7 @@ export class TextEditor {
       x: t.group.position.x,
       y: t.group.position.y,
       z: t.group.position.z,
+      rotX: t.group.rotation.x,
       rotY: t.group.rotation.y,
       rotZ: t.group.rotation.z,
       scale: t.group.scale.x,
@@ -1091,7 +1094,8 @@ export class TextEditor {
         plane.geometry = new THREE.PlaneGeometry(t.planeWidth, t.planeHeight);
       }
       this.scene.add(group);
-      // Uu tien rotY da luu; neu khong co thi giu nguyen goc tinh tu normal
+      // Uu tien rotX/rotY/rotZ da luu; neu khong co thi giu nguyen goc tinh tu normal
+      if (t.rotX !== undefined) group.rotation.x = t.rotX;
       if (t.rotY !== undefined) group.rotation.y = t.rotY;
       if (t.rotZ !== undefined) group.rotation.z = t.rotZ;
       if (t.scale !== undefined) group.scale.setScalar(t.scale);

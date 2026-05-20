@@ -8,7 +8,7 @@ export class ForumScene extends BaseScene {
     await this.manager.auth.ready();
     if (this._disposed) return;
 
-    this.threeScene.background = new THREE.Color(0xffffff);
+    this.threeScene.background = new THREE.Color(0xF1FAFF);
     this.camera.position.set(0, 0, 5);
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.2));
     this._createParticles();
@@ -37,9 +37,11 @@ export class ForumScene extends BaseScene {
 
   _buildOverlay() {
     const overlay = document.createElement('div');
+    overlay.id = 'fr-overlay-wrap';
     overlay.style.cssText = `
       position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;
-      overflow-y:auto;z-index:100;font-family:monospace;
+      overflow-y:auto;z-index:100;font-family:'Montserrat',sans-serif;background:#F1FAFF;
+      color:#182D58;
     `;
 
     const isLoggedIn = this.manager.auth.isLoggedIn;
@@ -58,15 +60,19 @@ export class ForumScene extends BaseScene {
           margin-bottom: 28px;
         }
         .fr-title {
-          color: #1a1a1a;
-          font-size: 11px;
-          letter-spacing: .28em;
-          text-transform: uppercase;
+          color: #2222C6;
+          font-family: 'Montserrat', sans-serif;
+          font-size: 40px;
+          font-weight: 800;
+          line-height: 1.1;
+          margin-bottom: 10px;
         }
         .fr-sub {
-          color: #888;
-          font-size: 9px;
-          letter-spacing: .12em;
+          color: #182D58;
+          font-family: 'Montserrat', sans-serif;
+          font-size: 25px;
+          font-weight: 600;
+          font-style: italic;
           margin-top: 4px;
         }
         .fr-back {
@@ -100,11 +106,11 @@ export class ForumScene extends BaseScene {
         .fr-compose-avatar {
           width: 34px; height: 34px;
           border-radius: 50%;
-          background: rgba(200,169,110,.1);
-          border: 1px solid rgba(200,169,110,.25);
+          background: rgba(118,170,171,.1);
+          border: 1px solid rgba(118,170,171,.25);
           display: flex; align-items: center; justify-content: center;
           font-size: 13px;
-          color: #c8a96e;
+          color: #76AAAB;
           flex-shrink: 0;
         }
         .fr-compose-name {
@@ -128,7 +134,7 @@ export class ForumScene extends BaseScene {
           line-height: 1.7;
           transition: border-color .2s;
         }
-        .fr-textarea:focus { border-color: rgba(200,169,110,.5); }
+        .fr-textarea:focus { border-color: rgba(118,170,171,.5); }
         .fr-textarea::placeholder { color: #aaa; }
         .fr-compose-foot {
           display: flex;
@@ -146,19 +152,25 @@ export class ForumScene extends BaseScene {
           padding: 7px 18px;
           font-size: 10px;
           cursor: pointer;
-          font-family: monospace;
-          letter-spacing: .1em;
-          border-radius: 3px;
+          font-family: 'Montserrat', sans-serif;
+          font-weight: 700;
+          letter-spacing: .08em;
+          border-radius: 26px;
           transition: all .2s;
-          border: 1px solid;
+          border: 2px solid rgba(255,255,255,.25);
+          background: #122F6A;
+          color: #FFFFFF;
+          box-shadow: 0 4px 12px rgba(118,170,171,.55);
+          text-align: center;
         }
+        .fr-btn:hover { box-shadow: 0 6px 18px rgba(118,170,171,.75); transform: translateY(-1px); }
         .fr-btn.gold {
-          background: rgba(200,169,110,.12);
-          border-color: rgba(200,169,110,.45);
-          color: #c8a96e;
+          background: #122F6A;
+          border-color: rgba(255,255,255,.35);
+          color: #FFFFFF;
         }
-        .fr-btn.gold:hover { background: rgba(200,169,110,.25); }
-        .fr-btn.gold:disabled { opacity: .45; cursor: default; }
+        .fr-btn.gold:hover { box-shadow: 0 6px 18px rgba(118,170,171,.75); transform: translateY(-1px); }
+        .fr-btn.gold:disabled { opacity: .45; cursor: default; transform: none; }
 
         .fr-not-logged {
           background: #f8f8f8;
@@ -200,21 +212,21 @@ export class ForumScene extends BaseScene {
         .fr-avatar {
           width: 36px; height: 36px;
           border-radius: 50%;
-          background: rgba(200,169,110,.1);
-          border: 1px solid rgba(200,169,110,.22);
+          background: rgba(118,170,171,.1);
+          border: 1px solid rgba(118,170,171,.22);
           display: flex; align-items: center; justify-content: center;
           font-size: 14px;
-          color: #c8a96e;
+          color: #76AAAB;
           flex-shrink: 0;
         }
         .fr-author-name {
-          color: #c8a96e;
+          color: #182D58;
           font-size: 12px;
           letter-spacing: .06em;
           cursor: pointer;
           transition: color .15s;
         }
-        .fr-author-name:hover { color: #a07840; text-decoration: underline; }
+        .fr-author-name:hover { color: #76AAAB; text-decoration: underline; }
         .fr-role-badge {
           display: inline-block;
           padding: 1px 7px;
@@ -222,9 +234,9 @@ export class ForumScene extends BaseScene {
           letter-spacing: .14em;
           text-transform: uppercase;
           border-radius: 2px;
-          border: 1px solid rgba(200,169,110,.22);
+          border: 1px solid rgba(118,170,171,.22);
           color: #888;
-          background: rgba(200,169,110,.05);
+          background: rgba(118,170,171,.05);
           margin-left: 6px;
         }
         .fr-time {
@@ -262,8 +274,10 @@ export class ForumScene extends BaseScene {
           align-items: center;
           gap: 5px;
         }
-        .fr-act:hover { color: #c8a96e; background: rgba(200,169,110,.07); }
-        .fr-act.liked { color: #c8a96e; }
+        .fr-act:hover { color: #76AAAB; background: rgba(118,170,171,.07); }
+        .fr-act.liked { color: #FE6060; }
+        .fr-like-btn:hover { color: #FE6060; background: rgba(254,96,96,.07); }
+
 
         .fr-comments {
           margin-top: 16px;
@@ -294,7 +308,7 @@ export class ForumScene extends BaseScene {
           margin-bottom: 3px;
         }
         .fr-c-author {
-          color: #c8a96e;
+          color: #76AAAB;
           font-size: 10px;
           letter-spacing: .05em;
           cursor: pointer;
@@ -328,13 +342,13 @@ export class ForumScene extends BaseScene {
           outline: none;
           transition: border-color .2s;
         }
-        .fr-c-input:focus { border-color: rgba(200,169,110,.5); }
+        .fr-c-input:focus { border-color: rgba(118,170,171,.5); }
         .fr-c-input::placeholder { color: #aaa; }
         .fr-c-send {
           padding: 7px 14px;
-          background: rgba(200,169,110,.1);
-          border: 1px solid rgba(200,169,110,.35);
-          color: #c8a96e;
+          background: rgba(118,170,171,.1);
+          border: 1px solid rgba(118,170,171,.35);
+          color: #76AAAB;
           font-family: monospace;
           font-size: 9px;
           letter-spacing: .08em;
@@ -343,7 +357,7 @@ export class ForumScene extends BaseScene {
           transition: all .18s;
           white-space: nowrap;
         }
-        .fr-c-send:hover { background: rgba(200,169,110,.22); }
+        .fr-c-send:hover { background: rgba(118,170,171,.22); }
         .fr-c-send:disabled { opacity: .4; cursor: default; }
 
         .fr-empty {
@@ -378,6 +392,192 @@ export class ForumScene extends BaseScene {
         }
         .fr-load-more-btn:hover { border-color: rgba(0,0,0,.25); color: #222; }
 
+        /* ── Compose toolbar ── */
+        .fr-compose-toolbar {
+          display: flex;
+          gap: 4px;
+          margin-top: 10px;
+          padding-top: 10px;
+          border-top: 1px solid rgba(0,0,0,.06);
+          flex-wrap: wrap;
+        }
+        .fr-tool-btn {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          padding: 5px 10px;
+          background: none;
+          border: 1px solid rgba(0,0,0,.1);
+          border-radius: 20px;
+          font-family: monospace;
+          font-size: 9px;
+          letter-spacing: .06em;
+          color: #666;
+          cursor: pointer;
+          transition: all .18s;
+        }
+        .fr-tool-btn:hover { border-color: rgba(118,170,171,.5); color: #76AAAB; background: rgba(118,170,171,.06); }
+        .fr-tool-btn.active { border-color: rgba(118,170,171,.5); color: #76AAAB; background: rgba(118,170,171,.08); }
+        .fr-tool-icon { font-size: 12px; line-height: 1; }
+
+        /* ── Media preview ── */
+        .fr-media-preview {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 10px;
+        }
+        .fr-media-thumb {
+          position: relative;
+          width: 80px; height: 80px;
+          border-radius: 6px;
+          overflow: hidden;
+          border: 1px solid rgba(0,0,0,.1);
+          background: rgba(0,0,0,.04);
+        }
+        .fr-media-thumb img, .fr-media-thumb video {
+          width: 100%; height: 100%; object-fit: cover;
+        }
+        .fr-media-remove {
+          position: absolute;
+          top: 3px; right: 3px;
+          width: 16px; height: 16px;
+          border-radius: 50%;
+          background: rgba(0,0,0,.55);
+          color: #fff;
+          font-size: 9px;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer;
+          border: none;
+          line-height: 1;
+        }
+        .fr-media-remove:hover { background: rgba(254,96,96,.8); }
+
+        /* ── Tag / check-in input row ── */
+        .fr-extra-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 8px;
+          padding: 7px 10px;
+          background: rgba(118,170,171,.05);
+          border: 1px solid rgba(118,170,171,.2);
+          border-radius: 6px;
+          font-size: 10px;
+          color: #555;
+        }
+        .fr-extra-row-icon { font-size: 13px; }
+        .fr-extra-input {
+          flex: 1;
+          background: none;
+          border: none;
+          outline: none;
+          font-family: monospace;
+          font-size: 10px;
+          color: #1a1a1a;
+        }
+        .fr-extra-input::placeholder { color: #aaa; }
+        .fr-extra-close {
+          background: none;
+          border: none;
+          color: #aaa;
+          cursor: pointer;
+          font-size: 13px;
+          padding: 0;
+          line-height: 1;
+        }
+        .fr-extra-close:hover { color: #FE6060; }
+
+        /* ── Tag chips & media in card ── */
+        .fr-post-extras {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-bottom: 10px;
+        }
+        .fr-post-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 9px;
+          border-radius: 20px;
+          font-size: 9px;
+          letter-spacing: .05em;
+        }
+        .fr-post-tag.mention {
+          background: rgba(118,170,171,.1);
+          color: #76AAAB;
+          border: 1px solid rgba(118,170,171,.25);
+        }
+        .fr-post-tag.checkin {
+          background: rgba(24,45,88,.07);
+          color: #182D58;
+          border: 1px solid rgba(24,45,88,.15);
+        }
+        .fr-post-media {
+          display: grid;
+          gap: 4px;
+          margin-bottom: 12px;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .fr-post-media.count-1 { grid-template-columns: 1fr; }
+        .fr-post-media.count-2 { grid-template-columns: 1fr 1fr; }
+        .fr-post-media.count-3 { grid-template-columns: 1fr 1fr; }
+        .fr-post-media.count-3 .fr-media-item:first-child { grid-column: 1 / -1; }
+        .fr-post-media.count-4 { grid-template-columns: 1fr 1fr; }
+        .fr-media-item { overflow: hidden; background: #eee; }
+        .fr-media-item img, .fr-media-item video {
+          width: 100%; height: 180px; object-fit: cover; display: block; cursor: pointer;
+        }
+        .fr-post-media.count-1 .fr-media-item img,
+        .fr-post-media.count-1 .fr-media-item video { height: 260px; }
+
+        /* ── Share strip ── */
+        .fr-share-strip {
+          display: flex;
+          gap: 6px;
+          margin-top: 10px;
+          padding-top: 10px;
+          border-top: 1px solid rgba(0,0,0,.05);
+        }
+        .fr-share-btn {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 10px;
+          border: 1px solid rgba(0,0,0,.1);
+          border-radius: 16px;
+          background: none;
+          font-family: monospace;
+          font-size: 9px;
+          letter-spacing: .05em;
+          color: #888;
+          cursor: pointer;
+          transition: all .18s;
+        }
+        .fr-share-btn:hover { border-color: rgba(118,170,171,.45); color: #76AAAB; }
+
+        /* ── Lightbox ── */
+        #fr-lightbox {
+          display: none;
+          position: fixed; inset: 0;
+          background: rgba(0,0,0,.88);
+          z-index: 9998;
+          align-items: center;
+          justify-content: center;
+        }
+        #fr-lightbox.open { display: flex; }
+        #fr-lightbox img, #fr-lightbox video {
+          max-width: 90vw; max-height: 90vh;
+          border-radius: 4px; object-fit: contain;
+        }
+        #fr-lightbox-close {
+          position: absolute; top: 18px; right: 24px;
+          color: #fff; font-size: 28px; cursor: pointer;
+          background: none; border: none; line-height: 1;
+        }
+
         .fr-toast {
           position: fixed;
           bottom: 32px;
@@ -398,7 +598,58 @@ export class ForumScene extends BaseScene {
           white-space: nowrap;
           box-shadow: 0 2px 12px rgba(0,0,0,.1);
         }
+
+        /* ── Edit/Delete buttons ── */
+        .fr-delete-btn { color: #FE6060 !important; }
+        .fr-delete-btn:hover { color: #FE6060 !important; background: rgba(254,96,96,.07) !important; }
+        .fr-edit-textarea {
+          width: 100%; margin-bottom: 8px; min-height: 80px;
+          background: rgba(0,0,0,.03); border: 1px solid rgba(118,170,171,.4);
+          border-radius: 4px; color: #182D58; padding: 10px;
+          font-family: 'Montserrat', sans-serif; font-size: 15px;
+          box-sizing: border-box; outline: none; resize: none; line-height: 1.7;
+        }
+
+        /* ── Global font overrides (+2px, Montserrat, #182D58) ── */
+        #fr-overlay-wrap { font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-title { font-size: 42px; }
+        #fr-overlay-wrap .fr-sub { font-size: 27px; }
+        #fr-overlay-wrap .fr-back { font-size: 12px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-compose-name { font-size: 13px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-textarea { font-size: 15px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-char { font-size: 11px; color: #182D58; }
+        #fr-overlay-wrap .fr-btn { font-size: 12px; }
+        #fr-overlay-wrap .fr-not-logged { font-size: 13px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-author-name { font-size: 14px; }
+        #fr-overlay-wrap .fr-role-badge { font-size: 10px; }
+        #fr-overlay-wrap .fr-time { font-size: 11px; }
+        #fr-overlay-wrap .fr-content { font-size: 15px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-act { font-size: 12px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-c-author { font-size: 12px; }
+        #fr-overlay-wrap .fr-c-time { font-size: 11px; }
+        #fr-overlay-wrap .fr-c-text { font-size: 14px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-c-input { font-size: 14px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-c-send { font-size: 11px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-empty { font-size: 13px; color: #182D58; }
+        #fr-overlay-wrap .fr-loading-txt { font-size: 12px; color: #182D58; }
+        #fr-overlay-wrap .fr-load-more-btn { font-size: 12px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-tool-btn { font-size: 11px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-tool-icon { font-size: 14px; }
+        #fr-overlay-wrap .fr-extra-row { font-size: 12px; color: #182D58; }
+        #fr-overlay-wrap .fr-extra-input { font-size: 12px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-extra-close { font-size: 15px; }
+        #fr-overlay-wrap .fr-post-tag { font-size: 11px; }
+        #fr-overlay-wrap .fr-share-btn { font-size: 11px; font-family: 'Montserrat', sans-serif; color: #182D58; }
+        #fr-overlay-wrap .fr-compose-avatar { font-size: 15px; }
+        #fr-overlay-wrap .fr-avatar { font-size: 16px; }
+        #fr-overlay-wrap .fr-c-avatar { font-size: 12px; }
+        #fr-toast { font-size: 13px; font-family: 'Montserrat', sans-serif; }
       </style>
+
+      <div id="fr-lightbox">
+        <button id="fr-lightbox-close">✕</button>
+        <div id="fr-lightbox-content"></div>
+      </div>
 
       <div id="fr-toast" class="fr-toast"></div>
 
@@ -448,6 +699,37 @@ export class ForumScene extends BaseScene {
         </div>
         <textarea id="fr-compose-text" class="fr-textarea"
           placeholder="Chia sẻ suy nghĩ, tác phẩm, hoặc câu hỏi của bạn..." maxlength="1000"></textarea>
+
+        <div id="fr-media-preview" class="fr-media-preview"></div>
+        <div id="fr-tag-row" class="fr-extra-row" style="display:none">
+          <span class="fr-extra-row-icon">👤</span>
+          <input class="fr-extra-input" id="fr-tag-input" placeholder="Nhập tên người muốn tag, cách nhau bằng dấu phẩy..." />
+          <button class="fr-extra-close" id="fr-tag-close">✕</button>
+        </div>
+        <div id="fr-checkin-row" class="fr-extra-row" style="display:none">
+          <span class="fr-extra-row-icon">📍</span>
+          <input class="fr-extra-input" id="fr-checkin-input" placeholder="Nhập địa điểm check-in..." />
+          <button class="fr-extra-close" id="fr-checkin-close">✕</button>
+        </div>
+
+        <div class="fr-compose-toolbar">
+          <button class="fr-tool-btn" id="fr-tool-image">
+            <span class="fr-tool-icon">🖼</span> Ảnh
+          </button>
+          <button class="fr-tool-btn" id="fr-tool-video">
+            <span class="fr-tool-icon">🎬</span> Video
+          </button>
+          <button class="fr-tool-btn" id="fr-tool-tag">
+            <span class="fr-tool-icon">👤</span> Tag
+          </button>
+          <button class="fr-tool-btn" id="fr-tool-checkin">
+            <span class="fr-tool-icon">📍</span> Check-in
+          </button>
+        </div>
+
+        <input type="file" id="fr-file-image" accept="image/*" multiple style="display:none" />
+        <input type="file" id="fr-file-video" accept="video/*" style="display:none" />
+
         <div class="fr-compose-foot">
           <span id="fr-char-count" class="fr-char">0 / 1000</span>
           <button id="fr-submit-post" class="fr-btn gold">Đăng bài</button>
@@ -461,6 +743,11 @@ export class ForumScene extends BaseScene {
       this.manager.navigateTo(this.manager.previousScene || 'landing');
     });
 
+    // Lightbox
+    const lb = document.getElementById('fr-lightbox');
+    document.getElementById('fr-lightbox-close')?.addEventListener('click', () => lb.classList.remove('open'));
+    lb?.addEventListener('click', (e) => { if (e.target === lb) lb.classList.remove('open'); });
+
     if (this.manager.auth.isLoggedIn) {
       const textarea = document.getElementById('fr-compose-text');
       const charEl   = document.getElementById('fr-char-count');
@@ -468,12 +755,101 @@ export class ForumScene extends BaseScene {
         charEl.textContent = `${textarea.value.length} / 1000`;
       });
       document.getElementById('fr-submit-post').addEventListener('click', () => this._submitPost());
+
+      // ── Media attachments ──
+      this._mediaFiles = []; // { file, url, type }
+
+      const imgInput = document.getElementById('fr-file-image');
+      const vidInput = document.getElementById('fr-file-video');
+
+      document.getElementById('fr-tool-image').addEventListener('click', () => imgInput.click());
+      document.getElementById('fr-tool-video').addEventListener('click', () => vidInput.click());
+
+      imgInput.addEventListener('change', () => {
+        [...imgInput.files].forEach(f => this._addMedia(f, 'image'));
+        imgInput.value = '';
+      });
+      vidInput.addEventListener('change', () => {
+        [...vidInput.files].forEach(f => this._addMedia(f, 'video'));
+        vidInput.value = '';
+      });
+
+      // ── Tag người ──
+      const tagBtn   = document.getElementById('fr-tool-tag');
+      const tagRow   = document.getElementById('fr-tag-row');
+      const tagClose = document.getElementById('fr-tag-close');
+      tagBtn.addEventListener('click', () => {
+        const open = tagRow.style.display !== 'none';
+        tagRow.style.display = open ? 'none' : 'flex';
+        tagBtn.classList.toggle('active', !open);
+        if (!open) document.getElementById('fr-tag-input').focus();
+      });
+      tagClose.addEventListener('click', () => {
+        tagRow.style.display = 'none';
+        tagBtn.classList.remove('active');
+        document.getElementById('fr-tag-input').value = '';
+      });
+
+      // ── Check-in ──
+      const ciBtn   = document.getElementById('fr-tool-checkin');
+      const ciRow   = document.getElementById('fr-checkin-row');
+      const ciClose = document.getElementById('fr-checkin-close');
+      ciBtn.addEventListener('click', () => {
+        const open = ciRow.style.display !== 'none';
+        ciRow.style.display = open ? 'none' : 'flex';
+        ciBtn.classList.toggle('active', !open);
+        if (!open) document.getElementById('fr-checkin-input').focus();
+      });
+      ciClose.addEventListener('click', () => {
+        ciRow.style.display = 'none';
+        ciBtn.classList.remove('active');
+        document.getElementById('fr-checkin-input').value = '';
+      });
     } else {
       const cta = document.getElementById('fr-login-cta');
       if (cta) cta.addEventListener('click', () => this.manager.navigateTo('login'));
     }
 
     document.getElementById('fr-load-more').addEventListener('click', () => this._loadPosts(true));
+  }
+
+  _addMedia(file, type) {
+    if (this._mediaFiles.length >= 4) {
+      this._toast('Tối đa 4 file media mỗi bài', 'err');
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const id  = Date.now() + Math.random();
+    this._mediaFiles.push({ id, file, url, type });
+    this._renderMediaPreview();
+  }
+
+  _removeMedia(id) {
+    const idx = this._mediaFiles.findIndex(m => m.id === id);
+    if (idx >= 0) {
+      URL.revokeObjectURL(this._mediaFiles[idx].url);
+      this._mediaFiles.splice(idx, 1);
+    }
+    this._renderMediaPreview();
+  }
+
+  _renderMediaPreview() {
+    const el = document.getElementById('fr-media-preview');
+    if (!el) return;
+    el.innerHTML = '';
+    this._mediaFiles.forEach(m => {
+      const thumb = document.createElement('div');
+      thumb.className = 'fr-media-thumb';
+      thumb.innerHTML = m.type === 'image'
+        ? `<img src="${m.url}" />`
+        : `<video src="${m.url}" muted></video>`;
+      const rm = document.createElement('button');
+      rm.className = 'fr-media-remove';
+      rm.textContent = '✕';
+      rm.addEventListener('click', () => this._removeMedia(m.id));
+      thumb.appendChild(rm);
+      el.appendChild(thumb);
+    });
   }
 
   // ─── Data ────────────────────────────────────────────────────────────────────
@@ -522,6 +898,18 @@ export class ForumScene extends BaseScene {
 
     feed.innerHTML = '';
     this._posts.forEach(p => feed.appendChild(this._buildCard(p)));
+
+    const hash = window.location.hash;
+    if (hash.startsWith('#post-')) {
+      const targetCard = feed.querySelector(`[data-post-id="${hash.slice(6)}"]`);
+      if (targetCard) {
+        setTimeout(() => {
+          targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetCard.style.outline = '2px solid rgba(118,170,171,.6)';
+          setTimeout(() => { targetCard.style.outline = ''; }, 2000);
+        }, 300);
+      }
+    }
   }
 
   _buildCard(post) {
@@ -531,6 +919,50 @@ export class ForumScene extends BaseScene {
     const timeStr   = this._relTime(post.created_at);
     const cmtCount  = post.comment_count || 0;
     const cmtLabel  = cmtCount > 0 ? `${cmtCount} bình luận` : 'Bình luận';
+
+    // ── Extras (mentions, checkin) ──
+    const mentions  = post.mentions || [];
+    const checkin   = post.checkin  || '';
+    const isAuthor  = this.manager.auth.isLoggedIn &&
+                      this.manager.auth.profile?.name === post.author_name;
+    let extrasHtml = '';
+    if (mentions.length || checkin) {
+      extrasHtml = `<div class="fr-post-extras">`;
+      mentions.forEach(m => {
+        extrasHtml += `<span class="fr-post-tag mention" data-mention="${this._esc(m)}" style="cursor:pointer">👤 ${this._esc(m)}</span>`;
+      });
+      if (checkin) {
+        extrasHtml += `<span class="fr-post-tag checkin">📍 ${this._esc(checkin)}</span>`;
+      }
+      extrasHtml += `</div>`;
+    }
+
+    // ── Media grid ──
+    const media = post.media || [];
+    let mediaHtml = '';
+    if (media.length) {
+      const cls = `count-${Math.min(media.length, 4)}`;
+      mediaHtml = `<div class="fr-post-media ${cls}">`;
+      media.slice(0, 4).forEach(m => {
+        if (m.type === 'video') {
+          mediaHtml += `<div class="fr-media-item"><video src="${m.url}" controls muted playsinline></video></div>`;
+        } else {
+          mediaHtml += `<div class="fr-media-item"><img src="${m.url}" alt="" data-lightbox="${m.url}" loading="lazy"></div>`;
+        }
+      });
+      mediaHtml += `</div>`;
+    }
+
+    // ── Share strip ──
+    const postUrl   = `${window.location.origin}${window.location.pathname}#post-${post.id}`;
+    const shareUrl  = encodeURIComponent(postUrl);
+    const shareText = encodeURIComponent((post.content || '').slice(0, 100));
+    const shareHtml = `
+      <div class="fr-share-strip">
+        <button class="fr-share-btn fr-share-copy" data-url="${postUrl}">🔗 Sao chép link</button>
+        <a class="fr-share-btn" href="https://www.facebook.com/sharer/sharer.php?u=${shareUrl}" target="_blank" rel="noopener">📘 Facebook</a>
+        <a class="fr-share-btn" href="https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}" target="_blank" rel="noopener">🐦 Twitter</a>
+      </div>`;
 
     const card = document.createElement('div');
     card.className = 'fr-post-card';
@@ -549,7 +981,9 @@ export class ForumScene extends BaseScene {
         </div>
         <span class="fr-time">${timeStr}</span>
       </div>
+      ${extrasHtml}
       <div class="fr-content">${this._esc(post.content)}</div>
+      ${mediaHtml}
       <div class="fr-action-row">
         <button class="fr-act fr-like-btn${isLiked ? ' liked' : ''}" data-id="${post.id}">
           ♥ <span class="fr-like-count">${post.like_count || 0}</span>
@@ -557,7 +991,13 @@ export class ForumScene extends BaseScene {
         <button class="fr-act fr-cmt-btn" data-id="${post.id}">
           ◎ <span class="fr-cmt-label">${cmtLabel}</span>
         </button>
+        <button class="fr-act fr-share-toggle">↗ Chia sẻ</button>
+        ${isAuthor ? `
+          <button class="fr-act fr-edit-btn" data-id="${post.id}" style="margin-left:auto">✎ Sửa</button>
+          <button class="fr-act fr-delete-btn" data-id="${post.id}">🗑 Gỡ</button>
+        ` : ''}
       </div>
+      <div class="fr-share-section" style="display:none">${shareHtml}</div>
       <div class="fr-comments" id="cmt-${post.id}" style="display:none"></div>
     `;
 
@@ -570,6 +1010,66 @@ export class ForumScene extends BaseScene {
     card.querySelector('.fr-cmt-btn').addEventListener('click', () => {
       this._toggleComments(post.id);
     });
+    card.querySelector('.fr-share-toggle').addEventListener('click', (e) => {
+      const sec = card.querySelector('.fr-share-section');
+      sec.style.display = sec.style.display === 'none' ? 'block' : 'none';
+    });
+    card.querySelectorAll('.fr-share-copy').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const url = btn.dataset.url;
+        const fallback = () => {
+          const ta = document.createElement('textarea');
+          ta.value = url;
+          ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); this._toast('Đã sao chép link!'); }
+          catch { this._toast('Không thể sao chép link', 'err'); }
+          document.body.removeChild(ta);
+        };
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(url)
+            .then(() => this._toast('Đã sao chép link!'))
+            .catch(fallback);
+        } else {
+          fallback();
+        }
+      });
+    });
+
+    if (isAuthor) {
+      card.querySelector('.fr-edit-btn')?.addEventListener('click', () => this._editPost(post, card));
+      card.querySelector('.fr-delete-btn')?.addEventListener('click', () => this._deletePost(post.id, card));
+    }
+
+    // Mention chips -> profile
+    card.querySelectorAll('.fr-post-tag.mention[data-mention]').forEach(el => {
+      el.addEventListener('click', async () => {
+        const name = el.dataset.mention;
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, role')
+          .eq('display_name', name)
+          .maybeSingle();
+        if (data) {
+          this.manager.profileTarget = { id: data.id, name, role: data.role };
+        } else {
+          const found = this._posts.find(p => p.author_name === name);
+          this.manager.profileTarget = { name, role: found?.author_role || null };
+        }
+        this.manager.navigateTo('profile');
+      });
+    });
+
+    // Lightbox for images
+    card.querySelectorAll('img[data-lightbox]').forEach(img => {
+      img.addEventListener('click', () => {
+        const lb = document.getElementById('fr-lightbox');
+        const lc = document.getElementById('fr-lightbox-content');
+        lc.innerHTML = `<img src="${img.dataset.lightbox}">`;
+        lb.classList.add('open');
+      });
+    });
 
     return card;
   }
@@ -577,19 +1077,45 @@ export class ForumScene extends BaseScene {
   async _submitPost() {
     const ta      = document.getElementById('fr-compose-text');
     const content = ta.value.trim();
-    if (!content) return;
+    if (!content && (!this._mediaFiles || !this._mediaFiles.length)) return;
 
     const profile = this.manager.auth.profile;
     const btn     = document.getElementById('fr-submit-post');
     btn.disabled     = true;
     btn.textContent  = 'Đang đăng...';
 
+    // Collect tag & checkin
+    const tagVal     = document.getElementById('fr-tag-input')?.value.trim() || '';
+    const checkinVal = document.getElementById('fr-checkin-input')?.value.trim() || '';
+    const mentions   = tagVal ? tagVal.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+    // Upload media to Supabase Storage (bucket: forum-media)
+    const mediaUrls = [];
+    for (const m of (this._mediaFiles || [])) {
+      const ext  = m.file.name.split('.').pop();
+      const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('forum-media')
+        .upload(path, m.file, { upsert: false });
+      if (upErr) {
+        btn.disabled    = false;
+        btn.textContent = 'Đăng bài';
+        this._toast('Không thể tải media: ' + upErr.message, 'err');
+        return;
+      }
+      const { data: { publicUrl } } = supabase.storage.from('forum-media').getPublicUrl(path);
+      mediaUrls.push({ url: publicUrl, type: m.type });
+    }
+
     const { error } = await supabase.from('forum_posts').insert({
       author_name:   profile.name,
       author_role:   profile.role || 'visitor',
-      content,
+      content:       content || '',
       like_count:    0,
       comment_count: 0,
+      media:         mediaUrls.length ? mediaUrls : null,
+      mentions:      mentions.length  ? mentions  : null,
+      checkin:       checkinVal || null,
     });
 
     btn.disabled    = false;
@@ -600,10 +1126,88 @@ export class ForumScene extends BaseScene {
       return;
     }
 
+    // Reset compose
     ta.value = '';
     document.getElementById('fr-char-count').textContent = '0 / 1000';
+    if (document.getElementById('fr-tag-input'))     document.getElementById('fr-tag-input').value = '';
+    if (document.getElementById('fr-checkin-input')) document.getElementById('fr-checkin-input').value = '';
+    document.getElementById('fr-tag-row').style.display     = 'none';
+    document.getElementById('fr-checkin-row').style.display = 'none';
+    document.getElementById('fr-tool-tag').classList.remove('active');
+    document.getElementById('fr-tool-checkin').classList.remove('active');
+    (this._mediaFiles || []).forEach(m => URL.revokeObjectURL(m.url));
+    this._mediaFiles = [];
+    this._renderMediaPreview();
+
     this._toast('Đã đăng bài!');
     await this._loadPosts();
+  }
+
+  _editPost(post, card) {
+    const contentEl = card.querySelector('.fr-content');
+    if (!contentEl || card.dataset.editing) return;
+    card.dataset.editing = '1';
+
+    const ta = document.createElement('textarea');
+    ta.className = 'fr-edit-textarea';
+    ta.value = post.content;
+    contentEl.replaceWith(ta);
+
+    const actRow = document.createElement('div');
+    actRow.style.cssText = 'display:flex;gap:8px;margin-bottom:10px';
+    actRow.innerHTML = `
+      <button class="fr-btn gold" style="font-size:10px;padding:5px 14px">Lưu</button>
+      <button class="fr-btn" style="background:#aaa;border-color:transparent;font-size:10px;padding:5px 14px">Hủy</button>
+    `;
+    ta.after(actRow);
+
+    const [saveBtn, cancelBtn] = actRow.querySelectorAll('button');
+
+    const restore = (text) => {
+      const div = document.createElement('div');
+      div.className = 'fr-content';
+      div.innerHTML = this._esc(text);
+      ta.replaceWith(div);
+      actRow.remove();
+      delete card.dataset.editing;
+    };
+
+    cancelBtn.addEventListener('click', () => restore(post.content));
+
+    saveBtn.addEventListener('click', async () => {
+      const newText = ta.value.trim();
+      if (!newText) return;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Đang lưu...';
+
+      const { error } = await supabase.from('forum_posts').update({ content: newText }).eq('id', post.id);
+      if (error) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Lưu';
+        this._toast('Không thể lưu: ' + error.message, 'err');
+        return;
+      }
+      const idx = this._posts.findIndex(p => p.id === post.id);
+      if (idx >= 0) this._posts[idx].content = newText;
+      post.content = newText;
+      restore(newText);
+      this._toast('Đã cập nhật bài viết!');
+    });
+
+    ta.focus();
+  }
+
+  async _deletePost(postId, card) {
+    if (!confirm('Bạn có chắc muốn gỡ bài này không?')) return;
+
+    const { error } = await supabase.from('forum_posts').delete().eq('id', postId);
+    if (error) {
+      this._toast('Không thể gỡ bài: ' + error.message, 'err');
+      return;
+    }
+    this._posts = this._posts.filter(p => p.id !== postId);
+    card.remove();
+    this._toast('Đã gỡ bài viết');
   }
 
   async _toggleLike(postId, btn) {
@@ -737,14 +1341,21 @@ export class ForumScene extends BaseScene {
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
-  _goProfile(name, role) {
+  async _goProfile(name, role) {
     const mine = this.manager.auth.profile;
     if (mine && mine.name === name) {
       this.manager.navigateTo('profile');
-    } else {
-      this.manager.profileTarget = { name, role };
-      this.manager.navigateTo('profile');
+      return;
     }
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('display_name', name)
+      .maybeSingle();
+    this.manager.profileTarget = data
+      ? { id: data.id, name, role: data.role }
+      : { name, role };
+    this.manager.navigateTo('profile');
   }
 
   _relTime(iso) {

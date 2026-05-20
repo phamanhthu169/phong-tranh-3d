@@ -8,10 +8,11 @@ export class Footer {
     const el = document.createElement('div');
     el.style.cssText = `
       position: relative;
-      width: 100%;
-      background: #1a1fd4;
-      background-image:
-        linear-gradient(135deg, #1a1fd4 0%, #1212a0 60%, #0d0d7a 100%);
+      aspect-ratio: 1571 / 460;
+      background-image: url('/landingpage/footer.svg');
+      background-size: cover;
+      background-position: center center;
+      background-repeat: no-repeat;
       overflow: hidden;
       font-family: monospace;
       user-select: none;
@@ -23,41 +24,12 @@ export class Footer {
     `;
     el.style.display = 'none'; // ẩn mặc định, SceneManager.show() sẽ bật
 
-    // ── Grid blueprint background ─────────────────────────────────────────────
-    const gridCanvas = document.createElement('canvas');
-    gridCanvas.style.cssText = `
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      pointer-events: none;
-      opacity: 0.18;
-    `;
-    el.appendChild(gridCanvas);
-
-    // Draw grid after appended
-    requestAnimationFrame(() => {
-      const w = el.offsetWidth;
-      const h = el.offsetHeight;
-      gridCanvas.width = w;
-      gridCanvas.height = h;
-      const ctx = gridCanvas.getContext('2d');
-      const step = 40;
-      ctx.strokeStyle = '#5566ff';
-      ctx.lineWidth = 0.8;
-      for (let x = 0; x <= w; x += step) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-      }
-      for (let y = 0; y <= h; y += step) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-      }
-    });
-
     // ── Left column ───────────────────────────────────────────────────────────
     const leftCol = document.createElement('div');
     leftCol.style.cssText = `
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 8px;
       flex: 0 0 340px;
       position: relative;
       z-index: 1;
@@ -89,36 +61,28 @@ export class Footer {
       letter-spacing: 0.05em;
       font-weight: 400;
     `;
-    desc.innerHTML = `CÁC NỘI DUNG<br>LIÊN QUAN ĐẾN<br>BẢN QUYỀN VÀ PHÁP LÝ (nếu không có thì đẩy cục contact lên)<br>+ DEVELOPED BY (OPTIONAL)`;
 
     // Contact section
     const contactTitle = document.createElement('div');
-    contactTitle.textContent = 'CONTACT US';
+    contactTitle.textContent = '';
     contactTitle.style.cssText = `
       color: #ffffff;
       font-size: 15px;
       font-weight: 900;
       letter-spacing: 0.1em;
-      margin-top: 8px;
+      margin-top: 105px;
     `;
 
     // Email row
     const emailRow = _makeContactRow(
-      `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="10" cy="10" r="9" stroke="white" stroke-width="1.5"/>
-        <path d="M5 7.5L10 11.5L15 7.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-        <rect x="5" y="7" width="10" height="7" rx="1" stroke="white" stroke-width="1.5"/>
-      </svg>`,
+      `<img src="/public/footer/mail.svg" width="20" height="20">`,
       'creatorygallery@gmail.com',
       'mailto:creatorygallery@gmail.com'
     );
 
     // Phone row
     const phoneRow = _makeContactRow(
-      `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="10" cy="10" r="9" stroke="white" stroke-width="1.5"/>
-        <path d="M7.5 6C7.5 6 7 8 8.5 9.5C10 11 12 10.5 12 10.5L13 12C13 12 11 13.5 9 11.5C7 9.5 6.5 7 6.5 7L7.5 6Z" stroke="white" stroke-width="1.3" stroke-linejoin="round"/>
-      </svg>`,
+      `<img src="/public/footer/phone.svg" width="20" height="20">`,
       '093 214 27 03 - Ms. Minh Quyên',
       'tel:0932142703'
     );
@@ -133,32 +97,9 @@ export class Footer {
     `;
 
     const socials = [
-      {
-        name: 'Facebook',
-        href: 'https://facebook.com',
-        svg: `<svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="11" cy="11" r="10" fill="white"/>
-          <path d="M12.5 7H14V5H12.5C11.12 5 10 6.12 10 7.5V9H8.5V11H10V17H12V11H13.5L14 9H12V7.5C12 7.22 12.22 7 12.5 7Z" fill="#1a1fd4"/>
-        </svg>`
-      },
-      {
-        name: 'TikTok',
-        href: 'https://tiktok.com',
-        svg: `<svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="11" cy="11" r="10" fill="white"/>
-          <path d="M14 5.5C14.3 6.5 15 7.2 16 7.5V9.5C15.2 9.5 14.5 9.2 14 8.8V13C14 14.7 12.7 16 11 16C9.3 16 8 14.7 8 13C8 11.3 9.3 10 11 10C11.1 10 11.3 10 11.5 10.1V12.1C11.3 12 11.2 12 11 12C10.4 12 10 12.4 10 13C10 13.6 10.4 14 11 14C11.6 14 12 13.6 12 13V5H14V5.5Z" fill="#1a1fd4"/>
-        </svg>`
-      },
-      {
-        name: 'Instagram',
-        href: 'https://instagram.com',
-        svg: `<svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="11" cy="11" r="10" fill="white"/>
-          <rect x="7" y="7" width="8" height="8" rx="2.5" stroke="#1a1fd4" stroke-width="1.5"/>
-          <circle cx="11" cy="11" r="2" stroke="#1a1fd4" stroke-width="1.5"/>
-          <circle cx="14" cy="8" r="0.7" fill="#1a1fd4"/>
-        </svg>`
-      },
+      { name: 'Facebook',  href: 'https://facebook.com',  svg: `<img src="/public/footer/facebook.svg" width="22" height="22">` },
+      { name: 'TikTok',    href: 'https://tiktok.com',    svg: `<img src="/public/footer/tiktok.svg"   width="22" height="22">` },
+      { name: 'Instagram', href: 'https://instagram.com', svg: `<img src="/public/footer/insta.svg"    width="22" height="22">` },
     ];
 
     socials.forEach(({ name, href, svg }) => {
@@ -194,7 +135,6 @@ export class Footer {
     // ── Nav columns ───────────────────────────────────────────────────────────
     const navColLeft = _makeNavColumn([
       { label: 'KHÁM PHÁ',       scene: 'explore'  },
-      { label: 'STUDIO',         scene: 'studio'   },
       { label: 'DIỄN ĐÀN',       scene: 'forum'    },
       { label: 'SUPPORT & LEGAL',scene: 'support'  },
       { label: 'ĐĂNG KÝ GÓI',   scene: 'pricing'  },

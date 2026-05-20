@@ -54,6 +54,9 @@ export class AuthManager {
       role: profile.role,
     };
     if (profile.password_hash) payload.password_hash = profile.password_hash;
+    if (profile.bank_name !== undefined)           payload.bank_name           = profile.bank_name           || null;
+    if (profile.bank_account_number !== undefined) payload.bank_account_number = profile.bank_account_number || null;
+    if (profile.bank_account_holder !== undefined) payload.bank_account_holder = profile.bank_account_holder || null;
 
     const { error } = await supabase
       .from('profiles')
@@ -128,6 +131,9 @@ export class AuthManager {
       location: data.location || '',
       website: data.website || '',
       bio: data.bio || '',
+      bank_name: data.bank_name || '',
+      bank_account_number: data.bank_account_number || '',
+      bank_account_holder: data.bank_account_holder || '',
     };
     this._saveToLocal(this._profile);
     this._notify();
@@ -141,6 +147,34 @@ export class AuthManager {
     this._saveToLocal(updated);
     await this._upsertToSupabase(updated);
     this._notify();
+  }
+
+  async changePassword(oldPassword, newPassword) {
+    if (!this._profile) throw new Error('Chưa đăng nhập');
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('password_hash')
+      .eq('id', this._profile.id)
+      .maybeSingle();
+    if (error || !data) throw new Error('Không thể xác minh mật khẩu');
+    const ok = await bcrypt.compare(oldPassword, data.password_hash);
+    if (!ok) throw new Error('Mật khẩu cũ không đúng');
+    const newHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ password_hash: newHash })
+      .eq('id', this._profile.id);
+    if (updateError) throw new Error('Không thể cập nhật mật khẩu');
+  }
+
+  async deleteAccount() {
+    if (!this._profile) throw new Error('Chưa đăng nhập');
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', this._profile.id);
+    if (error) throw new Error('Không thể xóa tài khoản');
+    await this.signOut();
   }
 
   async signOut() {

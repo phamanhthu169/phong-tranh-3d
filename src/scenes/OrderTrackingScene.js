@@ -13,11 +13,11 @@ const STEPS = [
 const STATUS_INDEX = { placed: 0, confirmed: 1, packing: 2, shipping: 3, delivered: 4 };
 
 const CHIP_STYLE = {
-  placed:    'background:rgba(200,169,110,.1);border:1px solid rgba(200,169,110,.3);color:#c8a96e',
-  confirmed: 'background:rgba(90,150,200,.1);border:1px solid rgba(90,150,200,.3);color:#7ab0e0',
-  packing:   'background:rgba(150,120,200,.1);border:1px solid rgba(150,120,200,.3);color:#b090e0',
-  shipping:  'background:rgba(90,170,200,.1);border:1px solid rgba(90,170,200,.3);color:#7ac8e0',
-  delivered: 'background:rgba(90,170,122,.1);border:1px solid rgba(90,170,122,.3);color:#6aaa7a',
+  placed:    'background:rgba(24,45,88,.08);border:1px solid rgba(24,45,88,.25);color:#182D58',
+  confirmed: 'background:rgba(90,150,200,.1);border:1px solid rgba(90,150,200,.3);color:#3a7bbf',
+  packing:   'background:rgba(118,170,171,.12);border:1px solid rgba(118,170,171,.35);color:#4d9ea0',
+  shipping:  'background:rgba(60,120,200,.1);border:1px solid rgba(60,120,200,.3);color:#3a70c8',
+  delivered: 'background:rgba(90,170,122,.1);border:1px solid rgba(90,170,122,.3);color:#4a9a6a',
 };
 
 export class OrderTrackingScene extends BaseScene {
@@ -31,7 +31,7 @@ export class OrderTrackingScene extends BaseScene {
     const all = JSON.parse(localStorage.getItem('gallery_orders') || '[]');
     this._orders = all.filter(o => o.userId === profile?.id);
 
-    this.threeScene.background = new THREE.Color(0x0c0a09);
+    this.threeScene.background = new THREE.Color(0xF1FAFF);
     this.camera.position.set(0, 0, 5);
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.1));
 
@@ -40,35 +40,35 @@ export class OrderTrackingScene extends BaseScene {
 
   _buildOverlay() {
     const overlay = document.createElement('div');
-    overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;background:#0c0a09;font-family:monospace;padding:40px;box-sizing:border-box;`;
+    overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;background:#F1FAFF;font-family:'Montserrat',sans-serif;padding:40px;box-sizing:border-box;`;
     document.body.appendChild(overlay);
     this._el(overlay);
 
     const ordersHtml = this._orders.length === 0
-      ? `<div style="text-align:center;padding:80px 0;color:#333;font-size:11px;letter-spacing:.14em;text-transform:uppercase">Chưa có đơn hàng nào</div>`
+      ? `<div style="text-align:center;padding:80px 0;color:#182D58;font-family:'Montserrat',sans-serif;font-size:13px;letter-spacing:.14em;text-transform:uppercase;opacity:.5">Chưa có đơn hàng nào</div>`
       : this._orders.map(o => this._orderCard(o)).join('');
 
     overlay.innerHTML = `
       <style>
         .ot-wrap{max-width:720px;margin:0 auto}
-        .ot-heading{color:#d4c5a9;font-size:16px;font-weight:bold;letter-spacing:.2em;text-transform:uppercase;margin-bottom:32px}
-        .ot-card{background:rgba(255,255,255,.03);border:1px solid rgba(212,197,169,.1);border-radius:6px;padding:24px;margin-bottom:20px}
+        .ot-heading{color:#2222C6;font-family:'Montserrat',sans-serif;font-size:40px;font-weight:800;line-height:1.1;margin-bottom:32px}
+        .ot-card{background:#fff;border:1px solid rgba(24,45,88,.12);border-radius:6px;padding:24px;margin-bottom:20px;box-shadow:0 2px 8px rgba(24,45,88,.06)}
         .ot-card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:10px}
-        .ot-id{color:#c8a96e;font-size:12px;letter-spacing:.1em}
-        .ot-date{color:#444;font-size:9px;letter-spacing:.08em;margin-top:4px}
-        .ot-chip{padding:4px 10px;border-radius:3px;font-size:9px;letter-spacing:.1em;text-transform:uppercase}
+        .ot-id{color:#182D58;font-family:'Montserrat',sans-serif;font-size:14px;letter-spacing:.1em;font-weight:700}
+        .ot-date{color:#182D58;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.08em;margin-top:4px;opacity:.6}
+        .ot-chip{padding:4px 10px;border-radius:3px;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
         .ot-timeline{display:flex;align-items:flex-start;margin:20px 0 24px}
         .ot-step{display:flex;flex-direction:column;align-items:center;flex:1;position:relative}
         .ot-line{position:absolute;top:14px;left:50%;right:-50%;height:2px;z-index:0}
         .ot-step:last-child .ot-line{display:none}
         .ot-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;z-index:1;border:2px solid;position:relative}
-        .ot-step-label{font-size:7px;letter-spacing:.08em;margin-top:7px;text-align:center;text-transform:uppercase;line-height:1.4}
-        .ot-item{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(212,197,169,.06);font-size:10px}
+        .ot-step-label{font-family:'Montserrat',sans-serif;font-size:9px;letter-spacing:.08em;margin-top:7px;text-align:center;text-transform:uppercase;line-height:1.4}
+        .ot-item{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(24,45,88,.07);font-family:'Montserrat',sans-serif;font-size:12px}
         .ot-item:last-child{border-bottom:none}
-        .ot-item-name{color:#d4c5a9}
-        .ot-item-price{color:#c8a96e;white-space:nowrap}
-        .ot-delivery{margin-top:16px;padding-top:14px;border-top:1px solid rgba(212,197,169,.06);font-size:9px;color:#555;letter-spacing:.08em;line-height:1.8}
-        .ot-delivery b{color:#7a6e5c}
+        .ot-item-name{color:#182D58}
+        .ot-item-price{color:#182D58;white-space:nowrap;font-weight:600}
+        .ot-delivery{margin-top:16px;padding-top:14px;border-top:1px solid rgba(24,45,88,.08);font-family:'Montserrat',sans-serif;font-size:11px;color:#182D58;letter-spacing:.08em;line-height:1.8;opacity:.75}
+        .ot-delivery b{color:#182D58;opacity:1;font-weight:700}
       </style>
 
       <div class="ot-wrap">
@@ -89,12 +89,12 @@ export class OrderTrackingScene extends BaseScene {
     const timelineHtml = STEPS.map((step, i) => {
       const done   = i <= stepIdx;
       const active = i === stepIdx;
-      const dotBg     = done   ? '#c8a96e'              : 'transparent';
-      const dotBorder = done   ? '#c8a96e'              : 'rgba(212,197,169,.15)';
-      const labelColor = done  ? '#c8a96e'              : '#333';
-      const lineColor  = i < stepIdx ? '#c8a96e'        : 'rgba(212,197,169,.08)';
+      const dotBg     = done   ? '#182D58'                     : 'transparent';
+      const dotBorder = done   ? '#182D58'                     : 'rgba(24,45,88,.15)';
+      const labelColor = done  ? '#182D58'                     : 'rgba(24,45,88,.35)';
+      const lineColor  = i < stepIdx ? '#76AAAB'               : 'rgba(24,45,88,.1)';
       const dotContent = active ? step.icon : (done ? '✓' : '');
-      const glow = active ? 'box-shadow:0 0 10px rgba(200,169,110,.5)' : '';
+      const glow = active ? 'box-shadow:0 0 10px rgba(118,170,171,.6)' : '';
       return `
         <div class="ot-step">
           <div class="ot-line" style="background:${lineColor}"></div>

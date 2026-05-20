@@ -18,11 +18,11 @@ const NEXT_STATUS = {
 };
 
 const CHIP_STYLE = {
-  placed:    'background:rgba(200,169,110,.1);border:1px solid rgba(200,169,110,.3);color:#c8a96e',
-  confirmed: 'background:rgba(90,150,200,.1);border:1px solid rgba(90,150,200,.3);color:#7ab0e0',
-  packing:   'background:rgba(150,120,200,.1);border:1px solid rgba(150,120,200,.3);color:#b090e0',
-  shipping:  'background:rgba(90,170,200,.1);border:1px solid rgba(90,170,200,.3);color:#7ac8e0',
-  delivered: 'background:rgba(90,170,122,.1);border:1px solid rgba(90,170,122,.3);color:#6aaa7a',
+  placed:    'background:rgba(24,45,88,.08);border:1px solid rgba(24,45,88,.25);color:#182D58',
+  confirmed: 'background:rgba(90,150,200,.1);border:1px solid rgba(90,150,200,.3);color:#3a7bbf',
+  packing:   'background:rgba(118,170,171,.12);border:1px solid rgba(118,170,171,.35);color:#4d9ea0',
+  shipping:  'background:rgba(60,120,200,.1);border:1px solid rgba(60,120,200,.3);color:#3a70c8',
+  delivered: 'background:rgba(90,170,122,.1);border:1px solid rgba(90,170,122,.3);color:#4a9a6a',
 };
 
 export class OrdersScene extends BaseScene {
@@ -33,13 +33,13 @@ export class OrdersScene extends BaseScene {
     if (!this.manager.auth.isLoggedIn) { this.manager.navigateTo('login'); return; }
     if (!this.manager.auth.isArtist)   { this.manager.navigateTo('landing'); return; }
 
-    this.threeScene.background = new THREE.Color(0x0c0a09);
+    this.threeScene.background = new THREE.Color(0xF1FAFF);
     this.camera.position.set(0, 0, 5);
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.1));
 
     const overlay = document.createElement('div');
     overlay.id = 'os-overlay';
-    overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;background:#0c0a09;font-family:monospace;padding:40px;box-sizing:border-box;`;
+    overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;background:#F1FAFF;font-family:'Montserrat',sans-serif;padding:40px;box-sizing:border-box;`;
     document.body.appendChild(overlay);
     this._el(overlay);
 
@@ -47,7 +47,14 @@ export class OrdersScene extends BaseScene {
   }
 
   _loadOrders() {
-    return JSON.parse(localStorage.getItem('gallery_orders') || '[]');
+    const currentId   = this.manager.auth.user?.id;
+    const currentName = this.manager.auth.profile?.display_name;
+    return JSON.parse(localStorage.getItem('gallery_orders') || '[]').filter(o =>
+      (o.items || []).some(item =>
+        (item.artistId && item.artistId === currentId) ||
+        (!item.artistId && currentName && item.artist === currentName)
+      )
+    );
   }
 
   _render() {
@@ -57,28 +64,28 @@ export class OrdersScene extends BaseScene {
     const orders = this._loadOrders();
 
     const ordersHtml = orders.length === 0
-      ? `<div style="text-align:center;padding:80px 0;color:#333;font-size:11px;letter-spacing:.14em;text-transform:uppercase">Chưa có đơn hàng nào</div>`
+      ? `<div style="text-align:center;padding:80px 0;color:#182D58;font-family:'Montserrat',sans-serif;font-size:13px;letter-spacing:.14em;text-transform:uppercase;opacity:.5">Chưa có đơn hàng nào</div>`
       : orders.map(o => this._orderCard(o)).join('');
 
     overlay.innerHTML = `
       <style>
         .os-wrap{max-width:840px;margin:0 auto}
-        .os-heading{color:#d4c5a9;font-size:16px;font-weight:bold;letter-spacing:.2em;text-transform:uppercase;margin-bottom:32px}
-        .os-card{background:rgba(255,255,255,.03);border:1px solid rgba(212,197,169,.1);border-radius:6px;padding:24px;margin-bottom:20px}
+        .os-heading{color:#2222C6;font-family:'Montserrat',sans-serif;font-size:40px;font-weight:800;line-height:1.1;margin-bottom:32px}
+        .os-card{background:#fff;border:1px solid rgba(24,45,88,.12);border-radius:6px;padding:24px;margin-bottom:20px;box-shadow:0 2px 8px rgba(24,45,88,.06)}
         .os-card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:10px}
-        .os-id{color:#c8a96e;font-size:12px;letter-spacing:.1em}
-        .os-meta{color:#444;font-size:9px;letter-spacing:.08em;margin-top:4px}
-        .os-chip{padding:4px 10px;border-radius:3px;font-size:9px;letter-spacing:.1em;text-transform:uppercase}
-        .os-item{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(212,197,169,.06);font-size:10px}
+        .os-id{color:#182D58;font-family:'Montserrat',sans-serif;font-size:14px;letter-spacing:.1em;font-weight:700}
+        .os-meta{color:#182D58;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.08em;margin-top:4px;opacity:.6}
+        .os-chip{padding:4px 10px;border-radius:3px;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+        .os-item{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(24,45,88,.07);font-family:'Montserrat',sans-serif;font-size:12px}
         .os-item:last-child{border-bottom:none}
-        .os-item-name{color:#d4c5a9}
-        .os-item-price{color:#c8a96e;white-space:nowrap}
-        .os-delivery{font-size:9px;color:#555;letter-spacing:.08em;margin-top:14px;padding-top:14px;border-top:1px solid rgba(212,197,169,.06)}
-        .os-delivery b{color:#7a6e5c}
+        .os-item-name{color:#182D58}
+        .os-item-price{color:#182D58;white-space:nowrap;font-weight:600}
+        .os-delivery{font-family:'Montserrat',sans-serif;font-size:11px;color:#182D58;letter-spacing:.08em;margin-top:14px;padding-top:14px;border-top:1px solid rgba(24,45,88,.08);opacity:.7}
+        .os-delivery b{color:#182D58;opacity:1;font-weight:700}
         .os-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
-        .os-btn-next{padding:7px 16px;font-family:monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;border-radius:3px;cursor:pointer;background:rgba(200,169,110,.1);border:1px solid rgba(200,169,110,.4);color:#c8a96e;transition:all .2s}
-        .os-btn-next:hover{background:rgba(200,169,110,.25)}
-        .os-btn-done{padding:7px 16px;font-family:monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;border-radius:3px;background:rgba(90,170,122,.06);border:1px solid rgba(90,170,122,.25);color:#6aaa7a;cursor:default}
+        .os-btn-next{padding:7px 16px;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-radius:3px;cursor:pointer;background:rgba(24,45,88,.07);border:1px solid rgba(24,45,88,.25);color:#182D58;transition:all .2s;font-weight:600}
+        .os-btn-next:hover{background:rgba(24,45,88,.15)}
+        .os-btn-done{padding:7px 16px;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-radius:3px;background:rgba(90,170,122,.08);border:1px solid rgba(90,170,122,.3);color:#4a9a6a;cursor:default;font-weight:600}
       </style>
       <div class="os-wrap">
         <div class="os-heading">Quản lý đơn hàng</div>
@@ -108,7 +115,7 @@ export class OrdersScene extends BaseScene {
 
     const itemsHtml = (order.items || []).map(item => `
       <div class="os-item">
-        <span class="os-item-name">${item.title || 'Untitled'}${item.artist ? ` <span style="color:#444;font-size:8px">— ${item.artist}</span>` : ''}</span>
+        <span class="os-item-name">${item.title || 'Untitled'}${item.artist ? ` <span style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:10px;opacity:.55">— ${item.artist}</span>` : ''}</span>
         <span class="os-item-price">${item.price || '—'}</span>
       </div>
     `).join('');

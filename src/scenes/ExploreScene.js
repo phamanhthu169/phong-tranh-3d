@@ -5,7 +5,7 @@ import { supabase } from '../utils/supabase.js';
 
 export class ExploreScene extends BaseScene {
   async init() {
-    this.threeScene.background = new THREE.Color(0xbdf1ff);
+    this.threeScene.background = new THREE.Color(0xf1faff);
     this.camera.position.set(0, 0, 5);
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.2));
     this._createParticles();
@@ -29,39 +29,41 @@ export class ExploreScene extends BaseScene {
 
   _buildOverlay() {
     const overlay = document.createElement('div');
-    overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;font-family:monospace;padding:36px 40px;box-sizing:border-box;`;
+    overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;font-family:monospace;padding:36px 100px;box-sizing:border-box;background:#F1FAFF;`;
     overlay.innerHTML = `
       <style>
         .ex-card{background:transparent;border:none;box-shadow:none;cursor:pointer;display:flex;flex-direction:column;}
         .ex-card:hover{transform:none;box-shadow:none;border:none;}
         .ex-thumb-wrap{background:transparent;transition:transform .25s;}
         .ex-card:hover .ex-thumb-wrap{transform:translateY(-2px);}
-        .ex-info-wrap{background:#ffffff;border:1px solid rgba(0,0,0,.1);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.06);transition:all .25s;}
-        .ex-card:hover .ex-info-wrap{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.1);border-color:rgba(0,0,0,.25);}
+        .ex-info-wrap{background:#182D58;border:1px solid rgba(255,255,255,.1);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.15);transition:all .25s;}
+        .ex-card:hover .ex-info-wrap{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.25);border-color:rgba(255,255,255,.25);}
         .ex-thumb{aspect-ratio:486/732;background:transparent;position:relative;overflow:hidden;border-bottom:1px solid rgba(0,0,0,.06);flex-shrink:0}
         .ex-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
         .ex-thumb-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:36px;color:#bbb}
         .ex-body{padding:14px;display:flex;flex-direction:column;gap:6px}
-        .ex-name{color:#1a1a1a;font-size:12px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .ex-artist{color:#666;font-size:9px;letter-spacing:.1em}
-        .ex-date{color:#999;font-size:8px;margin-top:2px}
+        .ex-name{color:#F1FAFF;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .ex-artist{color:#F1FAFF;font-size:9px;letter-spacing:.1em}
+        .ex-artist-link{cursor:pointer;border-bottom:1px solid rgba(241,250,255,.35);transition:border-color .15s,color .15s}
+        .ex-artist-link:hover{color:#76AAAB;border-color:#76AAAB}
+        .ex-date{color:#F1FAFF;font-size:8px;margin-top:2px;opacity:.75}
         .ex-stats{display:flex;gap:12px;margin-top:2px}
-        .ex-stat{color:#777;font-size:9px;letter-spacing:.05em;display:flex;align-items:center;gap:4px}
+        .ex-stat{color:#F1FAFF;font-size:9px;letter-spacing:.05em;display:flex;align-items:center;gap:4px}
         .ex-stat-icon{font-size:10px;line-height:1}
-        .ex-enter{display:inline-block;margin-top:6px;padding:5px 12px;font-size:9px;letter-spacing:.1em;text-transform:uppercase;background:rgba(200,169,110,.1);border:1px solid rgba(200,169,110,.35);color:#c8a96e;border-radius:2px;transition:background .2s}
-        .ex-card:hover .ex-enter{background:rgba(200,169,110,.22)}
-        .ex-sort-btn{padding:5px 14px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.12);color:#555;border-radius:2px;cursor:pointer;transition:all .2s;font-family:monospace}
-        .ex-sort-btn:hover{color:#c8a96e;border-color:rgba(200,169,110,.4)}
-        .ex-sort-btn.active{color:#c8a96e;border-color:rgba(200,169,110,.5);background:rgba(200,169,110,.1)}
+        .ex-enter{display:inline-block;margin-top:6px;padding:5px 12px;font-size:9px;letter-spacing:.1em;text-transform:uppercase;background:#FFFFFF;border:none;box-shadow:0 4px 12px rgba(118,170,171,.55);color:#182D58;border-radius:26px;transition:all .2s;font-family:'Montserrat',sans-serif;font-weight:700}
+        .ex-card:hover .ex-enter{box-shadow:0 6px 18px rgba(118,170,171,.75);transform:translateY(-1px);}
+        .ex-sort-btn{padding:5px 14px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:#122F6A;border:2px solid rgba(255,255,255,.25);box-shadow:0 4px 12px rgba(118,170,171,.55);color:#FFFFFF;border-radius:26px;cursor:pointer;transition:all .2s;font-family:'Montserrat',sans-serif;font-weight:700;text-align:center}
+        .ex-sort-btn:hover{box-shadow:0 6px 18px rgba(118,170,171,.75);transform:translateY(-1px)}
+        .ex-sort-btn.active{background:#122F6A;border-color:rgba(255,255,255,.55);box-shadow:0 6px 18px rgba(118,170,171,.75)}
       </style>
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="color:#1a1a1a;font-size:17px;font-weight:bold;letter-spacing:.2em;text-transform:uppercase">Khám phá</div>
-          <div style="color:#888;font-size:10px;letter-spacing:.1em;margin-top:5px">Phòng tranh đã được publish</div>
+          <div class="page-title">Khám phá</div>
+          <div style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:25px;font-weight:600;font-style:italic;margin-top:5px">Phòng tranh đã được publish</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <span style="color:#888;font-size:9px;letter-spacing:.08em;margin-right:2px">Sắp xếp:</span>
+          <span style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:9px;letter-spacing:.08em;margin-right:2px">Sắp xếp:</span>
           <button class="ex-sort-btn active" data-sort="date">Mới nhất</button>
           <button class="ex-sort-btn" data-sort="likes">Thích nhiều nhất</button>
           <button class="ex-sort-btn" data-sort="views">Xem nhiều nhất</button>
@@ -180,7 +182,7 @@ export class ExploreScene extends BaseScene {
     <div class="ex-info-wrap">
       <div class="ex-body">
         <div class="ex-name">${roomName}</div>
-        <div class="ex-artist">${artistName}</div>
+        <div class="ex-artist">${artistId ? `<span class="ex-artist-link" data-artist-id="${artistId}">${artistName}</span>` : artistName}</div>
         <div class="ex-date">${date}${artCount ? ' · ' + artCount + ' tác phẩm' : ''}</div>
         <div class="ex-stats">
           <span class="ex-stat"><span class="ex-stat-icon">♥</span> ${likes.toLocaleString('vi-VN')}</span>
@@ -190,6 +192,15 @@ export class ExploreScene extends BaseScene {
       </div>
     </div>
   `;
+
+    const artistLink = card.querySelector('.ex-artist-link');
+    if (artistLink) {
+      artistLink.addEventListener('click', e => {
+        e.stopPropagation();
+        this.manager.profileTarget = { id: artistId, name: artistName, role: 'artist' };
+        this.manager.navigateTo('profile');
+      });
+    }
 
     card.addEventListener('click', () => {
       this.manager.currentRoom = {

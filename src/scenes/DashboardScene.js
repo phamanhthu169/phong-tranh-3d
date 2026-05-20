@@ -50,7 +50,7 @@ export class DashboardScene extends BaseScene {
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">
         <div>
-          <div style="color:#1a1a1a;font-size:17px;font-weight:bold;letter-spacing:.2em;text-transform:uppercase">Phòng tranh của tôi</div>
+          <div class="page-title">Phòng tranh của tôi</div>
           <div id="db-artist" style="color:#666;font-size:10px;letter-spacing:.1em;margin-top:5px"></div>
         </div>
         <button id="db-new-btn" style="background:rgba(200,169,110,.15);border:1px solid rgba(200,169,110,.5);color:#c8a96e;font-family:monospace;font-size:11px;letter-spacing:.1em;padding:10px 22px;border-radius:3px;cursor:pointer;transition:background .2s;">
@@ -110,7 +110,7 @@ export class DashboardScene extends BaseScene {
     const card = document.createElement('div');
     card.className = 'db-card';
     card.innerHTML = `
-      <div style="color:#1a1a1a;font-size:13px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${roomName}</div>
+      <div style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${roomName}</div>
       <div style="display:flex;align-items:center;gap:8px">
         <span class="db-badge ${isPublished ? 'pub' : 'draft'}">${isPublished ? '✓ Đã publish' : '✎ Draft'}</span>
         <span style="color:#999;font-size:9px">${date}</span>

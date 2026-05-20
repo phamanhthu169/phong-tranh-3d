@@ -54,8 +54,10 @@
   }
 }
 
-body {
+html, body {
   margin: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 h1,
@@ -162,6 +164,30 @@ code {
 
 #app {
   display: none;
+}
+
+.page-title {
+  color: #2222C6;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 800;
+  font-size: 40px;
+  line-height: 1.1;
+  margin: 0 0 10px;
+}
+
+.card-name {
+  color: #182D58;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 35px;
+}
+
+.page-subtitle {
+  color: #182D58;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  font-style: italic;
+  font-size: 25px;
 }
 
 #center {

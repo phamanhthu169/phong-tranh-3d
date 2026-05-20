@@ -16,7 +16,7 @@ export class Header {
       display: flex;
       align-items: center;
       padding: 0 32px;
-      z-index: 200;
+      z-index: 20000;
       font-family: monospace;
       user-select: none;
       gap: 20px;
@@ -78,10 +78,10 @@ export class Header {
     // ── Cart button — cart.svg 54×50 ──────────────────────────────────────────
     this._cartBtn = document.createElement('button');
     this._cartBtn.style.cssText = `
-      background: url('/public/header/cart.svg') center/54px 50px no-repeat;
+      background: url('/public/header/cart.svg') center/58px 54px no-repeat;
       border: none;
-      width: 54px;
-      height: 50px;
+      width: 58px;
+      height: 54px;
       cursor: pointer;
       flex-shrink: 0;
       position: relative;
@@ -174,7 +174,7 @@ export class Header {
       background: #fff;
       border-radius: 10px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-      min-width: 160px;
+      min-width: 190px;
       overflow: hidden;
       z-index: 300;
       animation: fadeSlideDown 0.18s ease;
@@ -193,31 +193,70 @@ export class Header {
       document.head.appendChild(style);
     }
 
-    const logoutBtn = document.createElement('button');
-    logoutBtn.textContent = '🚪  Đăng xuất';
-    logoutBtn.style.cssText = `
-      width: 100%;
-      background: none;
-      border: none;
-      padding: 14px 20px;
-      text-align: left;
-      font-family: monospace;
-      font-size: 12px;
-      font-weight: 700;
-      color: #c0392b;
-      cursor: pointer;
-      transition: background 0.15s;
-      letter-spacing: 0.04em;
-    `;
-    logoutBtn.addEventListener('mouseenter', () => logoutBtn.style.background = '#fdf0ee');
-    logoutBtn.addEventListener('mouseleave', () => logoutBtn.style.background = 'none');
-    logoutBtn.addEventListener('click', async () => {
-      this._closeDropdown();
-      await this.manager.auth.signOut();
-      this.manager.navigateTo('landing');
-    });
+    const isArtist = this.manager.auth.profile?.role === 'artist';
 
-    dd.appendChild(logoutBtn);
+    const _makeBtn = (label, color, hoverBg, onClick) => {
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      btn.style.cssText = `
+        width: 100%;
+        background: none;
+        border: none;
+        padding: 13px 20px;
+        text-align: left;
+        font-family: monospace;
+        font-size: 12px;
+        font-weight: 700;
+        color: ${color};
+        cursor: pointer;
+        transition: background 0.15s;
+        letter-spacing: 0.04em;
+      `;
+      btn.addEventListener('mouseenter', () => btn.style.background = hoverBg);
+      btn.addEventListener('mouseleave', () => btn.style.background = 'none');
+      btn.addEventListener('click', onClick);
+      return btn;
+    };
+
+    dd.appendChild(_makeBtn(
+      '⚙  Settings',
+      '#1a3a6e',
+      'rgba(24,45,88,.07)',
+      () => { this._closeDropdown(); this.manager.navigateTo('settings'); }
+    ));
+
+    if (isArtist) {
+      dd.appendChild(_makeBtn(
+        '📦  Quản lý đơn hàng',
+        '#1a3a6e',
+        'rgba(24,45,88,.07)',
+        () => { this._closeDropdown(); this.manager.navigateTo('orders'); }
+      ));
+    } else {
+      dd.appendChild(_makeBtn(
+        '🛍  Đơn hàng của tôi',
+        '#1a3a6e',
+        'rgba(24,45,88,.07)',
+        () => { this._closeDropdown(); this.manager.navigateTo('my-orders'); }
+      ));
+    }
+
+    // Divider
+    const divider = document.createElement('div');
+    divider.style.cssText = 'height:1px;background:rgba(0,0,0,.07);margin:2px 0;';
+    dd.appendChild(divider);
+
+    dd.appendChild(_makeBtn(
+      '🚪  Đăng xuất',
+      '#c0392b',
+      '#fdf0ee',
+      async () => {
+        this._closeDropdown();
+        await this.manager.auth.signOut();
+        this.manager.navigateTo('landing');
+      }
+    ));
+
     this._authArea.appendChild(dd);
     this._dropdown = dd;
   }
@@ -246,7 +285,7 @@ export class Header {
     if (user) {
       // Wrapper gom profile button + arrow button
       const wrapper = document.createElement('div');
-      wrapper.style.cssText = 'display:flex;align-items:center;gap:4px;';
+      wrapper.style.cssText = 'display:flex;align-items:center;gap:10px;';
 
       // Profile button — hình tròn avatar
       const profileBtn = document.createElement('button');
@@ -263,8 +302,8 @@ export class Header {
 
       const avatarCircle = document.createElement('div');
       avatarCircle.style.cssText = `
-        width: 40px;
-        height: 40px;
+        width: 56px;
+        height: 54px;
         border-radius: 50%;
         border: 2px solid rgba(255,255,255,0.6);
         overflow: hidden;
@@ -275,14 +314,11 @@ export class Header {
         font-size: 18px;
       `;
 
-      if (profile?.avatarUrl) {
-        const img = document.createElement('img');
-        img.src = profile.avatarUrl;
-        img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
-        avatarCircle.appendChild(img);
-      } else {
-        avatarCircle.textContent = '👤';
-      }
+      const avatarImg = document.createElement('img');
+      avatarImg.src = '/public/header/avatar.svg';
+      avatarImg.alt = 'Avatar';
+      avatarImg.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+      avatarCircle.appendChild(avatarImg);
 
       profileBtn.appendChild(avatarCircle);
       profileBtn.addEventListener('mouseenter', () => profileBtn.style.opacity = '0.85');
@@ -292,30 +328,22 @@ export class Header {
       // Arrow button
       const arrowBtn = document.createElement('button');
       arrowBtn.style.cssText = `
-        background: rgba(255,255,255,0.15);
-        border: 1.5px solid rgba(255,255,255,0.35);
-        border-radius: 6px;
-        width: 28px;
-        height: 28px;
+        background: url('/public/header/arrow.svg') center/54px 54px no-repeat;
+        border: none;
+        width: 54px;
+        height: 54px;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: background 0.18s, transform 0.2s;
+        transition: opacity 0.2s, transform 0.2s;
         flex-shrink: 0;
         padding: 0;
       `;
-      arrowBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M2 4L6 8L10 4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>`;
-      arrowBtn.addEventListener('mouseenter', () => arrowBtn.style.background = 'rgba(255,255,255,0.28)');
-      arrowBtn.addEventListener('mouseleave', () => arrowBtn.style.background = 'rgba(255,255,255,0.15)');
+      arrowBtn.addEventListener('mouseenter', () => arrowBtn.style.opacity = '0.85');
+      arrowBtn.addEventListener('mouseleave', () => arrowBtn.style.opacity = '1');
       arrowBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        // Xoay mũi tên khi mở/đóng
-        const isOpen = !!this._dropdown;
-        arrowBtn.querySelector('svg').style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
-        arrowBtn.querySelector('svg').style.transition = 'transform 0.2s';
         this._toggleDropdown();
       });
 

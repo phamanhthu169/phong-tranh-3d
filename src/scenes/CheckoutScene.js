@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { BaseScene } from './BaseScene.js';
 import { HEADER_H } from '../core/SceneManager.js';
+import { supabase } from '../utils/supabase.js';
 
 function parsePrice(str) {
   if (!str) return NaN;
-  return parseFloat(str.replace(/[^\d,\.]/g, '').replace(/\./g, '').replace(',', '.'));
+  const digits = str.replace(/[^\d]/g, '');
+  if (!digits) return NaN;
+  return parseInt(digits, 10);
 }
 function formatPrice(n) {
   return n.toLocaleString('vi-VN') + ' ₫';
@@ -19,7 +22,7 @@ export class CheckoutScene extends BaseScene {
 
     this._cart = JSON.parse(localStorage.getItem('gallery_cart') || '[]');
 
-    this.threeScene.background = new THREE.Color(0x0c0a09);
+    this.threeScene.background = new THREE.Color(0xF1FAFF);
     this.camera.position.set(0, 0, 5);
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.1));
 
@@ -28,16 +31,16 @@ export class CheckoutScene extends BaseScene {
 
   _buildOverlay() {
     const overlay = document.createElement('div');
-    overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;background:#0c0a09;font-family:monospace;padding:40px;box-sizing:border-box;`;
+    overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;background:#F1FAFF;font-family:'Montserrat',sans-serif;padding:40px;box-sizing:border-box;`;
     document.body.appendChild(overlay);
     this._el(overlay);
 
     if (this._cart.length === 0) {
       overlay.innerHTML = `
         <div style="max-width:600px;margin:80px auto;text-align:center">
-          <div style="color:#555;font-size:12px;letter-spacing:.16em;text-transform:uppercase">Giỏ hàng trống</div>
-          <div style="color:#333;font-size:10px;margin-top:12px;letter-spacing:.06em">Hãy ghé thăm phòng tranh và thêm tác phẩm trước.</div>
-          <button id="co-back" style="margin-top:24px;background:none;border:1px solid rgba(212,197,169,.3);color:#c8a96e;font-family:monospace;font-size:10px;padding:8px 20px;border-radius:3px;cursor:pointer;letter-spacing:.08em;">← Khám phá phòng tranh</button>
+          <div style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:14px;letter-spacing:.16em;text-transform:uppercase">Giỏ hàng trống</div>
+          <div style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:12px;margin-top:12px;letter-spacing:.06em">Hãy ghé thăm phòng tranh và thêm tác phẩm trước.</div>
+          <button id="co-back" style="margin-top:24px;background:none;border:1px solid rgba(24,45,88,.3);color:#182D58;font-family:'Montserrat',sans-serif;font-size:12px;padding:8px 20px;border-radius:3px;cursor:pointer;letter-spacing:.08em;">← Khám phá phòng tranh</button>
         </div>`;
       document.getElementById('co-back').addEventListener('click', () => this.manager.navigateTo('explore'));
       return;
@@ -56,29 +59,30 @@ export class CheckoutScene extends BaseScene {
     overlay.innerHTML = `
       <style>
         .co-wrap{max-width:720px;margin:0 auto}
-        .co-heading{color:#d4c5a9;font-size:16px;font-weight:bold;letter-spacing:.2em;text-transform:uppercase;margin-bottom:32px}
-        .co-card{background:rgba(255,255,255,.03);border:1px solid rgba(212,197,169,.1);border-radius:6px;padding:24px;margin-bottom:20px}
-        .co-card-title{color:#7a6e5c;font-size:9px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:16px}
-        .co-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(212,197,169,.06)}
+        .co-heading{color:#2222C6;font-family:'Montserrat',sans-serif;font-size:40px;font-weight:800;line-height:1.1;margin-bottom:32px}
+        .co-card{background:rgba(24,45,88,.04);border:1px solid rgba(24,45,88,.12);border-radius:6px;padding:24px;margin-bottom:20px}
+        .co-card-title{color:#182D58;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:16px}
+        .co-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(24,45,88,.08)}
         .co-item:last-child{border-bottom:none}
-        .co-item-name{color:#d4c5a9;font-size:11px}
-        .co-item-sub{color:#555;font-size:9px;letter-spacing:.06em;margin-top:2px}
-        .co-item-price{color:#c8a96e;font-size:11px;white-space:nowrap}
-        .co-total{display:flex;justify-content:space-between;align-items:center;padding:14px 0 0;margin-top:4px;border-top:1px solid rgba(212,197,169,.08)}
-        .co-total-label{color:#555;font-size:9px;letter-spacing:.16em;text-transform:uppercase}
-        .co-total-value{color:#fff;font-size:20px;letter-spacing:.04em}
+        .co-item-name{color:#182D58;font-family:'Montserrat',sans-serif;font-size:13px}
+        .co-item-sub{color:#182D58;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.06em;margin-top:2px;opacity:.65}
+        .co-item-price{color:#182D58;font-family:'Montserrat',sans-serif;font-size:13px;white-space:nowrap;font-weight:600}
+        .co-total{display:flex;justify-content:space-between;align-items:center;padding:14px 0 0;margin-top:4px;border-top:1px solid rgba(24,45,88,.1)}
+        .co-total-label{color:#182D58;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.16em;text-transform:uppercase}
+        .co-total-value{color:#182D58;font-family:'Montserrat',sans-serif;font-size:22px;letter-spacing:.04em;font-weight:700}
         .co-field{margin-bottom:16px}
-        .co-label{color:#7a6e5c;font-size:9px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
-        .co-input{width:100%;padding:10px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(212,197,169,.15);border-radius:4px;color:#d4c5a9;font-family:monospace;font-size:11px;box-sizing:border-box;outline:none;transition:border-color .2s}
-        .co-input:focus{border-color:rgba(200,169,110,.5)}
+        .co-label{color:#182D58;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+        .co-input{width:100%;padding:10px 12px;background:#fff;border:1px solid rgba(24,45,88,.18);border-radius:4px;color:#182D58;font-family:'Montserrat',sans-serif;font-size:13px;box-sizing:border-box;outline:none;transition:border-color .2s}
+        .co-input:focus{border-color:rgba(24,45,88,.45)}
+        .co-input::placeholder{color:rgba(24,45,88,.35)}
         .co-input.err{border-color:rgba(255,80,80,.5)}
-        .co-err{color:#ff6b6b;font-size:9px;letter-spacing:.1em;margin-top:5px;display:none}
-        .co-bank{background:rgba(200,169,110,.05);border:1px solid rgba(200,169,110,.18);border-radius:4px;padding:16px}
+        .co-err{color:#e05555;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.1em;margin-top:5px;display:none}
+        .co-bank{background:rgba(24,45,88,.05);border:1px solid rgba(24,45,88,.12);border-radius:4px;padding:16px}
         .co-bank-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0}
-        .co-bank-key{color:#555;font-size:9px;letter-spacing:.1em}
-        .co-bank-val{color:#c8a96e;font-size:10px;letter-spacing:.06em}
-        .co-note{color:#444;font-size:9px;letter-spacing:.08em;margin-top:12px;line-height:1.9}
-        .co-confirm{width:100%;padding:14px;background:linear-gradient(135deg,rgba(18,47,106,1),rgba(118,170,171,.89));border:1px solid rgba(255,255,255,.3);color:#fff;font-family:monospace;font-size:12px;font-weight:bold;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;border-radius:4px;transition:all .25s;margin-top:4px}
+        .co-bank-key{color:#182D58;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.1em;opacity:.6}
+        .co-bank-val{color:#182D58;font-family:'Montserrat',sans-serif;font-size:12px;letter-spacing:.06em;font-weight:600}
+        .co-note{color:#182D58;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.08em;margin-top:12px;line-height:1.9;opacity:.7}
+        .co-confirm{width:100%;padding:14px;background:linear-gradient(135deg,rgba(18,47,106,1),rgba(118,170,171,.89));border:1px solid rgba(255,255,255,.3);color:#fff;font-family:'Montserrat',sans-serif;font-size:14px;font-weight:bold;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;border-radius:4px;transition:all .25s;margin-top:4px}
         .co-confirm:hover{box-shadow:0 4px 24px rgba(118,170,171,.4)}
         .co-confirm:disabled{opacity:.4;cursor:default}
       </style>
@@ -124,15 +128,17 @@ export class CheckoutScene extends BaseScene {
 
         <div class="co-card">
           <div class="co-card-title">Thanh toán — Chuyển khoản ngân hàng</div>
-          <div class="co-bank">
-            <div class="co-bank-row"><span class="co-bank-key">Ngân hàng</span><span class="co-bank-val">Vietcombank</span></div>
-            <div class="co-bank-row"><span class="co-bank-key">Số tài khoản</span><span class="co-bank-val">1234 5678 9012</span></div>
-            <div class="co-bank-row"><span class="co-bank-key">Chủ tài khoản</span><span class="co-bank-val">CREATORY GALLERY</span></div>
-            <div class="co-bank-row"><span class="co-bank-key">Nội dung CK</span><span class="co-bank-val" id="co-ref">${orderId}</span></div>
-          </div>
-          <div class="co-note">
-            Sau khi đặt hàng, vui lòng chuyển khoản với nội dung <b style="color:#c8a96e">${orderId}</b>.<br>
-            Đơn hàng sẽ được xác nhận trong vòng 24 giờ sau khi nhận được thanh toán.
+          <div id="co-bank-wrap">
+            <div class="co-bank">
+              <div class="co-bank-row"><span class="co-bank-key">Ngân hàng</span><span class="co-bank-val" id="co-bank-name">Đang tải...</span></div>
+              <div class="co-bank-row"><span class="co-bank-key">Số tài khoản</span><span class="co-bank-val" id="co-bank-number">—</span></div>
+              <div class="co-bank-row"><span class="co-bank-key">Chủ tài khoản</span><span class="co-bank-val" id="co-bank-holder">—</span></div>
+              <div class="co-bank-row"><span class="co-bank-key">Nội dung CK</span><span class="co-bank-val" id="co-ref">${orderId}</span></div>
+            </div>
+            <div class="co-note">
+              Sau khi đặt hàng, vui lòng chuyển khoản với nội dung <b style="color:#182D58">${orderId}</b>.<br>
+              Đơn hàng sẽ được xác nhận trong vòng 24 giờ sau khi nhận được thanh toán.
+            </div>
           </div>
         </div>
 
@@ -144,6 +150,64 @@ export class CheckoutScene extends BaseScene {
     if (profile?.name) document.getElementById('co-name').value = profile.name;
 
     document.getElementById('co-confirm').addEventListener('click', () => this._placeOrder());
+
+    this._loadArtistBankInfo();
+  }
+
+  async _loadArtistBankInfo() {
+    const artistNames = [...new Set(this._cart.map(it => it.artist).filter(Boolean))];
+    if (!artistNames.length) {
+      const el = document.getElementById('co-bank-name');
+      if (el) el.textContent = '—';
+      return;
+    }
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('display_name, bank_name, bank_account_number, bank_account_holder')
+      .in('display_name', artistNames);
+
+    if (this._disposed) return;
+
+    const artists = (data || []).filter(p => p.bank_name || p.bank_account_number);
+
+    if (!artists.length) {
+      const el = document.getElementById('co-bank-name');
+      if (el) el.textContent = '— (nghệ sĩ chưa cập nhật)';
+      return;
+    }
+
+    if (artists.length === 1) {
+      const a = artists[0];
+      document.getElementById('co-bank-name').textContent   = a.bank_name           || '—';
+      document.getElementById('co-bank-number').textContent = a.bank_account_number  || '—';
+      document.getElementById('co-bank-holder').textContent = a.bank_account_holder  || '—';
+      return;
+    }
+
+    // Nhiều nghệ sĩ — render theo từng người
+    const wrap = document.getElementById('co-bank-wrap');
+    if (!wrap) return;
+    const orderId = this._orderId;
+    wrap.innerHTML = artists.map(a => `
+      <div style="margin-bottom:14px">
+        <div style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:10px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px;opacity:.6">${a.display_name}</div>
+        <div class="co-bank">
+          <div class="co-bank-row"><span class="co-bank-key">Ngân hàng</span><span class="co-bank-val">${a.bank_name || '—'}</span></div>
+          <div class="co-bank-row"><span class="co-bank-key">Số tài khoản</span><span class="co-bank-val">${a.bank_account_number || '—'}</span></div>
+          <div class="co-bank-row"><span class="co-bank-key">Chủ tài khoản</span><span class="co-bank-val">${a.bank_account_holder || '—'}</span></div>
+        </div>
+      </div>
+    `).join('') + `
+      <div class="co-bank-row" style="padding-top:8px;border-top:1px solid rgba(24,45,88,.08)">
+        <span class="co-bank-key">Nội dung CK</span>
+        <span class="co-bank-val">${orderId}</span>
+      </div>
+      <div class="co-note">
+        Ghi nội dung <b style="color:#182D58">${orderId}</b> khi chuyển khoản cho từng nghệ sĩ.<br>
+        Đơn hàng sẽ được xác nhận trong vòng 24 giờ sau khi nhận được thanh toán.
+      </div>
+    `;
   }
 
   _placeOrder() {

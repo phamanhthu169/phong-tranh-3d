@@ -1,20 +1,233 @@
 import * as THREE from 'three';
 import { BaseScene } from './BaseScene.js';
+import { supabase } from '../utils/supabase.js';
 
 export class LandingScene extends BaseScene {
   async init() {
     this.threeScene.background = null;
     this.camera.position.set(0, 0, 5);
 
-    document.body.style.backgroundImage    = "url('/landingpage/landingpage.svg')";
-    document.body.style.backgroundSize     = '100% auto';
-    document.body.style.backgroundPosition = 'top center';
-    document.body.style.backgroundRepeat   = 'no-repeat';
+    await this._svgBodyBackground('/landingpage/landingpage.svg');
+    this._buildFixedNavButtons();
+    this._buildPublishedStrip();
+  }
 
-    // Spacer: kéo body cao đúng bằng chiều cao SVG (1571 × 4400)
-    const spacer = this._el(document.createElement('div'));
-    spacer.style.cssText = 'width:100%;height:calc(100vw * 4400 / 1571);flex-shrink:0;';
-    document.body.appendChild(spacer);
+  _buildFixedNavButtons() {
+    const buttons = [
+      {
+        src: '/landingpage/cta.svg',
+        alt: 'Bắt đầu xây phòng',
+        top: 430, width: 300, height: 57,
+        onClick: () => this.manager.navigateTo(this.manager.auth.isLoggedIn ? 'studio' : 'register'),
+      },
+      {
+        src: '/landingpage/explore.svg',
+        alt: 'Khám phá',
+        top: 2220, width: 334, height: 73,
+        onClick: () => this.manager.navigateTo('explore'),
+      },
+      {
+        src: '/landingpage/studio.svg',
+        alt: 'Studio',
+        top: 2680, width: 289, height: 66.14,
+        onClick: () => this.manager.navigateTo(this.manager.auth.isLoggedIn ? 'studio' : 'register'),
+      },
+      {
+        src: '/landingpage/forum.svg',
+        alt: 'Diễn đàn',
+        top: 3030, width: 289, height: 66.14,
+        onClick: () => this.manager.navigateTo('forum'),
+      },
+    ];
+
+    buttons.forEach(({ src, alt, top, width, height, onClick }) => {
+      const btn = document.createElement('button');
+      
+      if (src === '/landingpage/explore.svg') {
+        btn.style.cssText = `
+          position:absolute;left:50%;transform:translateX(-50%);top:${top}px;z-index:9999;
+          background:none;border:none;padding:0;cursor:pointer;
+          transition:transform 0.2s,filter 0.2s;
+        `;
+      } else if (src === '/landingpage/studio.svg' || src === '/landingpage/forum.svg') {
+        btn.style.cssText = `
+          position:absolute;left:230px;top:${top}px;z-index:9999;
+          background:none;border:none;padding:0;cursor:pointer;
+          transition:transform 0.2s,filter 0.2s;
+        `;
+      } else {
+        btn.style.cssText = `
+          position:absolute;left:110px;top:${top}px;z-index:9999;
+          background:none;border:none;padding:0;cursor:pointer;
+          transition:transform 0.2s,filter 0.2s;
+        `;
+      }
+      
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = alt;
+      
+      if (src === '/landingpage/studio.svg' || src === '/landingpage/forum.svg') {
+        const scale = 0.85;
+        img.style.cssText = `width:${width * scale}px;height:auto;display:block;`;
+      } else {
+        img.style.cssText = `width:${width}px;height:auto;display:block;`;
+      }
+      
+      btn.appendChild(img);
+      
+      btn.addEventListener('mouseenter', () => {
+        if (src === '/landingpage/explore.svg') {
+          btn.style.transform = 'translateX(-50%) scale(1.05)';
+        } else {
+          btn.style.transform = 'scale(1.05)';
+        }
+        btn.style.filter = 'brightness(1.12)';
+      });
+      
+      btn.addEventListener('mouseleave', () => {
+        if (src === '/landingpage/explore.svg') {
+          btn.style.transform = 'translateX(-50%) scale(1)';
+        } else {
+          btn.style.transform = 'scale(1)';
+        }
+        btn.style.filter = 'none';
+      });
+      
+      btn.addEventListener('click', onClick);
+      document.body.appendChild(btn);
+      this._fixedNavBtns = this._fixedNavBtns || [];
+      this._fixedNavBtns.push(btn);
+    });
+  }
+
+  // ── PUBLISHED ROOMS STRIP ────────────────────────────────────────────────────
+  _buildPublishedStrip() {
+    const style = document.createElement('style');
+    style.id = 'lp-strip-style';
+    style.textContent = `
+      @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap');
+      @keyframes lp-marquee {
+        0%   { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+      }
+      .lp-strip-track { display:flex; gap:20px; will-change:transform; animation:lp-marquee 40s linear infinite; }
+      .lp-strip-track:hover { animation-play-state:paused; }
+      .lp-strip-item { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; cursor:pointer; transition:opacity .2s; }
+      .lp-strip-item:hover { opacity:.82; }
+      .lp-strip-label {
+        color:#FFFFFF;
+        font-family:'Montserrat',sans-serif;
+        font-weight:700;
+        font-size:12px;
+        padding:0 4px 6px;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        max-width:600px;
+        text-align:center;
+      }
+      .lp-strip-thumb { height:356px; width:auto; display:block; object-fit:contain; }
+      .lp-strip-placeholder {
+        width:304px; height:456px;
+        background:rgba(255,255,255,0.08);
+        display:flex; align-items:center; justify-content:center;
+        color:rgba(255,255,255,0.25); font-size:40px;
+      }
+    `;
+    document.head.appendChild(style);
+    this._stripStyle = style;
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = `
+      position:absolute;left:0;right:0;top:1730px;
+      overflow:hidden;z-index:9990;
+    `;
+
+    const track = document.createElement('div');
+    track.className = 'lp-strip-track';
+    wrap.appendChild(track);
+    document.body.appendChild(wrap);
+    this._stripEl = wrap;
+
+    supabase
+      .from('gallery')
+      .select('name, scene_data')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        const rooms = (data || []).filter(row =>
+          row.name.includes(':::') && row.scene_data?._meta?.isPublished === true
+        );
+        if (!rooms.length) { wrap.remove(); return; }
+
+        const buildItem = (room) => {
+          const meta = room.scene_data?._meta || {};
+          const roomName = meta.roomName || 'Phòng tranh';
+          const artistName = meta.artistName || meta.artistId || '';
+          const thumbUrl = meta.thumbnailUrl || null;
+
+          const item = document.createElement('div');
+          item.className = 'lp-strip-item';
+
+          const lbl = document.createElement('div');
+          lbl.className = 'lp-strip-label';
+          lbl.textContent = roomName;
+          item.appendChild(lbl);
+
+          if (artistName) {
+            const artist = document.createElement('div');
+            artist.className = 'lp-strip-label';
+            artist.textContent = artistName;
+            item.appendChild(artist);
+          }
+
+          if (thumbUrl) {
+            const img = document.createElement('img');
+            img.src = thumbUrl;
+            img.alt = roomName;
+            img.className = 'lp-strip-thumb';
+            item.appendChild(img);
+          } else {
+            const ph = document.createElement('div');
+            ph.className = 'lp-strip-placeholder';
+            ph.textContent = '🖼';
+            item.appendChild(ph);
+          }
+
+          item.addEventListener('click', () => {
+            this.manager.currentRoom = {
+              id: room.name,
+              name: roomName,
+              artistId: meta.artistId || room.name.split(':::')[0] || '',
+              isPublished: true,
+            };
+            this.manager.navigateTo('viewer');
+          });
+          return item;
+        };
+
+        // Fill track: duplicate enough times for seamless loop (min 2 sets)
+        const sets = Math.max(2, Math.ceil(10 / rooms.length) * 2);
+        for (let i = 0; i < sets; i++) {
+          rooms.forEach(room => track.appendChild(buildItem(room)));
+        }
+
+        // Animate speed proportional to content length (px/s ≈ 120)
+        requestAnimationFrame(() => {
+          const halfW = track.scrollWidth / 2;
+          const dur = Math.max(15, halfW / 120);
+          track.style.animationDuration = `${dur}s`;
+          // Reset to translateX(-50%) endpoint based on actual width
+          track.style.setProperty('--lp-half', `${halfW}px`);
+          const s = document.getElementById('lp-strip-style');
+          if (s) {
+            s.textContent = s.textContent.replace(
+              'translateX(-50%)',
+              `translateX(-${halfW}px)`
+            );
+          }
+        });
+      });
   }
 
   // ── HERO ─────────────────────────────────────────────────────────────────────
@@ -200,6 +413,8 @@ export class LandingScene extends BaseScene {
     btn.style.marginTop = '32px';
     btn.style.position = 'relative';
     btn.style.zIndex = '1';
+    btn.style.display = 'block';
+    btn.style.margin = '40px auto 0';
     btn.addEventListener('click', () => this.manager.navigateTo('explore'));
     section.appendChild(btn);
 
@@ -219,7 +434,7 @@ export class LandingScene extends BaseScene {
   // ── GALLERY CAROUSEL ──────────────────────────────────────────────────────────
   _buildGalleryCarousel(parent) {
     const section = document.createElement('div');
-    section.style.cssText = 'width:100%;background:#f5f5f8;padding:64px 0 56px;text-align:center;overflow:hidden;';
+    section.style.cssText = 'width:100%;background:#f5f5f8;padding:64px 0 56px;text-align:center;';
 
     const track = document.createElement('div');
     track.style.cssText = `display:flex;gap:16px;
@@ -262,7 +477,7 @@ export class LandingScene extends BaseScene {
     section.appendChild(track);
 
     const ctaWrap = document.createElement('div');
-    ctaWrap.style.cssText = 'margin-top:16px;';
+    ctaWrap.style.cssText = 'margin-top:16px;display:flex;justify-content:center;';
     const cta = _makeOutlineBtn('KHÁM PHÁ NGAY', '#1a1fd4', '#fff');
     cta.addEventListener('click', () => this.manager.navigateTo('explore'));
     ctaWrap.appendChild(cta);
@@ -371,6 +586,10 @@ export class LandingScene extends BaseScene {
     document.body.style.backgroundSize     = '';
     document.body.style.backgroundPosition = '';
     document.body.style.backgroundRepeat   = '';
+    (this._fixedNavBtns || []).forEach(btn => btn.remove());
+    this._fixedNavBtns = [];
+    if (this._stripEl)    { this._stripEl.remove();    this._stripEl = null; }
+    if (this._stripStyle) { this._stripStyle.remove(); this._stripStyle = null; }
     super.dispose();
   }
 

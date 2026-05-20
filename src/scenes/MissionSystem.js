@@ -399,6 +399,12 @@ export class MissionSystem {
   _openChestRiddlePopup(mission) {
     document.getElementById('ms-chest-riddle-popup')?.remove();
 
+    let qd = {};
+    try { qd = JSON.parse(mission.riddle_text || '{}'); } catch { qd = {}; }
+    const questionText  = qd.q || mission.riddle_text || '(Không có nội dung câu đố)';
+    const hintText      = qd.hint || '';
+    const correctKey    = (mission.riddle_answer || 'a').toLowerCase().trim();
+
     const overlay = document.createElement('div');
     overlay.id = 'ms-chest-riddle-popup';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1000;display:flex;align-items:center;justify-content:center;';
@@ -406,25 +412,67 @@ export class MissionSystem {
     const box = document.createElement('div');
     box.style.cssText = 'background:#0d1520;border:.5px solid rgba(200,169,110,0.4);border-radius:16px;padding:28px;max-width:420px;width:90%;display:flex;flex-direction:column;gap:14px;font-family:"Montserrat",sans-serif;';
 
-    box.innerHTML = `
-      <div style="color:#c8a96e;font-size:14px;font-weight:700;letter-spacing:.05em;">🗝 ${mission.title || 'Giải mã rương câu đố'}</div>
-      <div style="color:rgba(255,255,255,0.5);font-size:10px;">Trả lời đúng để mở rương và hoàn thành nhiệm vụ.</div>
-      <div style="color:#fff;font-size:13px;line-height:1.7;background:rgba(200,169,110,0.05);padding:14px;border-radius:10px;border:.5px solid rgba(200,169,110,0.15);">${mission.riddle_text || '(Không có nội dung câu đố)'}</div>
-    `;
+    const titleDiv = document.createElement('div');
+    titleDiv.style.cssText = 'color:#c8a96e;font-size:14px;font-weight:700;letter-spacing:.05em;';
+    titleDiv.textContent = `🗝 ${mission.title || 'Giải mã rương câu đố'}`;
+    box.appendChild(titleDiv);
 
-    const ansRow = document.createElement('div');
-    ansRow.style.cssText = 'display:flex;gap:8px;';
-    const ansIn = document.createElement('input');
-    ansIn.type = 'text'; ansIn.placeholder = 'Nhập đáp án...';
-    ansIn.style.cssText = 'flex:1;padding:9px 12px;background:rgba(255,255,255,0.07);border:.5px solid rgba(255,255,255,0.2);border-radius:8px;color:#fff;font-family:"Montserrat",sans-serif;font-size:12px;outline:none;';
-    const checkBtn = document.createElement('button');
-    checkBtn.textContent = 'Mở rương ✦';
-    checkBtn.style.cssText = 'padding:9px 16px;background:rgba(200,169,110,0.15);border:.5px solid rgba(200,169,110,0.5);border-radius:8px;color:#c8a96e;font-family:"Montserrat",sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;';
-    ansRow.append(ansIn, checkBtn);
-    box.appendChild(ansRow);
+    const subtitleDiv = document.createElement('div');
+    subtitleDiv.style.cssText = 'color:rgba(255,255,255,0.5);font-size:10px;';
+    subtitleDiv.textContent = 'Chọn đáp án đúng để mở rương và hoàn thành nhiệm vụ.';
+    box.appendChild(subtitleDiv);
 
+    const questionDiv = document.createElement('div');
+    questionDiv.style.cssText = 'color:#fff;font-size:13px;line-height:1.7;background:rgba(200,169,110,0.05);padding:14px;border-radius:10px;border:.5px solid rgba(200,169,110,0.15);';
+    questionDiv.textContent = questionText;
+    box.appendChild(questionDiv);
+
+    if (hintText) {
+      const hintDiv = document.createElement('div');
+      hintDiv.style.cssText = 'color:rgba(255,200,100,0.75);font-size:11px;';
+      hintDiv.textContent = `💡 Gợi ý: ${hintText}`;
+      box.appendChild(hintDiv);
+    }
+
+    const choicesDiv = document.createElement('div');
+    choicesDiv.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
     const feedback = document.createElement('div');
     feedback.style.cssText = 'font-size:11px;text-align:center;min-height:18px;';
+    let answered = false;
+
+    ['a', 'b', 'c', 'd'].forEach((key, i) => {
+      const choiceText = qd[key] || '';
+      if (!choiceText) return;
+      const btn = document.createElement('button');
+      btn.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,255,255,0.05);border:.5px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-family:"Montserrat",sans-serif;font-size:13px;cursor:pointer;text-align:left;transition:background .15s;width:100%;';
+      const labelSpan = document.createElement('span');
+      labelSpan.style.cssText = 'color:#c8a96e;font-weight:700;flex-shrink:0;';
+      labelSpan.textContent = 'ABCD'[i] + '.';
+      const textSpan = document.createElement('span');
+      textSpan.textContent = choiceText;
+      btn.append(labelSpan, textSpan);
+      btn.addEventListener('mouseenter', () => { if (!answered) btn.style.background = 'rgba(200,169,110,0.1)'; });
+      btn.addEventListener('mouseleave', () => { if (!answered) btn.style.background = 'rgba(255,255,255,0.05)'; });
+      btn.addEventListener('click', () => {
+        if (answered) return;
+        if (key === correctKey) {
+          answered = true;
+          btn.style.cssText += 'background:rgba(50,200,100,0.15);border-color:rgba(50,200,100,0.5);';
+          feedback.style.color = '#c8a96e';
+          feedback.textContent = '✓ Chính xác! Rương đã mở!';
+          setTimeout(() => { overlay.remove(); this._completeMission(mission.mission_index); }, 800);
+        } else {
+          btn.style.background = 'rgba(255,80,80,0.1)';
+          btn.style.borderColor = 'rgba(255,80,80,0.3)';
+          setTimeout(() => { btn.style.background = 'rgba(255,255,255,0.05)'; btn.style.borderColor = 'rgba(255,255,255,0.15)'; }, 600);
+          feedback.style.color = '#f87171';
+          feedback.textContent = '✗ Chưa đúng, thử lại nhé!';
+        }
+      });
+      choicesDiv.appendChild(btn);
+    });
+
+    box.appendChild(choicesDiv);
     box.appendChild(feedback);
 
     const closeBtn = document.createElement('button');
@@ -433,27 +481,9 @@ export class MissionSystem {
     closeBtn.addEventListener('click', () => overlay.remove());
     box.appendChild(closeBtn);
 
-    const tryCheck = () => {
-      const val     = ansIn.value.toLowerCase().trim();
-      const correct = (mission.riddle_answer || '').toLowerCase().trim();
-      if (!val) return;
-      if (val === correct) {
-        feedback.style.color = '#c8a96e';
-        feedback.textContent = '✓ Chính xác! Rương đã mở!';
-        checkBtn.disabled = true; ansIn.disabled = true;
-        setTimeout(() => { overlay.remove(); this._completeMission(mission.mission_index); }, 800);
-      } else {
-        feedback.style.color = '#f87171';
-        feedback.textContent = '✗ Chưa đúng, thử lại nhé!';
-        ansIn.select();
-      }
-    };
-    checkBtn.addEventListener('click', tryCheck);
-    ansIn.addEventListener('keydown', e => { if (e.key === 'Enter') tryCheck(); });
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
     overlay.appendChild(box);
     document.body.appendChild(overlay);
-    setTimeout(() => ansIn.focus(), 80);
   }
 
   // ─── Story sequence popup ─────────────────────────────────────────────────────

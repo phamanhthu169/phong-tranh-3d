@@ -30,7 +30,7 @@ export class RegisterScene extends BaseScene {
     const card = document.createElement('div');
     card.style.cssText = 'background:#ffffff;border:1px solid rgba(0,0,0,.12);border-radius:6px;padding:32px;width:360px;display:flex;flex-direction:column;gap:14px;font-family:monospace;pointer-events:all;box-shadow:0 4px 24px rgba(0,0,0,.08);';
     card.innerHTML = `
-      <div style="color:#1a1a1a;font-size:15px;font-weight:bold;letter-spacing:.18em;text-transform:uppercase;text-align:center;margin-bottom:4px">Tạo hồ sơ</div>
+      <div style="color:#2222C6;font-family:'Montserrat',sans-serif;font-size:40px;font-weight:800;line-height:1.1;text-align:center;margin-bottom:4px">Tạo hồ sơ</div>
 
       <div style="display:flex;flex-direction:column;gap:4px">
         <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Tên hiển thị</label>

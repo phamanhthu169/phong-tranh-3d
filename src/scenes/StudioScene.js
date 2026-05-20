@@ -7,6 +7,7 @@ import { BaseScene } from './BaseScene.js';
 import { TextEditor } from './TextEditor.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { MissionBuilder } from './MissionBuilder.js';
+import { ViewerSpawn } from './ViewerSpawn.js';
 
 export class StudioScene extends BaseScene {
   async init() {
@@ -21,7 +22,19 @@ export class StudioScene extends BaseScene {
       this.manager.navigateTo('landing'); return;
     }
     if (!this.manager.currentRoom) {
-      this.manager.navigateTo('dashboard'); return;
+      const _urlRoomId = new URLSearchParams(location.search).get('room');
+      if (_urlRoomId) {
+        const roomId = decodeURIComponent(_urlRoomId);
+        const userId = this.manager.auth.user?.id;
+        if (!userId || !roomId.startsWith(userId + ':::')) {
+          this.manager.navigateTo('dashboard'); return;
+        }
+        const { data } = await supabase.from('gallery').select('name, scene_data').eq('name', roomId).limit(1);
+        const meta = data?.[0]?.scene_data?._meta || {};
+        this.manager.currentRoom = { id: roomId, name: meta.roomName || null, artistId: userId, isPublished: !!meta.isPublished };
+      } else {
+        this.manager.navigateTo('dashboard'); return;
+      }
     }
 
     /* ── Scene ── */
@@ -54,9 +67,10 @@ export class StudioScene extends BaseScene {
     // Danh sách tác phẩm đã upload trong session (ảnh, video, model 3D)
     // Mỗi phần tử: { type: 'image'|'video'|'model', label, src, thumb? }
     this._uploadedSources = [];
-    this.backgroundMusic = null;
-    this.isMusicPlaying  = false;
-    this._musicUrl       = null;
+    this.backgroundMusic  = null;
+    this.isMusicPlaying   = false;
+    this._musicPlaylist   = [];   // [{ url, name }]
+    this._musicIndex      = 0;
     this.selectedSource = null;
     this.selectedItem   = null;
     this.frameMat       = new THREE.MeshLambertMaterial({ color: 0x182D58 });
@@ -68,9 +82,11 @@ export class StudioScene extends BaseScene {
     this.mode           = 'select';
     this._undoStack     = [];
     this._redoStack     = [];
+    this._usePedestal   = true;
     this.chests          = [];
     this._chestPlacingMode = false;
     this._pendingChestPos  = null;
+    this.viewerSpawn     = new ViewerSpawn(this);
 
     /* ── Interior Walls ── */
     this.interiorWalls    = [];   // { group, frontMesh, backMesh, edgeMesh, width, height, thickness, frontColor, backColor, frontWallpaper, backWallpaper }
@@ -229,8 +245,8 @@ export class StudioScene extends BaseScene {
       .uth.sel,.model-th.sel{border-color:#c8a96e!important}
       #toast{position:fixed;bottom:50px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(20,18,14,.96);border:.5px solid rgba(212,197,169,.18);color:#d4c5a9;font-size:9px;letter-spacing:.14em;text-transform:uppercase;padding:8px 18px;border-radius:3px;pointer-events:none;opacity:0;transition:opacity .3s,transform .3s;z-index:50;white-space:nowrap}
       #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-      #toast.success{border-color:#6aaa7a;color:#6aaa7a}
-      #toast.error{border-color:#b54a3a;color:#b54a3a}
+      #toast.success{background:#6aaa7a;border-color:#CFFFDB;color:#CFFFDB}
+      #toast.error{background:#b54a3a;border-color:#FFDDD8;color:#FFDDD8}
       #light-panel,#path-panel,#template-panel,#decor-panel{position:fixed;left:10px;top:60px;width:260px;background:rgba(15,13,12,.97);border:.5px solid rgba(212,197,169,.18);border-radius:4px;z-index:20;padding:12px;flex-direction:column;gap:10px;display:none;font-family:monospace;max-height:80vh;overflow-y:auto}
       #light-panel.open,#path-panel.open,#template-panel.open,#decor-panel.open{display:flex}
       #light-panel h3,#path-panel h3,#template-panel h3,#decor-panel h3{color:#d4c5a9;font-size:13px;font-style:italic;letter-spacing:.1em;border-bottom:.5px solid rgba(212,197,169,.18);padding-bottom:6px;margin:0}
@@ -379,14 +395,6 @@ export class StudioScene extends BaseScene {
         padding:4px 10px; border:.5px solid rgba(255,255,255,.2);
         border-radius:3px; white-space:nowrap; pointer-events:none; z-index:50;
       }
-      #studio-help-chat {
-        position:fixed; left:84px; bottom:84px; top:auto; transform:none;
-        width:260px; 
-        background: linear-gradient(180deg, rgba(118,170,171,1), rgba(35,92,208,0.5));
-        border:.5px solid rgba(212,197,169,.2); border-radius:6px;
-        display:none; flex-direction:column; overflow:hidden;
-        box-shadow:0 8px 32px rgba(0,0,0,.5); z-index:30;
-      }
       #studio-left-btns {
         position:fixed; left:20px; top:296px;
         display:flex; flex-direction:column; gap:10px; z-index:20;
@@ -397,47 +405,6 @@ export class StudioScene extends BaseScene {
       }
       .studio-side-btn:hover { transform:scale(1.1); filter:brightness(1.2); }
       .studio-side-btn img { width:40px; height:40px; display:block; }
-      #btn-studio-helpchat {
-        position:fixed !important; left:20px !important; bottom:20px !important;
-        top:auto !important; width:56px !important; height:56px !important;
-      }
-      #btn-studio-helpchat img { width:56px; height:56px; }
-      #studio-helpchat-label {
-        position:fixed; left:84px; bottom:32px; z-index:20;
-        color:#d4c5a9; font-family:monospace; font-size:11px;
-        background:rgba(15,13,12,.7); padding:4px 10px; border-radius:20px;
-        border:.5px solid rgba(212,197,169,.2); pointer-events:none;
-        white-space:nowrap;
-      }
-      #studio-help-chat.open { display:flex; }
-      #shc-header {
-        padding:10px 14px; background:rgba(212,197,169,.05);
-        border-bottom:.5px solid rgba(212,197,169,.15);
-        display:flex; justify-content:space-between; align-items:center;
-      }
-      #shc-title { font-family:monospace; font-size:10px; letter-spacing:.12em; color:#FFFFFF; text-transform:uppercase; }
-      #shc-close { background:none; border:none; color:#7a6e5c; cursor:pointer; font-size:13px; transition:color .2s; }
-      #shc-close:hover { color:#d4c5a9; }
-      #shc-messages {
-        height:180px; overflow-y:auto; padding:10px 12px;
-        display:flex; flex-direction:column; gap:6px; font-family:monospace;
-      }
-      #shc-messages::-webkit-scrollbar { width:2px; }
-      #shc-messages::-webkit-scrollbar-thumb { background:rgba(212,197,169,.15); }
-      .shc-msg { font-size:10px; line-height:1.6; color:rgb(255, 255, 255); }
-      .shc-msg .shc-name { color:#FFFFFF; font-size:8px; margin-right:5px; }
-      #shc-input-row { display:flex; border-top:.5px solid rgba(212,197,169,.12); }
-      #shc-input {
-        flex:1; padding:8px 10px; background:transparent; border:none;
-        color:#FFFFFF; font-family:monospace; font-size:10px; outline:none;
-      }
-      #shc-input::placeholder { color:#FFFFFF; }
-      #shc-send {
-        padding:8px 12px; background:rgba(212,197,169,.06); border:none;
-        border-left:.5px solid rgba(212,197,169,.12); color:#FFFFFF;
-        font-family:monospace; font-size:10px; cursor:pointer; transition:all .2s;
-      }
-      #shc-send:hover { background:rgba(212,197,169,.15); color:#d4c5a9; }
       #studio-settings-panel {
         position:fixed; left:70px; top:300px; transform:none;
         width:220px; background: linear-gradient(180deg, rgba(118,170,171,1), rgba(35,92,208,0.5));
@@ -447,11 +414,17 @@ export class StudioScene extends BaseScene {
         box-shadow:0 8px 32px rgba(0,0,0,.5);
       }
       #studio-settings-panel.open { display:flex; }
-      #ssp-title { font-family:monospace; font-size:10px; letter-spacing:.1em; color:#c8a96e; }
+      #ssp-title { font-family:monospace; font-size:10px; letter-spacing:.1em; color:rgb(255, 255, 255); }
+      .ssp-label { color: rgb(255, 255, 255); }
+      .ssp-val   { color: rgb(255, 255, 255); }
       .stb2-btn .btn-icon.active { display: none; }
       .stb2-btn .btn-icon.normal { display: inline-flex; }
       .stb2-btn.activated .btn-icon.normal { display: none; }
       .stb2-btn.activated .btn-icon.active { display: inline-flex; }
+      #pop-price::placeholder {
+        color: rgba(255, 255, 255, 0.72);
+        font-style: italic;
+      }
   `;
     document.head.appendChild(style);
     this._el(style);
@@ -665,22 +638,25 @@ _buildSecondaryToolbar() {
   const style = document.createElement('style');
   style.textContent = `
       #studio-secondary-toolbar {
-      position: fixed;
-      top: 72px;
-      left: 200px;
-      transform: none;
-      display: flex;
-      align-items: center;
-      gap: 0;
-      padding: 0 10px;
-      z-index: 26;
-      background: url('/studio/toolbarbg.svg') no-repeat center center;
-      background-size: 100% 100%;
-      border: none;
-      box-shadow: none;
-      border-radius: 0;
-      justify-content: space-evenly;  
-    }
+        position: fixed;
+        top: -32px !important;
+        left: 200px;
+        transform: none;
+        display: flex;
+        align-items: center;
+        gap: 0;
+        padding: 0 10px;
+        z-index: 26;
+        pointer-events: none;
+        background: url('/studio/toolbarbg.svg') no-repeat center center;
+        background-size: 100% 100%;
+        border: none;
+        box-shadow: none;
+        border-radius: 0;
+        justify-content: space-evenly;
+        width: 687px;        /* ← thêm dòng này */
+        height: 257.17px;
+      }
     .stb2-btn {
       width: 36px; height: 36px;
       border: none; background: transparent;
@@ -698,8 +674,8 @@ _buildSecondaryToolbar() {
       background: rgba(255,255,255,0.12);
       margin: 0 6px; flex-shrink: 0;
     }
-    stb2-tooltip {
-        position: absolute; bottom: calc(100% + 8px); left: 50%;
+    .stb2-tooltip {
+        position: absolute; top: calc(100% + 8px); left: 50%;
         transform: translateX(-50%);
         background: #122F6A; color: #FFFFFF;
         font-size: 11px; font-family: 'Montserrat', sans-serif;
@@ -707,9 +683,9 @@ _buildSecondaryToolbar() {
         border-radius: 6px; pointer-events: none;
         opacity: 0; transition: opacity 0.15s;
         border: 0.5px solid rgba(255,255,255,0.12);
+        z-index: 999;
       }
-    .stb2-btn.on:hover .stb2-tooltip,
-    .stb2-btn.activated:hover .stb2-tooltip { opacity: 1; }
+    .stb2-btn:hover .stb2-tooltip { opacity: 1; }
   `;
   document.head.appendChild(style);
   this._el(style);
@@ -735,14 +711,7 @@ const ICON_FILES = {
 
   const bar = document.createElement('div');
   bar.id = 'studio-secondary-toolbar';
-  const tmpImg = new Image();
-  tmpImg.src = '/studio/toolbarbg.svg';
-  tmpImg.onload = () => {
-    const ratio = tmpImg.naturalWidth / tmpImg.naturalHeight;
-    bar.style.height = '44px';
-    bar.style.width = (44 * ratio + 100) + 'px';
-  };
-
+  
 // Nút có 2 trạng thái (normal + active) — dùng 1 img duy nhất, đổi src khi click
 const makeBtn = (id, normalIcon, activeIcon, tooltip) => {
   const btn = document.createElement('button');
@@ -795,8 +764,8 @@ bar.appendChild(btnRedo);
 bar.appendChild(sep());
 
 // Nhóm 4: Flip (enabled only for artwork/text)
-bar.appendChild(makeSimpleBtn('stb2-fliph', 'fliph.svg', 'Lật gương (ngang)'));
-bar.appendChild(makeSimpleBtn('stb2-flipfb', 'flipfb.svg', 'Lật trước/sau'));
+bar.appendChild(makeSimpleBtn('stb2-fliph', 'flip.svg', 'Lật gương (ngang)'));
+bar.appendChild(makeSimpleBtn('stb2-flipfb', 'mirror.svg', 'Lật trước/sau'));
 
   document.body.appendChild(bar);
   this._el(bar);
@@ -828,6 +797,8 @@ bar.appendChild(makeSimpleBtn('stb2-flipfb', 'flipfb.svg', 'Lật trước/sau')
 
     this._activateSecondaryBtn(id);
     this.mode = modeMap[id];
+    // Tự động tắt chế độ "bắt đầu đặt chữ lên tường"
+    this.textEditor?.exitPlaceMode();
   });
 });
 }
@@ -1077,17 +1048,6 @@ _buildStudioLeftBtns() {
     document.body.appendChild(col);
     this._el(col);
 
-    // Helpchat button — bottom left, separate from other side buttons
-    const helpChatBtn = document.createElement('div');
-    helpChatBtn.id = 'btn-studio-helpchat';
-    helpChatBtn.className = 'studio-side-btn';
-    helpChatBtn.setAttribute('data-title', 'Bạn cần trợ giúp?');
-    helpChatBtn.style.cssText = 'position:fixed;left:20px;bottom:20px;z-index:20;width:56px;height:56px;cursor:pointer;transition:transform .2s,filter .2s;';
-    helpChatBtn.innerHTML = `<img src="/studio/helpchat.svg" style="width:56px;height:56px;display:block;">`;
-    document.body.appendChild(helpChatBtn);
-    this._el(helpChatBtn);
-
-
     // --- Tutorial overlay ---
     const tutOverlay = document.createElement('div');
     tutOverlay.id = 'studio-tutorial-overlay';
@@ -1132,25 +1092,6 @@ _buildStudioLeftBtns() {
     document.body.appendChild(sspPanel);
     this._el(sspPanel);
 
-    // --- Help chat panel ---
-    const chatPanel = document.createElement('div');
-    chatPanel.id = 'studio-help-chat';
-    chatPanel.innerHTML = `
-      <div id="shc-header">
-        <span id="shc-title">💬 Hỗ trợ Metasteps</span>
-        <button id="shc-close">✕</button>
-      </div>
-      <div id="shc-messages">
-        <div class="shc-msg"><span class="shc-name">Metasteps</span>Xin chào! Bạn cần hỗ trợ gì?</div>
-      </div>
-      <div id="shc-input-row">
-        <input id="shc-input" placeholder="Nhắn tin cho admin…" autocomplete="off">
-        <button id="shc-send">Gửi</button>
-      </div>
-    `;
-    document.body.appendChild(chatPanel);
-    this._el(chatPanel);
-
     // --- Events ---
     document.getElementById('btn-studio-tutorial').addEventListener('click', () => {
       tutOverlay.style.display = 'flex';
@@ -1168,33 +1109,6 @@ _buildStudioLeftBtns() {
 
     document.getElementById('btn-studio-settings').addEventListener('click', () => {
       sspPanel.classList.toggle('open');
-      chatPanel.classList.remove('open');
-    });
-
-    document.getElementById('btn-studio-helpchat').addEventListener('click', () => {
-      chatPanel.classList.toggle('open');
-      sspPanel.classList.remove('open');
-    });
-
-    document.getElementById('shc-close').addEventListener('click', () => {
-      chatPanel.classList.remove('open');
-    });
-
-    document.getElementById('shc-send').addEventListener('click', () => {
-      const inp = document.getElementById('shc-input');
-      const text = inp.value.trim();
-      if (!text) return;
-      inp.value = '';
-      const msgs = document.getElementById('shc-messages');
-      const div = document.createElement('div');
-      div.className = 'shc-msg';
-      div.innerHTML = `<span class="shc-name" style="color:#8ab4ff">Bạn</span>${text}`;
-      msgs.appendChild(div);
-      msgs.scrollTop = msgs.scrollHeight;
-    });
-
-    document.getElementById('shc-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') document.getElementById('shc-send').click();
     });
 
     document.getElementById('ssp-speed').addEventListener('input', e => {
@@ -1218,6 +1132,8 @@ _buildStudioLeftBtns() {
     document.getElementById('btn-' + m)?.classList.add('active');
     this.renderer.domElement.style.cursor = m === 'place' ? 'crosshair' : (m === 'walk' ? 'grab' : 'default');
     if (m !== 'select') this.deselectItem();
+    // Tự động tắt chế độ "bắt đầu đặt chữ lên tường" khi chuyển tính năng khác
+    this.textEditor?.exitPlaceMode();
   }
 
   /* ══════════════════════════════════════════════ LIGHT PANEL ══════════════════════════════════════════════ */
@@ -1309,11 +1225,11 @@ _buildStudioLeftBtns() {
         font-family: 'Montserrat', sans-serif;
         color: #FFFFFF;
         padding-top: 0px;
+        pointer-events: auto;
       }
       #rp-content::-webkit-scrollbar { width: 3px; }
       #rp-content::-webkit-scrollbar-thumb { background: rgba(104,229,227,0.3); border-radius: 2px; }
-      .rp-pane { display: none; flex-direction: column; gap: 10px; box-sizing: border-box; }
-      .rp-pane.active { display: flex; }
+      .rp-pane { display: none; flex-direction: column; gap: 10px; box-sizing: border-box; pointer-events: auto; }      .rp-pane.active { display: flex; }
       /* ── Placeholder panes ── */
       .rp-placeholder {
         display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -1364,6 +1280,15 @@ _buildStudioLeftBtns() {
       .rp-music-name { font-size: 14px; color: rgba(255,255,255,0.4); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .rp-music-vol { width: 70px; -webkit-appearance: none; height: 2px; background: rgba(255,255,255,0.15); border-radius: 1px; outline: none; }
       .rp-music-vol::-webkit-slider-thumb { -webkit-appearance: none; width: 8px; height: 8px; border-radius: 50%; background: #68e5e3; cursor: pointer; }
+      .rp-playlist { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+      .rp-playlist::-webkit-scrollbar { width: 4px; }
+      .rp-playlist::-webkit-scrollbar-thumb { background: rgba(104,229,227,0.3); border-radius: 2px; }
+      .rp-playlist-item { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); transition: background 0.15s; }
+      .rp-playlist-item.playing { background: rgba(104,229,227,0.12); }
+      .rp-playlist-item-name { flex: 1; font-size: 12px; color: rgba(255,255,255,0.6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .rp-playlist-item.playing .rp-playlist-item-name { color: #68e5e3; }
+      .rp-playlist-item-del { background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1; flex-shrink: 0; }
+      .rp-playlist-item-del:hover { color: #ff6b6b; }
       /* ── Decor thumbs ── */
       .rp-decor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
       .rp-decor-item { aspect-ratio: 1; border-radius: 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-size: 20px; }
@@ -1403,32 +1328,33 @@ _buildStudioLeftBtns() {
         min-height: 0;
       }
       /* ── Publish (bước 05) ── */
-      .rp-pub-btn { padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer; font-family: monospace; font-size: 11px; letter-spacing: .08em; transition: all 0.2s; width: 100%; }
+      .rp-pub-btn { padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer; font-family: monospace; font-size: 13px; letter-spacing: .08em; transition: all 0.2s; width: 100%; }
       .rp-pub-btn.primary { background: linear-gradient(90deg, #122F6A, #235CD0); color: #fff; border: 1px solid rgba(104,229,227,0.4); }
       .rp-pub-btn.primary:hover { filter: brightness(1.15); }
-      .rp-pub-btn.danger { background: rgba(181,74,58,.15); color: rgba(255,150,130,.8); border: 1px solid rgba(181,74,58,.4); }
+      .rp-pub-btn.danger { background: rgba(181,74,58,.15); color: rgb(255, 46, 4); border: 1px solid rgba(181,74,58,.4); }
       .rp-pub-btn.danger:hover { background: rgba(181,74,58,.3); }
-      .rp-pub-info { font-size: 9px; color: rgba(255,255,255,0.3); line-height: 1.8; letter-spacing: .06em; }
+      .rp-pub-info { font-size: 11px; color: rgb(255, 255, 255); line-height: 1.8; letter-spacing: .06em; }
       /* ── Publish form redesign ── */
-      .pub-section-title { color: rgba(255,255,255,1); font-size: 15px; letter-spacing: .15em; text-transform: uppercase; font-family: 'Montserrat', sans-serif;  font-weight: 700; margin: 10px 0 5px; border-bottom: .5px solid rgba(104,229,227,0.2); padding-bottom: 4px; }
+      .pub-section-title { color: rgba(255,255,255,1); font-size: 17px; letter-spacing: .15em; text-transform: uppercase; font-family: 'Montserrat', sans-serif;  font-weight: 700; margin: 10px 0 5px; border-bottom: .5px solid rgba(104,229,227,0.2); padding-bottom: 4px; }
       .pub-field { display: flex; flex-direction: column; gap: 3px; }
-      .pub-field-label { color: rgba(255,255,255,0.45); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+      .pub-field-label { color: rgb(255, 255, 255); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
       .pub-required { color: #68e5e3; }
-      .pub-optional { color: rgba(255,255,255,0.22); font-style: italic; }
-      .pub-input { background: rgba(255,255,255,0.05); border: .5px solid rgba(212,197,169,0.22); border-radius: 4px; color: #d4c5a9; font-family: monospace; font-size: 11px; padding: 6px 8px; outline: none; transition: border-color .2s; width: 100%; box-sizing: border-box; }
-      .pub-textarea { background: rgba(255,255,255,0.05); border: .5px solid rgba(212,197,169,0.22); border-radius: 4px; color: #d4c5a9; font-family: monospace; font-size: 11px; padding: 6px 8px; outline: none; transition: border-color .2s; resize: vertical; width: 100%; box-sizing: border-box; min-height: 72px; }
+      .pub-optional { color: rgb(255, 255, 255); font-style: italic; }
+      .pub-input { background: rgba(255,255,255,0.05); border: .5px solid rgba(212,197,169,0.22); border-radius: 4px; color: #d4c5a9; font-family: monospace; font-size: 13px; padding: 6px 8px; outline: none; transition: border-color .2s; width: 100%; box-sizing: border-box; }
+      .pub-textarea { background: rgba(255,255,255,0.05); border: .5px solid rgba(212,197,169,0.22); border-radius: 4px; color: #d4c5a9; font-family: monospace; font-size: 13px; padding: 6px 8px; outline: none; transition: border-color .2s; resize: vertical; width: 100%; box-sizing: border-box; min-height: 72px; }
       .pub-input:focus, .pub-textarea:focus { border-color: rgba(104,229,227,0.5); }
-      .pub-char-count { color: rgba(255,255,255,0.2); font-size: 8px; text-align: right; letter-spacing: .06em; }
+      .pub-input::placeholder { color: rgb(255,222,36); opacity: 1; }
+      .pub-textarea::placeholder, .pub-tag-input::placeholder { color: rgb(255,222,36); opacity: 1; }      .pub-char-count { color: rgb(255, 255, 255); font-size: 10px; text-align: right; letter-spacing: .06em; }
       .pub-char-count.warn { color: #c8a96e; }
       .pub-tags-container { display: flex; flex-wrap: wrap; gap: 4px; }
-      .pub-tag { background: rgba(104,229,227,0.1); border: .5px solid rgba(104,229,227,0.3); border-radius: 20px; color: #68e5e3; font-size: 9px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px; }
+      .pub-tag { background: rgba(104,229,227,0.1); border: .5px solid rgba(104,229,227,0.3); border-radius: 20px; color: #68e5e3; font-size:11px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px; }
       .pub-tag-del { cursor: pointer; opacity: .55; line-height: 1; }
       .pub-tag-del:hover { opacity: 1; }
-      .pub-tag-input { background: transparent; border: none; outline: none; color: #d4c5a9; font-family: monospace; font-size: 11px; flex: 1; min-width: 60px; }
+      .pub-tag-input { background: transparent; border: none; outline: none; color: rgb(255,222,36); font-family: monospace; font-size: 13px; flex: 1; min-width: 60px; }
       .pub-tag-input-wrap { background: rgba(255,255,255,0.05); border: .5px solid rgba(212,197,169,0.22); border-radius: 4px; padding: 5px 8px; display: flex; flex-wrap: wrap; gap: 4px; transition: border-color .2s; }
       .pub-tag-input-wrap:focus-within { border-color: rgba(104,229,227,0.5); }
-      .pub-field-hint { color: rgba(255,255,255,0.2); font-size: 8px; letter-spacing: .06em; }
-      .pub-thumb-saved { color: #6aaa7a; font-size: 9px; margin-left: 6px; font-weight: normal; text-transform: none; letter-spacing: .06em; }
+      .pub-field-hint { color: rgb(255, 255, 255); font-size: 10px; letter-spacing: .06em; }
+      .pub-thumb-saved { color: rgb(110, 255, 146); font-size: 11px; margin-left: 6px; font-weight: normal; text-transform: none; letter-spacing: .06em; }
       .pub-canvas-wrap { display: flex; flex-direction: column; gap: 5px; }
       .pub-tools { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
       .pub-tool-btn { background: rgba(255,255,255,0.06); border: .5px solid rgba(212,197,169,0.22); border-radius: 4px; color: #d4c5a9; cursor: pointer; font-size: 13px; padding: 3px 7px; transition: all .15s; line-height: 1.4; }
@@ -1440,25 +1366,23 @@ _buildStudioLeftBtns() {
       .pub-canvas-area { position: relative; border-radius: 4px; overflow: hidden; border: .5px solid rgba(212,197,169,0.22); cursor: crosshair; align-self: flex-start; }
       .pub-canvas-area canvas { display: block; }
       .pub-canvas-area img.pub-door-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-      .pub-upload-label { display: block; text-align: center; padding: 6px; border: .5px dashed rgba(212,197,169,0.3); border-radius: 4px; color: rgba(212,197,169,0.55); font-size: 9px; cursor: pointer; letter-spacing: .06em; transition: all .2s; }
+      .pub-upload-label { display: block; text-align: center; padding: 6px; border: .5px dashed rgba(212,197,169,0.3); border-radius: 4px; color: rgba(212,197,169,0.55); font-size: 11px; cursor: pointer; letter-spacing: .06em; transition: all .2s; }
       .pub-upload-label:hover { border-color: rgba(104,229,227,0.5); color: #68e5e3; }
-      .pub-save-thumb-btn { padding: 7px; background: rgba(104,229,227,0.1); border: .5px solid rgba(104,229,227,0.35); border-radius: 4px; color: #68e5e3; font-family: monospace; font-size: 10px; cursor: pointer; transition: all .2s; letter-spacing: .06em; width: 100%; }
+      .pub-save-thumb-btn { padding: 7px; background: rgba(104,229,227,0.1); border: .5px solid rgba(104,229,227,0.35); border-radius: 4px; color: #68e5e3; font-family: monospace; font-size: 11px; cursor: pointer; transition: all .2s; letter-spacing: .06em; width: 100%; }
       .pub-save-thumb-btn:hover { background: rgba(104,229,227,0.2); }
       .pub-save-thumb-btn:disabled { opacity: .4; cursor: default; }
       .pub-thumb-preview { width: 100%; border-radius: 4px; border: .5px solid rgba(212,197,169,0.2); display: block; cursor:pointer; }
       .pub-publish-section { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: .5px solid rgba(212,197,169,0.12); }
       .thumb-trigger-area { display:flex; flex-direction:column; gap:6px; }
-      .thumb-open-btn { padding:9px; background:rgba(104,229,227,0.08); border:.5px solid rgba(104,229,227,0.3); border-radius:4px; color:#68e5e3; font-family:monospace; font-size:10px; cursor:pointer; transition:all .2s; letter-spacing:.06em; }
+      .thumb-open-btn { padding:9px; background:rgba(104,229,227,0.08); border:.5px solid rgba(104,229,227,0.3); border-radius:4px; color:rgb(19, 238, 253); font-family:monospace; font-size:11px; cursor:pointer; transition:all .2s; letter-spacing:.06em; }
       .thumb-open-btn:hover { background:rgba(104,229,227,0.18); }
-      .thumb-empty-hint { text-align:center; padding:16px; border:.5px dashed rgba(212,197,169,0.18); border-radius:4px; color:rgba(212,197,169,0.28); font-size:9px; letter-spacing:.06em; }
+      .thumb-empty-hint { text-align:center; padding:16px; border:.5px dashed rgba(212,197,169,0.18); border-radius:4px; color:rgb(255, 221, 158); font-size:11px; letter-spacing:.06em; }
       /* ── Thumbnail Modal ── */
       #thumb-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:2000; opacity:0; pointer-events:none; transition:opacity .22s; }
       #thumb-modal-overlay.open { opacity:1; pointer-events:auto; }
-      #thumb-modal { width:92vw; max-width:1080px; height:88vh; background:#FFFFFF; border:.5px solid rgba(212,197,169,0.18); border-radius:8px; display:flex; flex-direction:column; overflow:hidden; }
-      #thumb-modal-header { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-bottom:.5px solid rgba(212,197,169,0.1); flex-shrink:0; }
-      #thumb-modal-title { color:#d4c5a9; font-family:'Montserrat',sans-serif; font-size:12px; letter-spacing:.12em; font-weight:700; }
-      #thumb-modal-close { background:none; border:.5px solid rgba(212,197,169,0.2); border-radius:3px; color:#d4c5a9; cursor:pointer; font-size:12px; padding:3px 9px; transition:all .2s; }
-      #thumb-modal-close:hover { background:rgba(181,74,58,.2); border-color:rgba(181,74,58,.5); color:#ff9982; }
+      #thumb-modal { width:92vw; max-width:1080px; height:88vh; background:rgba(35, 92, 208, 0.5); border:.5px solid rgba(212,197,169,0.18); border-radius:8px; display:flex; flex-direction:column; overflow:hidden; }
+#thumb-modal-title { color:#FFFFFF; font-family:'Montserrat',sans-serif; font-size:12px; letter-spacing:.12em; font-weight:700; margin-left:30px; position:relative; top:5px; }      
+#thumb-modal-close { background:none; border:.5px solid rgba(212,197,169,0.2); border-radius:3px; color:#FFFFFF; cursor:pointer; font-size:12px; padding:3px 9px; transition:all .2s; position:relative; top:5px; }      #thumb-modal-close:hover { background:rgba(181,74,58,.2); border-color:rgba(181,74,58,.5); color:#ff9982; }
       #thumb-modal-body { display:flex; flex:1; overflow:hidden; }
       #thumb-canvas-container { flex:1; display:flex; align-items:center; justify-content:center; padding:16px; overflow:hidden; background:rgba(255,255,255,0.015); }
       #thumb-canvas-area { position:relative; border:.5px solid rgba(212,197,169,0.2); border-radius:4px; overflow:hidden; flex-shrink:0; background: repeating-conic-gradient(#3a3835 0% 25%, #2a2826 0% 50%) 0 0 / 16px 16px; cursor:crosshair; }
@@ -1480,23 +1404,25 @@ _buildStudioLeftBtns() {
       .thumb-obj-item.selected .obj-rotate-handle { display:block; }
       .obj-delete-btn { position:absolute; top:-10px; right:-10px; width:18px; height:18px; background:rgba(181,74,58,.85); border:none; border-radius:50%; color:#fff; font-size:9px; cursor:pointer; display:none; align-items:center; justify-content:center; z-index:10; padding:0; line-height:1; font-family:monospace; }
       .thumb-obj-item.selected .obj-delete-btn { display:flex; }
-      #thumb-tool-panel { width:210px; flex-shrink:0; display:flex; flex-direction:column; background:rgba(8,7,6,.9); border-left:.5px solid rgba(212,197,169,0.1); overflow-y:auto; padding-bottom:12px; }
-      .tp-section { color:rgba(255,255,255,0.3); font-size:8px; letter-spacing:.15em; text-transform:uppercase; padding:10px 12px 5px; flex-shrink:0; }
+      #thumb-tool-panel { width:210px; flex-shrink:0; display:flex; flex-direction:column; background:linear-gradient(180deg, rgba(18, 47, 106, 1), rgba(118, 170, 171, 1));
+; border-left:.5px solid rgba(212,197,169,0.1); overflow-y:auto; padding-bottom:12px; }
+      .tp-section { color:#FFFFFF; font-size:8px; letter-spacing:.15em; text-transform:uppercase; padding:10px 12px 5px; flex-shrink:0; }
       .tp-brushes { display:flex; flex-wrap:wrap; gap:4px; padding:0 10px 8px; }
-      .tp-brush { background:rgba(255,255,255,0.06); border:.5px solid rgba(212,197,169,0.18); border-radius:4px; color:#d4c5a9; cursor:pointer; font-size:14px; padding:5px 8px; transition:all .15s; line-height:1.2; }
+      .tp-brush { background:rgba(255,255,255,0.06); border:.5px solid rgba(212,197,169,0.18); border-radius:4px; color:#FFFFFF; font-family:'Montserrat',sans-serif; cursor:pointer; font-size:14px; padding:5px 8px; transition:all .15s; line-height:1.2; }
       .tp-brush:hover { background:rgba(255,255,255,0.12); }
       .tp-brush.active { background:rgba(104,229,227,0.15); border-color:rgba(104,229,227,0.5); }
       .tp-row { display:flex; align-items:center; gap:8px; padding:0 12px 7px; }
       .tp-color { width:30px; height:28px; border:.5px solid rgba(212,197,169,0.2); border-radius:4px; padding:1px; cursor:pointer; background:none; flex-shrink:0; }
       .tp-range { flex:1; -webkit-appearance:none; height:2px; background:rgba(212,197,169,0.18); border-radius:1px; cursor:pointer; outline:none; }
       .tp-range::-webkit-slider-thumb { -webkit-appearance:none; width:10px; height:10px; border-radius:50%; background:#d4c5a9; cursor:pointer; }
-      .tp-label { color:rgba(255,255,255,0.28); font-size:8px; min-width:22px; text-align:right; flex-shrink:0; }
+      .tp-label { color:rgb(255, 255, 255); font-size:8px; min-width:22px; text-align:right; flex-shrink:0; }
       .tp-sep { border:none; border-top:.5px solid rgba(212,197,169,0.08); margin:6px 0; }
-      .tp-upload-label { display:flex; align-items:center; gap:6px; margin:0 10px 6px; padding:7px 10px; border:.5px dashed rgba(212,197,169,0.22); border-radius:4px; color:rgba(212,197,169,0.5); font-size:9px; cursor:pointer; letter-spacing:.06em; transition:all .2s; }
+      .tp-upload-label { display:flex; align-items:center; gap:6px; margin:0 10px 6px; padding:7px 10px; border:.5px dashed rgba(212,197,169,0.22); border-radius:4px; color:#FFFFFF; font-family:'Montserrat',sans-serif; font-size:9px; cursor:pointer; letter-spacing:.06em; transition:all .2s; }
       .tp-upload-label:hover { border-color:rgba(104,229,227,0.5); color:#68e5e3; }
-      .tp-btn { margin:0 10px 5px; padding:7px 10px; background:rgba(255,255,255,0.04); border:.5px solid rgba(212,197,169,0.16); border-radius:4px; color:#d4c5a9; font-family:monospace; font-size:9px; cursor:pointer; transition:all .2s; text-align:left; letter-spacing:.06em; width:calc(100% - 20px); }
+      .tp-btn { margin:0 10px 5px; padding:7px 10px; background:rgba(255,255,255,0.04); border:.5px solid rgba(212,197,169,0.16); border-radius:4px; color:#FFFFFF; font-family:'Montserrat',sans-serif;
+ font-size:9px; cursor:pointer; transition:all .2s; text-align:left; letter-spacing:.06em; width:calc(100% - 20px); }
       .tp-btn:hover { background:rgba(255,255,255,0.09); }
-      .tp-save-btn { margin:8px 10px 4px; padding:10px; background:rgba(104,229,227,0.12); border:.5px solid rgba(104,229,227,0.4); border-radius:4px; color:#68e5e3; font-family:monospace; font-size:10px; cursor:pointer; transition:all .2s; width:calc(100% - 20px); letter-spacing:.06em; }
+      .tp-save-btn { margin:8px 10px 4px; padding:10px; background:rgba(104,229,227,0.12); border:.5px solid rgba(104,229,227,0.4); border-radius:4px; color:#68e5e3; font-family:'Montserrat',sans-serif; font-size:10px; cursor:pointer; transition:all .2s; width:calc(100% - 20px); letter-spacing:.06em; }
       .tp-save-btn:hover { background:rgba(104,229,227,0.22); }
       .tp-save-btn:disabled { opacity:.4; cursor:default; }
 
@@ -1722,7 +1648,11 @@ _buildStudioLeftBtns() {
     };
 
     stepsBar.querySelectorAll('.rp-step').forEach(btn => {
-      btn.addEventListener('click', () => renderStep(+btn.dataset.step));
+      btn.addEventListener('click', () => {
+        // Tắt chế độ "bắt đầu đặt chữ lên tường" khi bấm bước khác
+        this.textEditor?.exitPlaceMode();
+        renderStep(+btn.dataset.step);
+      });
     });
 
     renderStep(1); // mặc định mở bước 02
@@ -1865,10 +1795,11 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
           <span style="color:#fff;font-size:16px;font-weight:700;letter-spacing:.04em;">▶ Nhúng video YouTube</span>
           <button id="uem-close" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:22px;cursor:pointer;line-height:1;padding:0;">✕</button>
         </div>
-        <div style="color:rgba(255,255,255,0.55);font-size:11px;line-height:1.7;">
+        <div style="color:rgb(255, 255, 255);font-size:11px;line-height:1.7;">
           Dán link YouTube vào ô bên dưới.<br>
           Video sẽ xuất hiện như một khung tranh trên tường — click vào để xem.
         </div>
+        <style>#uem-url-input::placeholder { color: #ffffff; }</style>
         <input id="uem-url-input" type="text" placeholder="https://www.youtube.com/watch?v=..."
           style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.3);color:#fff;font-family:'Montserrat',sans-serif;font-size:13px;padding:10px 12px;border-radius:6px;outline:none;width:100%;box-sizing:border-box;">
         <div id="uem-preview" style="display:none;background:rgba(0,0,0,0.35);border-radius:6px;padding:12px;text-align:center;"></div>
@@ -1981,29 +1912,87 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
   }
 
 async _handleMusicUpload(e) {
-  const file = e.target.files?.[0];
-  if (!file) return;
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
   e.target.value = '';
   try {
-    this.toast('Đang upload nhạc...', 'info', 15000);
-    const storageUrl = await this.uploadToStorage(file);
-    if (!storageUrl) { this.toast('Upload nhạc thất bại', 'error'); return; }
-    if (this.backgroundMusic) { this.backgroundMusic.pause(); }
-    this.backgroundMusic = new Audio(storageUrl);
-    this.backgroundMusic.loop = true;
-    this.backgroundMusic.volume = 0.5;
-    this._musicUrl = storageUrl;
-    this.isMusicPlaying = false;
-    // Cập nhật UI trong pane-music (nếu đang mở)
-    const nameEl = document.getElementById('rp-music-name');
-    const playBtn = document.getElementById('rp-music-play');
-    if (nameEl) nameEl.textContent = '🎵 ' + file.name;
-    if (playBtn) playBtn.textContent = '▶';
+    this.toast(`Đang upload ${files.length} file nhạc...`, 'info', 15000);
+    for (const file of files) {
+      const storageUrl = await this.uploadToStorage(file);
+      if (!storageUrl) { this.toast(`Upload thất bại: ${file.name}`, 'error'); continue; }
+      this._musicPlaylist.push({ url: storageUrl, name: file.name });
+    }
     this._triggerAutosave();
     this.toast('Upload nhạc thành công ✓', 'success');
+    this._renderMusicPlaylist();
+    // Nếu chưa có nhạc đang chạy và vừa thêm bài đầu tiên → load bài đó
+    if (!this.backgroundMusic && this._musicPlaylist.length > 0) {
+      this._loadTrack(0);
+    }
   } catch (err) {
     this.toast('Lỗi upload nhạc: ' + err.message, 'error');
   }
+}
+
+_loadTrack(index) {
+  if (!this._musicPlaylist.length) return;
+  this._musicIndex = ((index % this._musicPlaylist.length) + this._musicPlaylist.length) % this._musicPlaylist.length;
+  const track = this._musicPlaylist[this._musicIndex];
+  const vol = this.backgroundMusic ? this.backgroundMusic.volume : 0.5;
+  if (this.backgroundMusic) { this.backgroundMusic.pause(); this.backgroundMusic.onended = null; }
+  this.backgroundMusic = new Audio(track.url);
+  this.backgroundMusic.volume = vol;
+  this.backgroundMusic.onended = () => this._loadTrack(this._musicIndex + 1);
+  const nameEl = document.getElementById('rp-music-name');
+  if (nameEl) nameEl.textContent = '🎵 ' + track.name;
+  if (this.isMusicPlaying) {
+    this.backgroundMusic.play().catch(() => {});
+  }
+  this._renderMusicPlaylist();
+}
+
+_renderMusicPlaylist() {
+  const list = document.getElementById('rp-playlist');
+  if (!list) return;
+  list.innerHTML = '';
+  this._musicPlaylist.forEach((track, i) => {
+    const item = document.createElement('div');
+    item.className = 'rp-playlist-item' + (i === this._musicIndex ? ' playing' : '');
+    item.innerHTML = `<span class="rp-playlist-item-name" title="${track.name}">🎵 ${track.name}</span><button class="rp-playlist-item-del" data-i="${i}" title="Xóa bài này">✕</button>`;
+    item.addEventListener('click', (e) => {
+      if (e.target.classList.contains('rp-playlist-item-del')) return;
+      const wasPlaying = this.isMusicPlaying;
+      this._loadTrack(i);
+      if (wasPlaying) { this.backgroundMusic.play().catch(() => {}); }
+      else { this.isMusicPlaying = false; }
+      const playBtn = document.getElementById('rp-music-play');
+      if (playBtn) playBtn.textContent = wasPlaying ? '⏸' : '▶';
+    });
+    item.querySelector('.rp-playlist-item-del').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wasPlaying = this.isMusicPlaying;
+      const isCurrentTrack = (i === this._musicIndex);
+      this._musicPlaylist.splice(i, 1);
+      if (!this._musicPlaylist.length) {
+        if (this.backgroundMusic) { this.backgroundMusic.pause(); this.backgroundMusic.onended = null; this.backgroundMusic = null; }
+        this.isMusicPlaying = false;
+        const nameEl = document.getElementById('rp-music-name');
+        if (nameEl) nameEl.textContent = 'Chưa có nhạc';
+        const playBtn = document.getElementById('rp-music-play');
+        if (playBtn) playBtn.textContent = '▶';
+      } else {
+        const newIdx = i < this._musicIndex ? this._musicIndex - 1 : (isCurrentTrack ? i % this._musicPlaylist.length : this._musicIndex);
+        this._loadTrack(newIdx);
+        if (wasPlaying && isCurrentTrack) { this.backgroundMusic.play().catch(() => {}); }
+        else if (!wasPlaying) { this.isMusicPlaying = false; }
+        const playBtn = document.getElementById('rp-music-play');
+        if (playBtn) playBtn.textContent = this.isMusicPlaying ? '⏸' : '▶';
+      }
+      this._triggerAutosave();
+      this._renderMusicPlaylist();
+    });
+    list.appendChild(item);
+  });
 }
   selectSource(src) {
     this.selectedSource = src;
@@ -2090,6 +2079,20 @@ async _handleMusicUpload(e) {
         lbl.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:rgba(18,47,106,1);color:#FFFFFF;font-size:9px;padding:3px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:"Montserrat",sans-serif;font-weight:700;line-height:1.3;';
         lbl.textContent = item.label.replace(/\.[^.]+$/, '').substring(0, 14);
         card.appendChild(lbl);
+
+        // Nút xóa ✕ đỏ ở góc trên phải
+        const delBtn = document.createElement('button');
+        delBtn.style.cssText = 'position:absolute;top:3px;right:3px;width:16px;height:16px;background:rgba(181,74,58,.9);border:none;border-radius:50%;color:#fff;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;z-index:2;';
+        delBtn.textContent = '✕';
+        delBtn.title = 'Xoá tác phẩm';
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this._showDeleteSourceConfirm(item, () => {
+            this._deleteSourceByStorageUrl(item);
+          });
+        });
+        card.appendChild(delBtn);
+
         const updateAllCards = () => {
           document.querySelectorAll('[data-upcard]').forEach(c => {
             const [t, i] = c.dataset.upcard.split('-');
@@ -2133,6 +2136,107 @@ async _handleMusicUpload(e) {
       });
     }
   }
+  /**
+   * Hiện dialog cảnh báo trước khi xóa tác phẩm khỏi danh sách.
+   * Cảnh báo rằng object đặt trong phòng cũng sẽ bị gỡ theo.
+   */
+  _showDeleteSourceConfirm(item, onConfirm) {
+    // Xóa dialog cũ nếu còn tồn tại
+    const existing = document.getElementById('del-source-confirm-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'del-source-confirm-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);';
+
+    const shortName = item.label.replace(/\.[^.]+$/, '').substring(0, 20);
+
+    overlay.innerHTML = `
+      <div style="background:linear-gradient(135deg,rgba(18,47,106,0.98),rgba(35,92,208,0.95));border:1px solid rgba(104,229,227,0.35);border-radius:14px;padding:28px 32px;max-width:340px;width:90%;font-family:'Montserrat',sans-serif;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+        <div style="font-size:28px;text-align:center;">\u26A0\uFE0F</div>
+        <div style="color:#fff;font-size:13px;font-weight:700;text-align:center;letter-spacing:.05em;">Xóa tác phẩm?</div>
+        <div style="color:rgba(255,255,255,0.75);font-size:11px;line-height:1.7;text-align:center;">
+          T\u00E1c ph\u1EA9m <strong style="color:#68e5e3;">"${shortName}"</strong> \u0111ang \u0111\u01B0\u1EE3c \u0111\u1EB7t trong ph\u00F2ng s\u1EBD b\u1ECB g\u1EE1 xu\u1ED1ng.<br>Xác nhận xóa?
+        </div>
+        <div style="display:flex;gap:10px;margin-top:4px;">
+          <button id="del-src-cancel" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);color:#fff;font-family:'Montserrat',sans-serif;font-size:12px;cursor:pointer;transition:all .15s;">Hu\u1EF7</button>
+          <button id="del-src-confirm" style="flex:1;padding:10px;border-radius:8px;border:none;background:rgba(181,74,58,0.9);color:#fff;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;">Xóa</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#del-src-cancel').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#del-src-confirm').addEventListener('click', () => {
+      overlay.remove();
+      onConfirm();
+    });
+    // Click nền để đóng
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  }
+
+  /**
+   * Xo\u00E0 m\u1ED9t source kh\u1ECFi _uploadedSources (theo storageUrl ho\u1EB7c reference),
+   * \u0111\u1ED3ng th\u1EDDi g\u1EE1 t\u1EA5t c\u1EA3 artworks v\u00E0 models3D trong scene c\u00F3 c\u00F9ng storageUrl.
+   */
+  _deleteSourceByStorageUrl(item) {
+    const storageUrl = item.src?.storageUrl;
+
+    // 1. Xóa khỏi _uploadedSources (theo src reference hoặc storageUrl)
+    this._uploadedSources = this._uploadedSources.filter(s => {
+      if (storageUrl) return s.src?.storageUrl !== storageUrl;
+      return s.src !== item.src;
+    });
+
+    // 2. Nếu đang chọn source này thì bỏ chọn
+    if (this.selectedSource === item.src ||
+        (storageUrl && this.selectedSource?.storageUrl === storageUrl)) {
+      this.selectedSource = null;
+      this.setMode('select');
+    }
+
+    // 3. Xóa tất cả artworks trong scene có cùng storageUrl
+    const artToRemove = this.artworks.filter(a =>
+      storageUrl ? a.storageUrl === storageUrl : false
+    );
+    for (const aw of artToRemove) {
+      this.threeScene.remove(aw.group);
+    }
+    this.artworks = this.artworks.filter(a =>
+      storageUrl ? a.storageUrl !== storageUrl : true
+    );
+
+    // 4. Xóa tất cả models3d trong scene có cùng storageUrl
+    const modToRemove = this.models3d.filter(m =>
+      storageUrl ? m.storageUrl === storageUrl : false
+    );
+    for (const md of modToRemove) {
+      if (md.object)   this.threeScene.remove(md.object);
+      if (md.light)    this.threeScene.remove(md.light);
+      if (md.pedestal) this.threeScene.remove(md.pedestal);
+    }
+    this.models3d = this.models3d.filter(m =>
+      storageUrl ? m.storageUrl !== storageUrl : true
+    );
+
+    // 5. Nếu selectedItem đang chọn object vừa bị xóa → bỏ chọn
+    if (this.selectedItem) {
+      const selStorageUrl = this.selectedItem.data?.storageUrl;
+      if (storageUrl && selStorageUrl === storageUrl) {
+        this.deselectItem();
+      }
+    }
+
+    // 6. Re-render danh sách và autosave
+    this._renderUploadedList();
+    this._triggerAutosave();
+
+    const count = artToRemove.length + modToRemove.length;
+    const countStr = count > 0 ? ` (\u0111\u00E3 g\u1EE1 ${count} object kh\u1ECFi ph\u00F2ng)` : '';
+    this.toast(`\u0110\u00E3 xo\u00E0 t\u00E1c ph\u1EA9m${countStr}`, 'info');
+  }
+
   /* ── Render danh sách text vào dropdown row "Văn bản" ── */
   _renderTextList() {
     const row = this._rowRefs?.text;
@@ -2213,6 +2317,7 @@ async _handleMusicUpload(e) {
       // ── Bước 03: Tường nội thất ──
       case 'pane-wall':
         pane.style.background = "linear-gradient(135deg, rgba(18,47,106,1), rgba(118,170,171,1))";
+        pane.style.backgroundSize = '';
         pane.style.fontFamily = "'Montserrat', sans-serif";
         pane.style.color = "#FFFFFF";
         pane.style.padding = '20px';
@@ -2520,12 +2625,14 @@ async _handleMusicUpload(e) {
           <div class="rp-section-title">Nhạc nền</div>
           <div class="rp-music-row">
             <button class="rp-music-btn" id="rp-music-play">▶</button>
-            <span class="rp-music-name" id="rp-music-name">Chưa có nhạc</span>
-            <input type="range" class="rp-music-vol" id="rp-music-vol" min="0" max="1" step="0.01" value="0.5">
+            <span class="rp-music-name" id="rp-music-name">${this._musicPlaylist.length ? '🎵 ' + (this._musicPlaylist[this._musicIndex]?.name || '') : 'Chưa có nhạc'}</span>
+            <input type="range" class="rp-music-vol" id="rp-music-vol" min="0" max="1" step="0.01" value="${this.backgroundMusic ? this.backgroundMusic.volume : 0.5}">
           </div>
+          <div class="rp-playlist" id="rp-playlist"></div>
           <div class="rp-upload-btn" id="rp-music-upload">+ Upload nhạc (MP3 · WAV · OGG)</div>
-          <input type="file" id="rp-fi-music" accept="audio/*" style="display:none">
+          <input type="file" id="rp-fi-music" accept="audio/*" multiple style="display:none">
         `;
+        this._renderMusicPlaylist();
         pane.querySelector('#rp-music-upload').addEventListener('click', () => pane.querySelector('#rp-fi-music').click());
         pane.querySelector('#rp-fi-music').addEventListener('change', (e) => this._handleMusicUpload(e));
         pane.querySelector('#rp-music-play').addEventListener('click', () => {
@@ -2534,8 +2641,6 @@ async _handleMusicUpload(e) {
           else { this.backgroundMusic.play(); this.isMusicPlaying = true; pane.querySelector('#rp-music-play').textContent = '⏸'; }
         });
         pane.querySelector('#rp-music-vol').addEventListener('input', (e) => { if (this.backgroundMusic) this.backgroundMusic.volume = +e.target.value; });
-        // Sync trạng thái hiện tại
-        if (this._musicUrl) { pane.querySelector('#rp-music-name').textContent = '🎵 Background Music'; }
         if (this.isMusicPlaying) { pane.querySelector('#rp-music-play').textContent = '⏸'; }
         break;
 
@@ -2543,6 +2648,15 @@ async _handleMusicUpload(e) {
       case 'pane-decor':
         pane.style.paddingTop = '5px';
         pane.innerHTML = `<div class="rp-section-title">Thêm đồ trang trí</div>`;
+        {
+          const pedestalRow = document.createElement('div');
+          pedestalRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 10px 8px;';
+          pedestalRow.innerHTML = `<label style="color:#ccc;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="rp-pedestal-toggle" style="accent-color:#68e5e3;cursor:pointer;width:13px;height:13px;"> Đặt trên bục trắng</label>`;
+          pane.appendChild(pedestalRow);
+          const pedestalChk = pedestalRow.querySelector('#rp-pedestal-toggle');
+          pedestalChk.checked = this._usePedestal;
+          pedestalChk.addEventListener('change', (e) => { this._usePedestal = e.target.checked; });
+        }
         const decorGrid = document.createElement('div');
         decorGrid.id = 'rp-decor-grid';
         decorGrid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:0px;width:100%;box-sizing:border-box;padding:0 10px;';
@@ -2593,7 +2707,7 @@ async _handleMusicUpload(e) {
 
       // ── Bước 03: Path đường ──
       case 'pane-path':
-        pane.style.background = "url('/panelstudio/subtabbg.svg') no-repeat center center";
+        pane.style.background = "linear-gradient(135deg, rgba(18,47,106,1), rgba(118,170,171,1))";
         pane.style.backgroundSize = '100% 100%';
         pane.style.width = '418px';
         pane.style.minHeight = '409.81px';
@@ -2639,6 +2753,53 @@ async _handleMusicUpload(e) {
         });
         this._renderRpWpList(pane);
         pane.querySelector('#rp-path-wp-count').textContent = this.pathWaypoints.length;
+
+        // ── Vị trí ban đầu của viewer (gộp vào tab Lộ trình) ──
+        {
+          const sep = document.createElement('hr');
+          sep.style.cssText = 'border:none;border-top:0.5px solid rgba(212,197,169,0.15);margin:14px 0;';
+          pane.appendChild(sep);
+
+          const spawnTitle = document.createElement('div');
+          spawnTitle.className = 'rp-section-title';
+          spawnTitle.textContent = 'Vị trí ban đầu của viewer';
+          pane.appendChild(spawnTitle);
+
+          const spawnHint = document.createElement('div');
+          spawnHint.style.cssText = 'color:rgb(255, 255, 255);font-size:10px;line-height:1.7;margin-bottom:14px;margin-top:4px';
+          spawnHint.innerHTML = 'Di chuyển đến vị trí và hướng nhìn bạn muốn viewer bắt đầu,<br>sau đó bấm nút bên dưới để lưu lại.';
+          pane.appendChild(spawnHint);
+
+          const spawnStatus = document.createElement('div');
+          spawnStatus.style.cssText = 'background:rgba(212,197,169,0.06);border:0.5px solid rgba(212,197,169,0.15);border-radius:4px;padding:10px 12px;font-family:monospace;font-size:9px;color:rgb(255, 213, 134);letter-spacing:.08em;line-height:1.9;margin-bottom:14px';
+          this.viewerSpawn._refreshStatus(spawnStatus);
+          pane.appendChild(spawnStatus);
+
+          const spawnSetBtn = document.createElement('div');
+          spawnSetBtn.className = 'rp-upload-btn';
+          spawnSetBtn.style.cssText = 'padding:10px;font-size:11px;text-align:center;cursor:pointer;';
+          spawnSetBtn.textContent = '📍 Đặt vị trí hiện tại làm điểm vào phòng';
+          spawnSetBtn.addEventListener('click', () => {
+            const s = this;
+            this.viewerSpawn._data = { x: s.camera.position.x, y: s.camera.position.y, z: s.camera.position.z, yaw: s.yaw, pitch: s.pitch };
+            this.viewerSpawn._refreshStatus(spawnStatus);
+            s._triggerAutosave();
+            s.toast('Đã lưu vị trí ban đầu của viewer ✓', 'success');
+          });
+          pane.appendChild(spawnSetBtn);
+
+          const spawnClearBtn = document.createElement('div');
+          spawnClearBtn.className = 'rp-upload-btn';
+          spawnClearBtn.style.cssText = 'padding:8px;font-size:10px;text-align:center;cursor:pointer;color:rgba(220,100,100,0.8);border-color:rgba(220,100,100,0.3);margin-top:6px;';
+          spawnClearBtn.textContent = '✕ Xoá — dùng vị trí mặc định';
+          spawnClearBtn.addEventListener('click', () => {
+            this.viewerSpawn._data = null;
+            this.viewerSpawn._refreshStatus(spawnStatus);
+            this._triggerAutosave();
+            this.toast('Đã xoá vị trí ban đầu', 'info');
+          });
+          pane.appendChild(spawnClearBtn);
+        }
         break;
 
       // ── Bước 02: Thêm tác phẩm ──
@@ -2717,21 +2878,43 @@ async _handleMusicUpload(e) {
         }});
         // Đổi background thanh "Ảnh tĩnh" thành picture.svg
         rowImg.querySelector('div').style.background = "url('/panelstudio/picture.svg') no-repeat center center / 100% 100%";
-        const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
-          fiImg.accept = 'video/*'; fiImg.click();
-          fiImg.addEventListener('change', () => { fiImg.accept = 'image/*,video/*'; }, { once: true });
+const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
+          const pop = document.createElement('div');
+          pop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);z-index:10000;display:flex;align-items:center;justify-content:center;';
+          pop.innerHTML = `
+            <div style="background:linear-gradient(180deg,rgba(118,170,171,1),rgba(35,92,208,0.5));border-radius:12px;padding:28px 32px;width:420px;font-family:'Montserrat',sans-serif;display:flex;flex-direction:column;gap:16px;box-sizing:border-box;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <span style="color:#fff;font-size:15px;font-weight:700;letter-spacing:.04em;">Thêm video</span>
+                <button id="vpop-close" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:22px;cursor:pointer;line-height:1;padding:0;">✕</button>
+              </div>
+              <div style="display:flex;gap:12px;">
+                <button id="vpop-upload" style="flex:1;padding:14px 0;border-radius:8px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.1);color:#fff;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📁 Tải lên</button>
+                <button id="vpop-url" style="flex:1;padding:14px 0;border-radius:8px;border:1px solid rgba(255,80,80,0.4);background:rgba(255,0,0,0.15);color:#ff8080;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">▶ URL YouTube</button>
+              </div>
+            </div>`;
+          document.body.appendChild(pop);
+          const closePop = () => pop.parentNode && document.body.removeChild(pop);
+          pop.querySelector('#vpop-close').addEventListener('click', closePop);
+          pop.addEventListener('click', (e) => { if (e.target === pop) closePop(); });
+          pop.querySelector('#vpop-upload').addEventListener('click', () => {
+            closePop();
+            fiImg.accept = 'video/*'; fiImg.click();
+            fiImg.addEventListener('change', () => { fiImg.accept = 'image/*,video/*'; }, { once: true });
+          });
+          pop.querySelector('#vpop-url').addEventListener('click', () => {
+            closePop();
+            this._openUrlEmbedModal();
+          });
         }});
+
         const rowModel = makeRow({ label: '3D', type: 'model', onAdd: () => document.getElementById('fi-3d').click() });
         const rowText  = makeRow({ label: 'Văn bản', type: 'text', onAdd: () => this.textEditor?.togglePanel() });
-        const rowUrl   = makeRow({ label: 'Nhúng URL', type: 'youtube', onAdd: () => this._openUrlEmbedModal() });
 
-        this._rowRefs = { image: rowImg, video: rowVid, model: rowModel, text: rowText, youtube: rowUrl };
+        this._rowRefs = { image: rowImg, video: rowVid, model: rowModel, text: rowText };
         rowImg.querySelector('div').style.background   = "url('/panelstudio/picture.svg') no-repeat center center / 100% 100%";
         rowVid.querySelector('div').style.background   = "url('/panelstudio/video.svg') no-repeat center center / 100% 100%";
         rowModel.querySelector('div').style.background = "url('/panelstudio/3dmodel.svg') no-repeat center center / 100% 100%";
-        rowText.querySelector('div').style.background  = "url('/panelstudio/text.svg') no-repeat center center / 100% 100%";
-        rowUrl.querySelector('div').style.background   = "url('/panelstudio/open.svg') no-repeat center center / 100% 100%";
-        this._renderUploadedList();
+        rowText.querySelector('div').style.background  = "url('/panelstudio/text.svg') no-repeat center center / 100% 100%";        this._renderUploadedList();
         this._renderUploadedList();
         break;
       }
@@ -3039,8 +3222,7 @@ async _handleMusicUpload(e) {
               📁 Thêm hoạ tiết
               <input type="file" id="tp-upload-input" accept="image/*" multiple style="display:none">
             </label>
-            <div id="tp-obj-hint" style="color:rgba(255,255,255,0.22);font-size:8px;padding:0 12px 6px;letter-spacing:.06em;">Click hoạ tiết để chọn — kéo, co/giãn, xoay tuỳ ý</div>
-            <hr class="tp-sep">
+          <div id="tp-obj-hint" style="color:#FFFFFF;font-size:8px;padding:0 12px 6px;letter-spacing:.06em;">Click hoạ tiết để chọn — kéo, co/giãn, xoay tuỳ ý</div>            <hr class="tp-sep">
             <button class="tp-btn" id="tp-undo-btn">↩ Hoàn tác</button>
             <button class="tp-btn" id="tp-clear-btn">🗑 Xóa nền vẽ</button>
             <button class="tp-btn" id="tp-clear-objs-btn">🗑 Xóa tất cả hoạ tiết</button>
@@ -3585,7 +3767,7 @@ async _handleMusicUpload(e) {
         <span id="hud-name" style="color:#FFFFFF;font-size:11px;font-style:italic;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         <button class="hud-btn" id="th-info">📝 Info</button>
         <button class="hud-btn" id="hud-yt-watch" style="display:none;background:rgba(255,0,0,0.2);border-color:rgba(255,80,80,0.5);color:#ff8080;">▶ Xem video</button>
-        <button id="hud-close" style="background:none;border:none;color:#555;cursor:pointer;font-size:14px;flex-shrink:0">✕</button>
+        <button id="hud-close" style="background:none;border:none;color:#FFFFFF;cursor:pointer;font-size:14px;flex-shrink:0">✕</button>
       </div>
       <!-- Frame controls — only shown for artwork/video -->
       <div id="hud-frame-controls" style="display:none;flex-direction:column;gap:6px;border-top:0.5px solid rgba(255,255,255,0.15);padding-top:8px;">
@@ -3657,7 +3839,7 @@ async _handleMusicUpload(e) {
     const infoBtn = document.getElementById('th-info');
     if (infoBtn) infoBtn.style.display = (type === 'chest' || type === 'text' || type === 'egg') ? 'none' : '';
     if (type === 'egg') {
-      document.getElementById('hud-name').textContent = `🥚 Easter Egg ${(data.eggIdx ?? 0) + 1}`;
+      document.getElementById('hud-name').textContent = `Rương câu đố ${(data.eggIdx ?? 0) + 1}`;
     } else if (type === 'chest') {
       document.getElementById('hud-name').textContent = `🗝 Rương #${index + 1} · ⭐ ${data.token_amount}`;
     } else if (type === 'text') {
@@ -3712,20 +3894,23 @@ async _handleMusicUpload(e) {
   /* ══════════════════════════════════════════════ INFO POPUP ══════════════════════════════════════════════ */
   _buildInfoPopup() {
     this._infoPopup = document.createElement('div');
-    this._infoPopup.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(15,13,12,.97);border:1px solid rgba(212,197,169,.2);border-radius:4px;padding:16px;width:260px;flex-direction:column;gap:10px;z-index:30;font-family:monospace;display:none;';
+    this._infoPopup.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:linear-gradient(180deg, rgba(18,47,106,1), rgba(118,170,171,1));border:1px solid rgba(212,197,169,.2);border-radius:4px;padding:16px;width:260px;flex-direction:column;gap:10px;z-index:30;font-family:"Montserrat",sans-serif;display:none;';
     this._infoPopup.innerHTML = `
-      <div style="color:#d4c5a9;font-size:14px;font-style:italic">📝 Thông tin</div>
+      <div style="color:#FFFFFF;font-size:14px;font-weight:700;font-family:'Montserrat',sans-serif;margin-bottom:6px;">📝 Thông tin</div>
       ${['title:Tên', 'artist:Nghệ sĩ', 'year:Năm', 'price:Giá'].map(f => {
         const [k, lbl] = f.split(':');
-        return `<div style="display:flex;flex-direction:column;gap:3px"><label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">${lbl}</label><input id="pop-${k}" style="background:rgba(212,197,169,.05);border:1px solid rgba(212,197,169,.15);color:#d4c5a9;font-family:monospace;font-size:11px;padding:5px 8px;border-radius:2px;outline:none"></div>`;
+        return k === 'price' 
+  ? `<div style="display:flex;flex-direction:column;gap:3px"><label style="color:#FFFFFF;font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-family:'Montserrat',sans-serif;">${lbl}</label><input id="pop-${k}" placeholder="VD: 1.500.000" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#FFFFFF;font-family:'Montserrat',sans-serif;font-size:11px;padding:6px 8px;outline:none;width:100%;box-sizing:border-box;"></div>`
+  : `<div style="display:flex;flex-direction:column;gap:3px"><label style="color:#FFFFFF;font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-family:'Montserrat',sans-serif;">${lbl}</label><input id="pop-${k}" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#FFFFFF;font-family:'Montserrat',sans-serif;font-size:11px;padding:6px 8px;outline:none;width:100%;box-sizing:border-box;"></div>`;
       }).join('')}
+      <div style="color:rgba(255, 208, 0, 0.94);font-size:10px;margin-top:-4px;font-family:'Montserrat',sans-serif;">* Những bức tranh không bán bạn cứ để trống ô giá tiền nhé</div>
       <div style="display:flex;flex-direction:column;gap:3px">
-        <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Mô tả</label>
-        <textarea id="pop-desc" rows="2" style="background:rgba(212,197,169,.05);border:1px solid rgba(212,197,169,.15);color:#d4c5a9;font-family:monospace;font-size:11px;padding:5px 8px;border-radius:2px;outline:none;resize:vertical"></textarea>
+        <label style="color:#FFFFFF;font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-family:'Montserrat',sans-serif;">Mô tả</label>
+        <textarea id="pop-desc" rows="2" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#FFFFFF;font-family:'Montserrat',sans-serif;font-size:11px;padding:6px 8px;outline:none;resize:vertical;width:100%;box-sizing:border-box;"></textarea>
       </div>
-      <div style="display:flex;gap:6px;justify-content:flex-end">
-        <button id="pop-cancel" style="padding:5px 10px;font-size:10px;font-family:monospace;cursor:pointer;background:rgba(212,197,169,.08);color:#7a6e5c;border:1px solid rgba(212,197,169,.15);border-radius:2px">Huỷ</button>
-        <button id="pop-save" style="padding:5px 10px;font-size:10px;font-family:monospace;cursor:pointer;background:rgba(106,170,122,.15);color:#6aaa7a;border:1px solid rgba(106,170,122,.3);border-radius:2px">Lưu</button>
+      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px;">
+        <button id="pop-cancel" style="padding:6px 12px;font-size:10px;font-family:'Montserrat',sans-serif;cursor:pointer;background:rgba(255,255,255,0.1);color:#FFFFFF;border:1px solid rgba(255,255,255,0.2);border-radius:4px;transition:all .2s">Huỷ</button>
+        <button id="pop-save" style="padding:6px 12px;font-size:10px;font-family:'Montserrat',sans-serif;cursor:pointer;background:rgba(104,229,227,0.2);color:#FFFFFF;border:1px solid rgba(104,229,227,0.4);border-radius:4px;transition:all .2s">Lưu</button>
       </div>
     `;
     document.body.appendChild(this._infoPopup); this._el(this._infoPopup);
@@ -3740,7 +3925,7 @@ async _handleMusicUpload(e) {
     g.position.copy(pos); this.threeScene.add(g); return g;
   }
 
-  place3DModel(object, pos, storageUrl, name, meta = {}, scaleVec = null) {
+  place3DModel(object, pos, storageUrl, name, meta = {}, scaleVec = null, usePedestal = true) {
     if (scaleVec) { object.scale.copy(scaleVec); }
     else {
       const box = new THREE.Box3().setFromObject(object);
@@ -3749,10 +3934,14 @@ async _handleMusicUpload(e) {
       if (maxDim > 0.001 && isFinite(maxDim)) { object.scale.setScalar(1.5 / maxDim); }
       else { object.scale.set(1, 1, 1); }
     }
-    object.position.copy(pos); object.position.y = .88; this.threeScene.add(object);
+    object.position.set(0, 0, 0);
+    object.updateMatrixWorld(true);
+    const bBox = new THREE.Box3().setFromObject(object);
+    object.position.set(pos.x, usePedestal ? (0.90 - bBox.min.y) : -bBox.min.y, pos.z);
+    this.threeScene.add(object);
     const pl = new THREE.PointLight(0xfff0dd, 1.5, 4); pl.position.set(pos.x, pos.y + 2, pos.z); this.threeScene.add(pl);
-    const ped = this.makePedestal(new THREE.Vector3(pos.x, 0, pos.z));
-    const md = { object, light: pl, pedestal: ped, storageUrl: storageUrl || null, name: name || null, meta: { title: '', artist: '', year: '', desc: '', price: '', ...meta } };
+    const ped = usePedestal ? this.makePedestal(new THREE.Vector3(pos.x, 0, pos.z)) : null;
+    const md = { object, light: pl, pedestal: ped, hasPedestal: usePedestal, storageUrl: storageUrl || null, name: name || null, meta: { title: '', artist: '', year: '', desc: '', price: '', ...meta } };
     this.models3d.push(md); return md;
   }
 
@@ -4419,11 +4608,6 @@ async _handleMusicUpload(e) {
     document.getElementById('pop-save').addEventListener('click', () => {
       if (!this.selectedItem) return;
       ['title', 'artist', 'year', 'desc', 'price'].forEach(k => { this.selectedItem.data.meta[k] = document.getElementById('pop-' + k).value; });
-      // Format giá tiền: nếu chỉ là số thì thêm .000VNĐ
-      const rawPrice = this.selectedItem.data.meta.price;
-      if (rawPrice && /^\d+$/.test(rawPrice.trim())) {
-        this.selectedItem.data.meta.price = rawPrice.trim() + '.000VNĐ';
-      }
       document.getElementById('hud-name').textContent = this.selectedItem.data.meta.title || (this.selectedItem.type === 'model' ? `Model #${this.selectedItem.index + 1}` : `Tác phẩm #${this.selectedItem.index + 1}`);
       this._infoPopup.style.display = 'none'; this.toast('Đã lưu thông tin', 'success');
     });
@@ -4509,7 +4693,7 @@ async _handleMusicUpload(e) {
       if (!this.selectedSource) return;
       if (this.selectedSource.type === 'model3d') {
         const hits = this.raycaster.intersectObjects(this.modelMeshes, true); if (!hits.length) return;
-        this.place3DModel(this.selectedSource.object.clone(), hits[0].point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null);
+        this.place3DModel(this.selectedSource.object.clone(), hits[0].point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null, {}, null, this._usePedestal);
         this._renderUploadedList();
         this._triggerAutosave();
         this.toast('Model đặt thành công ✓', 'success'); return;
@@ -4599,7 +4783,12 @@ async _handleMusicUpload(e) {
         if (tHits.length) {
           let h = tHits[0].object; while (h.parent && !this.textEditor.texts.find(t => t.group === h)) h = h.parent;
           const idx = this.textEditor.texts.findIndex(t => t.group === h);
-          if (idx !== -1) { this.selectItem('text', this.textEditor.texts[idx], idx); return; }
+          if (idx !== -1) { 
+            this.selectItem('text', this.textEditor.texts[idx], idx);
+            // Mở advanced text editor để chỉnh sửa text đã đặt
+            this.textEditor.selectTextForEdit(idx);
+            return; 
+          }
         }
       }
 
@@ -4835,6 +5024,7 @@ async _handleMusicUpload(e) {
         description: room.description || '',
         tags: room.tags || [],
         thumbnailUrl: room.thumbnailUrl || null,
+        viewerSpawn: this.viewerSpawn.getSaveData(),
       },
       artworks: this.artworks.map(a => ({
         x: a.group.position.x,
@@ -4868,6 +5058,7 @@ async _handleMusicUpload(e) {
         sz: m.object.scale.z,
         storageUrl: m.storageUrl || null,
         name: m.name || null,
+        hasPedestal: m.hasPedestal !== false,
         meta: m.meta,
       })),
       texts: this.textEditor.getSaveData(),
@@ -4891,7 +5082,8 @@ async _handleMusicUpload(e) {
       },
       gallery_name: room.name,
       artist_name: this.manager.auth.user?.name || 'Artist',
-      musicUrl: this._musicUrl || null,
+      musicUrl: this._musicPlaylist.length ? this._musicPlaylist[0].url : null,
+      musicPlaylist: this._musicPlaylist.length ? this._musicPlaylist : null,
       uploadedSources: this._buildUploadedSourcesSaveData(),
     };
 
@@ -4935,6 +5127,7 @@ async _handleMusicUpload(e) {
       if (sd._meta.description !== undefined) room.description = sd._meta.description;
       if (sd._meta.tags !== undefined) room.tags = sd._meta.tags;
       if (sd._meta.thumbnailUrl) room.thumbnailUrl = sd._meta.thumbnailUrl;
+      if (sd._meta.viewerSpawn) this.viewerSpawn.loadFromData(sd._meta.viewerSpawn);
     }
 
     // Khôi phục template phòng trước khi đặt artworks
@@ -5022,7 +5215,7 @@ async _handleMusicUpload(e) {
         const pos = new THREE.Vector3(m.x, m.y, m.z);
         const sv  = m.sx ? new THREE.Vector3(m.sx, m.sy, m.sz) : null;
         const onLoad = obj => {
-          const placed = this.place3DModel(obj, pos, m.storageUrl, m.name || null, m.meta || {}, sv);
+          const placed = this.place3DModel(obj, pos, m.storageUrl, m.name || null, m.meta || {}, sv, m.hasPedestal !== false);
           if (placed && m.ry) placed.object.rotation.y = m.ry;
           resolve();
         };
@@ -5063,14 +5256,16 @@ async _handleMusicUpload(e) {
       this._renderWallList();
     }
     
-    if (sd.musicUrl) {
-      this._musicUrl = sd.musicUrl;
-      this.backgroundMusic = new Audio(sd.musicUrl);
-      this.backgroundMusic.loop = true;
+    if (sd.musicPlaylist?.length) {
+      this._musicPlaylist = sd.musicPlaylist;
+      this._musicIndex = 0;
+      const track = this._musicPlaylist[0];
+      this.backgroundMusic = new Audio(track.url);
       this.backgroundMusic.volume = 0.5;
+      this.backgroundMusic.onended = () => this._loadTrack(this._musicIndex + 1);
       const trackNameEl = document.getElementById('music-track-name');
       const volumeSliderEl = document.getElementById('music-volume-slider');
-      if (trackNameEl) trackNameEl.textContent = '🎵 Background Music';
+      if (trackNameEl) trackNameEl.textContent = '🎵 ' + track.name;
       if (volumeSliderEl) volumeSliderEl.value = 0.5;
       this.backgroundMusic.play().then(() => {
         this.isMusicPlaying = true;
@@ -5080,6 +5275,20 @@ async _handleMusicUpload(e) {
         this.isMusicPlaying = false;
         const ppEl = document.getElementById('music-play-pause');
         if (ppEl) ppEl.textContent = '▶';
+      });
+    } else if (sd.musicUrl) {
+      // backward compat: load cũ chỉ có 1 bài
+      this._musicPlaylist = [{ url: sd.musicUrl, name: 'Background Music' }];
+      this._musicIndex = 0;
+      this.backgroundMusic = new Audio(sd.musicUrl);
+      this.backgroundMusic.volume = 0.5;
+      this.backgroundMusic.onended = () => this._loadTrack(this._musicIndex + 1);
+      this.backgroundMusic.play().then(() => {
+        this.isMusicPlaying = true;
+        const ppEl = document.getElementById('music-play-pause');
+        if (ppEl) ppEl.textContent = '⏸';
+      }).catch(() => {
+        this.isMusicPlaying = false;
       });
     }
     await this._loadChests();
@@ -5686,6 +5895,7 @@ async _handleMusicUpload(e) {
 
     if (this.backgroundMusic) {
       this.backgroundMusic.pause();
+      this.backgroundMusic.onended = null;
       this.backgroundMusic.src = '';
       this.backgroundMusic = null;
     }

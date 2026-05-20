@@ -28,6 +28,12 @@ export class MissionBuilder {
     this._IS = IS;
     this._TS = TS;
     pane.style.cssText += 'padding:16px 14px 14px;gap:10px;';
+    if (!document.getElementById('mb-placeholder-style')) {
+      const st = document.createElement('style');
+      st.id = 'mb-placeholder-style';
+      st.textContent = 'textarea::placeholder, input::placeholder { color: rgba(255, 222, 36, 0.57) !important; opacity: 1; }';
+      document.head.appendChild(st);
+    }
   pane.style.fontFamily = "'Montserrat', sans-serif";
   pane.style.color = '#FFFFFF';
 
@@ -38,7 +44,7 @@ export class MissionBuilder {
     top.innerHTML = `
       <div class="rp-section-title">🗝 Rương câu đố</div>
       <div style="font-size:13px;color:rgba(255,255,255,1);line-height:1.6;margin-bottom:4px;">
-        Đặt <b style="color:#c8a96e">ít nhất 1 rương</b> câu đố trong phòng. Khách phải giải hết tất cả rương để hoàn thành phòng tranh.
+        Đặt <b style="color:rgb(255, 222, 36)">ít nhất 1 rương</b> câu đố trong phòng. Khách phải giải hết tất cả rương để hoàn thành phòng tranh.
       </div>
     `;
     pane.appendChild(top);
@@ -58,7 +64,7 @@ export class MissionBuilder {
       this._s._missionData.push({
         mission_type: 'chest_riddle',
         riddle_text: '',
-        riddle_answer: '',
+        riddle_answer: 'a',
         easter_eggs: [{ pos_x: null, pos_y: null, pos_z: null, rot_y: 0, scale: 1.0 }],
       });
       this._refreshChestList();
@@ -100,8 +106,8 @@ export class MissionBuilder {
     const chests = this._s._missionData.filter(Boolean);
     if (!chests.length) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'font-size:13px;color:rgba(255,255,255,1);text-align:center;padding:12px 0;border:.5px dashed rgba(255,255,255,0.1);border-radius:8px;';
-      empty.textContent = 'Chưa có rương nào. Thêm ít nhất 1 rương câu đố.';
+      empty.style.cssText = 'font-size:13px;color:rgb(255, 222, 36);text-align:center;padding:12px 0;border:.5px dashed rgba(255,255,255,0.1);border-radius:8px;';
+      empty.innerHTML = '<span style="color:rgb(255,222,36)">Chưa có rương nào. Thêm ít nhất 1 rương câu đố.</span>';
       this._chestListEl.appendChild(empty);
       return;
     }
@@ -148,35 +154,62 @@ export class MissionBuilder {
     note.textContent = 'Đặt rương vào phòng — khách tìm và giải đố để hoàn thành nhiệm vụ này.';
     wrap.appendChild(note);
 
-    // Riddle text
-    const questionTA = Object.assign(document.createElement('textarea'), {
-      placeholder: 'Câu đố / mật mã cho khách...',
-    });
-    questionTA.style.cssText = TS;
-    questionTA.value = data.riddle_text || '';
-    questionTA.addEventListener('input', e => {
-      if (s._missionData[idx]) s._missionData[idx].riddle_text = e.target.value;
-    });
-    wrap.appendChild(questionTA);
+    // Parse choice data from riddle_text (stored as JSON)
+    let qd = {};
+    try { qd = JSON.parse(data.riddle_text || '{}'); } catch { qd = {}; }
+    const syncData = () => {
+      if (!s._missionData[idx]) return;
+      s._missionData[idx].riddle_text = JSON.stringify({
+        q: qTA.value, a: cInputs.a.value, b: cInputs.b.value,
+        c: cInputs.c.value, d: cInputs.d.value, hint: hintIn.value,
+      });
+    };
 
-    // Answer
-    const ansIn = Object.assign(document.createElement('input'), {
-      type: 'text',
-      placeholder: 'Đáp án đúng (không phân biệt hoa thường)',
-      value: data.riddle_answer || '',
+    // Question
+    const qTA = document.createElement('textarea');
+  qTA.placeholder = 'Câu hỏi cho khách...';
+  qTA.style.color = 'rgb(255,222,36)';    qTA.style.cssText = TS + 'color:rgb(255,222,36);';
+    qTA.value = qd.q || '';
+    qTA.addEventListener('input', syncData);
+    wrap.appendChild(qTA);
+
+    // Choices A–D with radio for correct answer
+    const cInputs = {};
+    ['a', 'b', 'c', 'd'].forEach((key, i) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:6px;';
+      const radio = document.createElement('input');
+      radio.type = 'radio'; radio.name = `cr-ans-${idx}`; radio.value = key;
+      radio.checked = (data.riddle_answer || 'a') === key;
+      radio.style.cssText = 'flex-shrink:0;accent-color:#c8a96e;cursor:pointer;';
+      radio.addEventListener('change', () => { if (s._missionData[idx]) s._missionData[idx].riddle_answer = key; });
+      const lbl = document.createElement('span');
+      lbl.textContent = 'ABCD'[i];
+      lbl.style.cssText = 'color:#c8a96e;font-weight:700;font-size:13px;flex-shrink:0;width:14px;';
+      const inp = document.createElement('input');
+      inp.type = 'text'; 
+      inp.placeholder = `Lựa chọn ${'ABCD'[i]}...`;
+      inp.style.color = 'rgb(255,222,36)';
+      inp.style.cssText = IS + 'color:rgb(255,222,36);'; inp.value = qd[key] || '';
+      inp.addEventListener('input', syncData);
+      cInputs[key] = inp;
+      row.append(radio, lbl, inp);
+      wrap.appendChild(row);
     });
-    ansIn.style.cssText = IS;
-    ansIn.addEventListener('input', e => {
-      if (s._missionData[idx]) s._missionData[idx].riddle_answer = e.target.value.toLowerCase().trim();
-    });
-    wrap.appendChild(ansIn);
+
+    // Hint (optional)
+    const hintIn = document.createElement('input');
+    hintIn.type = 'text'; hintIn.placeholder = '💡 Câu gợi ý (không bắt buộc)...';
+    hintIn.style.cssText = IS; hintIn.value = qd.hint || '';
+    hintIn.addEventListener('input', syncData);
+    wrap.appendChild(hintIn);
 
     // Place button + status
     const chestPos = data.easter_eggs?.[0] || {};
     const placeBtn = document.createElement('button');
     placeBtn.style.cssText = 'width:100%;padding:6px;background:rgba(200,169,110,0.08);border:.5px solid rgba(200,169,110,0.35);border-radius:6px;color:#c8a96e;font-family:"Montserrat",sans-serif;font-size:13px;cursor:pointer;';
     placeBtn.textContent = '📍 Click vào phòng để đặt rương';
-
+    placeBtn.style.color = 'rgb(255,222,36)';
     const placeStatus = document.createElement('div');
     placeStatus.style.cssText = 'font-size:12px;color:rgb(200, 168, 110);text-align:center;';
     placeStatus.textContent = (chestPos.pos_x !== null && chestPos.pos_x !== undefined)
@@ -194,7 +227,7 @@ export class MissionBuilder {
     wrap.append(placeBtn, placeStatus);
 
     const toolbarHint = document.createElement('div');
-    toolbarHint.style.cssText = 'font-size:12px;color:rgba(104,229,227,0.5);line-height:1.5;text-align:center;';
+    toolbarHint.style.cssText = 'font-size:12px;color:rgba(112, 243, 241, 0.97);line-height:1.5;text-align:center;';
     toolbarHint.textContent = 'Chọn rương trong phòng → dùng toolbar để di chuyển / xoay / phóng to';
     wrap.appendChild(toolbarHint);
 

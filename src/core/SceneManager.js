@@ -60,10 +60,16 @@ export class SceneManager {
   _setSceneMode(name) {
     const canvas = this.renderer.domElement;
 
+    if (window.$crisp) {
+      if (name === 'viewer') window.$crisp.push(['do', 'chat:hide']);
+      else window.$crisp.push(['do', 'chat:show']);
+    }
+
     if (FULL3D_SCENES.includes(name)) {
       // ── Full 3D: canvas chiếm toàn màn hình, ẩn header + footer ──
       document.body.style.overflow   = 'hidden';
       document.body.style.paddingTop = '';
+      document.body.style.background = '';
       canvas.style.display = 'block';
       canvas.style.top     = '0';
       this.renderer.setSize(innerWidth, innerHeight);
@@ -75,6 +81,7 @@ export class SceneManager {
       // ── Page 2D: document flow, body cuộn, header + footer hiện ──
       document.body.style.overflow   = 'auto';
       document.body.style.paddingTop = HEADER_H + 'px';
+      document.body.style.background = '';
       canvas.style.display = 'none';
       this._header.show();
       this._footer.show();
@@ -85,6 +92,7 @@ export class SceneManager {
       // ── App 2D: canvas dưới header, overlay fixed, footer ẩn ──
       document.body.style.overflow   = 'hidden';
       document.body.style.paddingTop = '';
+      document.body.style.background = '#F1FAFF';
       canvas.style.display = 'block';
       canvas.style.top     = HEADER_H + 'px';
       this.renderer.setSize(innerWidth, this.canvasH);
@@ -110,7 +118,7 @@ export class SceneManager {
 
     if (addHistory) {
       let path = name === 'landing' ? '/' : '/' + name;
-      if (name === 'viewer' && this.currentRoom?.id) {
+      if ((name === 'viewer' || name === 'studio') && this.currentRoom?.id) {
         path += '?room=' + encodeURIComponent(this.currentRoom.id);
       }
       history.pushState({ scene: name }, '', path);

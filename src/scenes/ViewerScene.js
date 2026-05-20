@@ -12,7 +12,9 @@ const FRAME_MAT = new THREE.MeshLambertMaterial({ color: 0x2a2018 });
 
 function parsePrice(str) {
   if (!str) return NaN;
-  return parseFloat(str.replace(/[^\d,\.]/g, '').replace(/\./g, '').replace(',', '.'));
+  const digits = str.replace(/[^\d]/g, '');
+  if (!digits) return NaN;
+  return parseInt(digits, 10);
 }
 function formatPrice(n) {
   return n.toLocaleString('vi-VN') + ' ₫';
@@ -897,13 +899,13 @@ export class ViewerScene extends BaseScene {
       #ap-close{
         position:absolute; top:8px; right:8px; width:26px; height:26px;
         background:rgba(0,0,0,.7); border:.5px solid rgba(255,255,255,.2); border-radius:50%;
-        display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:#fff; transition:all .2s;
+        display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:#fff; transition:all .2s; z-index:2;
       }
       #ap-close:hover{ background:rgba(181,74,58,.8); }
       #ap-expand-btn{
         position:absolute; bottom:8px; right:8px; width:26px; height:26px;
         background:rgba(0,0,0,.7); border:.5px solid rgba(255,255,255,.2); border-radius:50%;
-        display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:#fff; transition:all .2s;
+        display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:#fff; transition:all .2s; z-index:2;
       }
       #ap-expand-btn:hover{ background:rgba(200,169,110,.3); }
       #ap-body{ padding:14px 16px; display:flex; flex-direction:column; gap:8px; }
@@ -911,8 +913,7 @@ export class ViewerScene extends BaseScene {
       #ap-sub{ display:flex; align-items:center; gap:8px; }
       #ap-artist{ font-family:var(--font-mono); font-size:8px; letter-spacing:.14em; color:var(--accent); text-transform:uppercase; }
       #ap-year{ font-family:var(--font-mono); font-size:8px; letter-spacing:.1em; color:var(--text-dim); }
-      #ap-desc{ font-size:11px; line-height:1.75; color:rgba(212,197,169,.7); letter-spacing:.03em; }
-      #ap-price-row{ display:flex; flex-direction:column; gap:2px; }
+      #ap-desc{ font-size:11px; line-height:1.75; color:rgba(212,197,169,.7); letter-spacing:.03em; word-break: break-all; }      #ap-price-row{ display:flex; flex-direction:column; gap:2px; }
       #ap-price-label{ font-family:var(--font-mono); font-size:7px; letter-spacing:.16em; text-transform:uppercase; color:var(--text-dim); }
       #ap-price{ font-family:var(--font-head); font-size:20px; color:var(--accent2); letter-spacing:.04em; }
       #ap-add-cart{
@@ -1024,9 +1025,13 @@ export class ViewerScene extends BaseScene {
       <div class="icon-btn" id="btn-fullscreen" title="Phóng to màn hình"><img src="/icons/fullscreen.svg" style="width:18px;height:18px"></div>
       <div class="icon-btn" id="btn-sound" title="Tắt / mở âm thanh" style="background-image: url('/icons/sound.svg'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
       <div class="icon-btn" id="btn-route" title="Lộ trình tham quan" style="background-image: url('/icons/route.svg'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
-      <div class="icon-btn" id="btn-like" title="Thích phòng tranh này"><img src="/icons/heart-empty.svg" style="width:18px;height:18px"></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+        <div class="icon-btn" id="btn-like" title="Thích phòng tranh này"><img src="/icons/heart-empty.svg" style="width:18px;height:18px"></div>
+        <span id="like-count" style="color:rgba(212,197,169,0.6);font-size:9px;font-family:monospace;letter-spacing:.04em;min-width:20px;text-align:center;line-height:1"></span>
+      </div>
       <div class="icon-btn" id="btn-settings" title="Cài đặt"><img src="/icons/settings.svg" style="width:18px;height:18px"></div>
       <div class="icon-btn" id="btn-help" title="Hướng dẫn sử dụng"><img src="/icons/help.svg" style="width:18px;height:18px"></div>
+      <div class="icon-btn" id="btn-share" title="Chia sẻ phòng tranh"><img src="/icons/share.svg" style="width:18px;height:18px"></div>
 
       <div id="chat-wrap">
         <div id="chat-box">
@@ -1157,6 +1162,20 @@ export class ViewerScene extends BaseScene {
     });
 
     document.getElementById('btn-like').addEventListener('click', () => this._toggleLike());
+
+    document.getElementById('btn-share').addEventListener('click', () => {
+      const url = window.location.href;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(() => this._toast('Đã sao chép link phòng tranh!', 'success', 2000));
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        this._toast('Đã sao chép link phòng tranh!', 'success', 2000);
+      }
+    });
 
     document.getElementById('btn-settings').addEventListener('click', () => {
       const sp = document.getElementById('settings-panel');
@@ -1453,10 +1472,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
 
     document.getElementById('checkout-btn').addEventListener('click', () => {
       if (this.cartItems.length === 0) return;
-      // TODO: re-enable when checkout is ready
-      this._toast('Tính năng thanh toán đang hoàn thiện, vui lòng quay lại sau!', 'info', 3000);
-      // this._syncCartToStorage();
-      // this.manager.navigateTo('checkout');
+      this._syncCartToStorage();
+      this.manager.navigateTo('checkout');
     });
   }
 
@@ -1524,7 +1541,10 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     if (this._expand3d.raf) { cancelAnimationFrame(this._expand3d.raf); this._expand3d.raf = null; }
     if (this._expand3d.renderer) { this._expand3d.renderer.dispose(); this._expand3d.renderer = null; }
     this._expand3d.scene = null; this._expand3d.camera = null;
-    document.getElementById('expand-img-wrap').style.display = 'none';
+    const imgWrap = document.getElementById('expand-img-wrap');
+    imgWrap.querySelectorAll('video.expand-video-el').forEach(v => { v.pause(); v.src = ''; v.remove(); });
+    document.getElementById('expand-canvas').style.display = 'block';
+    imgWrap.style.display = 'none';
     document.getElementById('expand-3d-wrap').style.display  = 'none';
   }
 
@@ -1625,12 +1645,14 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
 }
 
   _syncCartToStorage() {
+    const artistId = this._galleryDbKey?.split(':::')[0] || '';
     const payload = this.cartItems.map(ci => ({
-      title:  ci.art.meta?.title  || 'Untitled',
-      artist: ci.art.meta?.artist || '',
-      year:   ci.art.meta?.year   || '',
-      price:  ci.art.meta?.price  || '',
-      roomId: this._galleryDbKey  || '',
+      title:    ci.art.meta?.title  || 'Untitled',
+      artist:   ci.art.meta?.artist || '',
+      artistId,
+      year:     ci.art.meta?.year   || '',
+      price:    ci.art.meta?.price  || '',
+      roomId:   this._galleryDbKey  || '',
     }));
     localStorage.setItem('gallery_cart', JSON.stringify(payload));
     window.dispatchEvent(new CustomEvent('cart-updated'));
@@ -1696,10 +1718,13 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     this.popupArt = art;
     art._kind = kind; art._idx = idx;
     const meta = art.meta || {};
+    const apImgWrap = document.getElementById('ap-img-wrap');
+    apImgWrap.querySelectorAll('video.ap-video-el').forEach(v => v.remove());
     const apCanvas = document.getElementById('ap-img-canvas');
     let popW = 280;
 
     if (kind === 'model') {
+      apCanvas.style.display = 'block';
       apCanvas.width=280; apCanvas.height=210; apCanvas.style.width='280px'; apCanvas.style.height='210px';
       try { this._renderModelThumb(art.object, apCanvas); } catch(e) {}
     } else {
@@ -1714,12 +1739,6 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       } else {
         natW = 640; natH = 480;
       }
-      // Vẽ canvas đúng kích thước gốc → không vỡ khi zoom
-      apCanvas.width = natW; apCanvas.height = natH;
-      const ctx = apCanvas.getContext('2d');
-      if (art.isYouTube && art.sourceImage) ctx.drawImage(art.sourceImage, 0, 0, natW, natH);
-      else if (art.sourceImage) ctx.drawImage(art.sourceImage, 0, 0, natW, natH);
-      else if (art.videoEl) { ctx.fillStyle='#111'; ctx.fillRect(0,0,natW,natH); ctx.fillStyle='#c8a96e'; ctx.font=`${natH*0.1}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('▶',natW/2,natH/2); }
       // CSS thu nhỏ về kích thước hiển thị, giữ tỉ lệ
       const maxImgH = Math.round(window.innerHeight * 0.55);
       const maxImgW = Math.round(window.innerWidth * 0.7);
@@ -1729,14 +1748,35 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
         const popH = Math.min(maxImgH, Math.round(maxImgW / ar));
         popW = Math.round(popH * ar);
       }
-      apCanvas.style.width = popW + 'px';
-      apCanvas.style.height = Math.round(popW / ar) + 'px';
+      if (art.videoEl) {
+        apCanvas.style.display = 'none';
+        const vid = document.createElement('video');
+        vid.className = 'ap-video-el';
+        vid.src = art.videoEl.src;
+        vid.controls = true;
+        vid.controlsList = 'nodownload';
+        vid.style.cssText = `display:block;width:${popW}px;height:${Math.round(popW/ar)}px;background:#111;`;
+        apImgWrap.appendChild(vid);
+      } else {
+        apCanvas.style.display = 'block';
+        // Vẽ canvas đúng kích thước gốc → không vỡ khi zoom
+        apCanvas.width = natW; apCanvas.height = natH;
+        const ctx = apCanvas.getContext('2d');
+        if (art.isYouTube && art.sourceImage) ctx.drawImage(art.sourceImage, 0, 0, natW, natH);
+        else if (art.sourceImage) ctx.drawImage(art.sourceImage, 0, 0, natW, natH);
+        apCanvas.style.width = popW + 'px';
+        apCanvas.style.height = Math.round(popW / ar) + 'px';
+      }
     }
 
     document.getElementById('ap-title').textContent = meta.title || (kind==='model'? (art.name||'Model 3D') : ('Tác phẩm #'+(idx+1)));
     document.getElementById('ap-artist').textContent = meta.artist ? '— '+meta.artist : '';
     document.getElementById('ap-year').textContent   = meta.year   || '';
-    document.getElementById('ap-desc').textContent   = meta.desc   || '';
+    document.getElementById('ap-desc').innerHTML = (meta.desc || '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#68e5e3;text-decoration:underline;">$1</a>')
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');    
     const priceRow = document.getElementById('ap-price-row');
     if (meta.price) { document.getElementById('ap-price').textContent=meta.price; priceRow.style.display='flex'; }
     else priceRow.style.display='none';
@@ -1789,6 +1829,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       ec3.onwheel=e=>{ e.preventDefault(); this._expand3d.dist*=e.deltaY>0?1.1:0.9; this._expand3d.dist=Math.max(0.3,Math.min(20,this._expand3d.dist)); };
     } else {
       wrap3d.style.display='none'; imgWrap.style.display='block';
+      imgWrap.querySelectorAll('video.expand-video-el').forEach(v => v.remove());
       const ec=document.getElementById('expand-canvas');
       let ar=4/3;
       if(art.isYouTube) ar=16/9;
@@ -1796,19 +1837,31 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       else if(art.videoEl) ar=art.videoEl.videoWidth/art.videoEl.videoHeight||4/3;
       const maxW=Math.min(Math.round(innerWidth*.75),900), maxH=Math.round(innerHeight*.68);
       let natW=maxW, natH=Math.round(maxW/ar); if(natH>maxH){ natH=maxH; natW=Math.round(maxH*ar); }
-      const dpr=devicePixelRatio||1;
-      ec.width=natW*dpr; ec.height=natH*dpr; ec.style.width=natW+'px'; ec.style.height=natH+'px';
-      const ctx=ec.getContext('2d'); ctx.scale(dpr,dpr);
-      if(art.isYouTube && art.sourceImage) ctx.drawImage(art.sourceImage,0,0,natW,natH);
-      else if(art.sourceImage) ctx.drawImage(art.sourceImage,0,0,natW,natH);
-      else if(art.videoEl){ ctx.fillStyle='#111'; ctx.fillRect(0,0,natW,natH); ctx.fillStyle='#c8a96e'; ctx.font='40px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('▶',natW/2,natH/2); }
 
-      this._expandImg={zoom:1,panX:0,panY:0,drag:false,lx:0,ly:0};
-      const apply=()=>{ ec.style.transform=`translate(${this._expandImg.panX}px,${this._expandImg.panY}px) scale(${this._expandImg.zoom})`; ec.style.transformOrigin='center center'; };
-      imgWrap.onmousedown=e=>{ this._expandImg.drag=true; this._expandImg.lx=e.clientX; this._expandImg.ly=e.clientY; imgWrap.style.cursor='grabbing'; };
-      window.addEventListener('mouseup',()=>{ this._expandImg.drag=false; imgWrap.style.cursor=this._expandImg.zoom>1?'grab':'zoom-in'; });
-      window.addEventListener('mousemove',e=>{ if(!this._expandImg.drag||this._expandImg.zoom<=1)return; this._expandImg.panX+=e.clientX-this._expandImg.lx; this._expandImg.panY+=e.clientY-this._expandImg.ly; this._expandImg.lx=e.clientX; this._expandImg.ly=e.clientY; apply(); });
-      imgWrap.onwheel=e=>{ e.preventDefault(); const f=e.deltaY>0?.85:1.18; this._expandImg.zoom=Math.max(1,Math.min(8,this._expandImg.zoom*f)); if(this._expandImg.zoom<=1){ this._expandImg.panX=0; this._expandImg.panY=0; } apply(); imgWrap.style.cursor=this._expandImg.zoom>1?'grab':'zoom-in'; };
+      if(art.videoEl){
+        ec.style.display='none';
+        const vid=document.createElement('video');
+        vid.className='expand-video-el';
+        vid.src=art.videoEl.src;
+        vid.controls=true;
+        vid.controlsList='nodownload';
+        vid.style.cssText=`display:block;width:${natW}px;height:${natH}px;background:#111;border-radius:6px;`;
+        imgWrap.appendChild(vid);
+      } else {
+        ec.style.display='block';
+        const dpr=devicePixelRatio||1;
+        ec.width=natW*dpr; ec.height=natH*dpr; ec.style.width=natW+'px'; ec.style.height=natH+'px';
+        const ctx=ec.getContext('2d'); ctx.scale(dpr,dpr);
+        if(art.isYouTube && art.sourceImage) ctx.drawImage(art.sourceImage,0,0,natW,natH);
+        else if(art.sourceImage) ctx.drawImage(art.sourceImage,0,0,natW,natH);
+
+        this._expandImg={zoom:1,panX:0,panY:0,drag:false,lx:0,ly:0};
+        const apply=()=>{ ec.style.transform=`translate(${this._expandImg.panX}px,${this._expandImg.panY}px) scale(${this._expandImg.zoom})`; ec.style.transformOrigin='center center'; };
+        imgWrap.onmousedown=e=>{ this._expandImg.drag=true; this._expandImg.lx=e.clientX; this._expandImg.ly=e.clientY; imgWrap.style.cursor='grabbing'; };
+        window.addEventListener('mouseup',()=>{ this._expandImg.drag=false; imgWrap.style.cursor=this._expandImg.zoom>1?'grab':'zoom-in'; });
+        window.addEventListener('mousemove',e=>{ if(!this._expandImg.drag||this._expandImg.zoom<=1)return; this._expandImg.panX+=e.clientX-this._expandImg.lx; this._expandImg.panY+=e.clientY-this._expandImg.ly; this._expandImg.lx=e.clientX; this._expandImg.ly=e.clientY; apply(); });
+        imgWrap.onwheel=e=>{ e.preventDefault(); const f=e.deltaY>0?.85:1.18; this._expandImg.zoom=Math.max(1,Math.min(8,this._expandImg.zoom*f)); if(this._expandImg.zoom<=1){ this._expandImg.panX=0; this._expandImg.panY=0; } apply(); imgWrap.style.cursor=this._expandImg.zoom>1?'grab':'zoom-in'; };
+      }
     }
     overlay.classList.add('open');
   }
@@ -2063,11 +2116,15 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
         const onLoad = (obj) => {
           if (sv) obj.scale.copy(sv);
           else { const box = new THREE.Box3().setFromObject(obj); const sz = box.getSize(new THREE.Vector3()); obj.scale.setScalar(1.2/Math.max(sz.x,sz.y,sz.z)); }
-          obj.position.copy(pos); obj.position.y = .88;
+          const usePedestal = m.hasPedestal !== false;
+          obj.position.set(0, 0, 0);
+          obj.updateMatrixWorld(true);
+          const bBox = new THREE.Box3().setFromObject(obj);
+          obj.position.set(pos.x, usePedestal ? (0.90 - bBox.min.y) : -bBox.min.y, pos.z);
           if (m.ry) obj.rotation.y = m.ry;
           this.threeScene.add(obj);
           const pl = new THREE.PointLight(0xfff0dd, 1.5, 4); pl.position.set(pos.x, pos.y+2, pos.z); this.threeScene.add(pl);
-          this._makePedestal(new THREE.Vector3(pos.x, 0, pos.z));
+          if (usePedestal) this._makePedestal(new THREE.Vector3(pos.x, 0, pos.z));
           this.models3d.push({ object:obj, name:m.name, meta });
         };
         return new Promise(resolve => {
@@ -2157,6 +2214,14 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       this._bgAudio.volume = 0.5;
       this._bgAudio.muted = !this._soundOn;
       // play() sẽ được gọi sau khi loading screen ẩn
+    }
+
+    // Áp dụng vị trí ban đầu do artist đặt (override vị trí mặc định của _loadRoomGLB)
+    const vs = sd._meta?.viewerSpawn;
+    if (vs && typeof vs.x === 'number') {
+      this.camera.position.set(vs.x, vs.y, vs.z);
+      this.yaw   = vs.yaw   ?? 0;
+      this.pitch = vs.pitch ?? 0;
     }
 
     this._updateTopBarInfo();
@@ -2323,9 +2388,6 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
   // ─── View tracking ───────────────────────────────────────────────────────────
   async _trackView() {
     if (!this._galleryDbKey) return;
-    const sessionKey = `viewed_${this._galleryDbKey}`;
-    if (sessionStorage.getItem(sessionKey)) return;
-    sessionStorage.setItem(sessionKey, '1');
 
     const { data } = await supabase
       .from('gallery_stats')
@@ -2346,15 +2408,30 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
   // ─── Like ────────────────────────────────────────────────────────────────────
   async _initLike() {
     const profile = this.manager.auth.profile;
-    if (!profile || !this._galleryDbKey) return;
-    const { data } = await supabase
+    if (!this._galleryDbKey) return;
+
+    // Lấy tổng số like + trạng thái của user hiện tại song song
+    const countPromise = supabase
       .from('gallery_likes')
-      .select('id')
-      .eq('user_id', profile.id)
-      .eq('gallery_name', this._galleryDbKey)
-      .maybeSingle();
+      .select('id', { count: 'exact', head: true })
+      .eq('gallery_name', this._galleryDbKey);
+
+    const userPromise = profile
+      ? supabase
+          .from('gallery_likes')
+          .select('id')
+          .eq('user_id', profile.id)
+          .eq('gallery_name', this._galleryDbKey)
+          .maybeSingle()
+      : Promise.resolve({ data: null });
+
+    const [countRes, userRes] = await Promise.all([countPromise, userPromise]);
     if (this._disposed) return;
-    if (data) {
+
+    this._likeCount = countRes.count ?? 0;
+    this._updateLikeCount();
+
+    if (userRes.data) {
       this._liked = true;
       const btn = document.getElementById('btn-like');
       if (btn) {
@@ -2362,6 +2439,31 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
         btn.classList.add('liked', 'active');
       }
     }
+
+    // Subscribe realtime để cập nhật số like liên tục
+    this._likeChannel = supabase
+      .channel(`gallery_likes:${this._galleryDbKey}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'gallery_likes',
+        filter: `gallery_name=eq.${this._galleryDbKey}`,
+      }, async () => {
+        if (this._disposed) return;
+        const { count } = await supabase
+          .from('gallery_likes')
+          .select('id', { count: 'exact', head: true })
+          .eq('gallery_name', this._galleryDbKey);
+        this._likeCount = count ?? 0;
+        this._updateLikeCount();
+      })
+      .subscribe();
+  }
+
+  _updateLikeCount() {
+    const el = document.getElementById('like-count');
+    if (!el) return;
+    el.textContent = this._likeCount > 0 ? this._likeCount.toLocaleString('vi-VN') : '';
   }
 
   async _toggleLike() {
@@ -2401,10 +2503,15 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
         : '<img src="/icons/heart-empty.svg"  style="width:18px;height:18px">';
       btn.classList.toggle('liked', !newLiked);
       btn.classList.toggle('active', !newLiked);
+      this._likeCount = Math.max(0, (this._likeCount ?? 0) + (newLiked ? -1 : 1));
+      this._updateLikeCount();
       console.error('[like] error:', error);
       this._toast('Không thể lưu lượt thích', 'error', 2500);
       return;
     }
+
+    this._likeCount = Math.max(0, (this._likeCount ?? 0) + (newLiked ? 1 : -1));
+    this._updateLikeCount();
 
     if (newLiked) this._toast('Đã thích phòng tranh này ♥', 'success', 2000);
     else this._toast('Đã bỏ thích', 'info', 1500);
@@ -2891,6 +2998,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       this._bgAudio.src = '';
       this._bgAudio = null;
     }
+    if (this._likeChannel) { supabase.removeChannel(this._likeChannel); this._likeChannel = null; }
     this.missionSystem?.dispose();
     if (this._mpBroadcastInterval) { clearInterval(this._mpBroadcastInterval); this._mpBroadcastInterval = null; }
     if (this._mpChannel) { supabase.removeChannel(this._mpChannel); this._mpChannel = null; }

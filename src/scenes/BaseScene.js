@@ -129,4 +129,35 @@ export class BaseScene {
     this._elements.push(el);
     return el;
   }
+
+  // Đặt SVG làm body background và tự động tính chiều cao theo viewBox của SVG
+  async _svgBodyBackground(svgUrl) {
+    document.body.style.backgroundImage    = `url('${svgUrl}')`;
+    document.body.style.backgroundSize     = '100% auto';
+    document.body.style.backgroundPosition = 'top center';
+    document.body.style.backgroundRepeat   = 'no-repeat';
+
+    let ratio = null;
+    try {
+      const text = await fetch(svgUrl, { cache: 'no-cache' }).then(r => r.text());
+      const doc  = new DOMParser().parseFromString(text, 'image/svg+xml');
+      const svg  = doc.querySelector('svg');
+      const vb   = svg?.getAttribute('viewBox');
+      if (vb) {
+        const parts = vb.trim().split(/[\s,]+/).map(Number);
+        const w = parts[2], h = parts[3];
+        if (w && h) ratio = h / w;
+      }
+      if (!ratio) {
+        const w = parseFloat(svg?.getAttribute('width')  || 0);
+        const h = parseFloat(svg?.getAttribute('height') || 0);
+        if (w && h) ratio = h / w;
+      }
+    } catch (_) {}
+
+    const spacer = this._el(document.createElement('div'));
+    spacer.style.cssText = `width:100%;flex-shrink:0;` +
+      (ratio ? `height:calc(100vw * ${ratio});` : 'height:100vh;');
+    document.body.appendChild(spacer);
+  }
 }

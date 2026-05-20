@@ -13,6 +13,7 @@ import { PreviewScene }        from './scenes/PreviewScene.js';
 import { CheckoutScene }       from './scenes/CheckoutScene.js';
 import { OrdersScene }         from './scenes/OrdersScene.js';
 import { OrderTrackingScene }  from './scenes/OrderTrackingScene.js';
+import { SettingsScene }       from './scenes/SettingsScene.js';
 
 
 const manager = new SceneManager();
@@ -30,7 +31,8 @@ manager
   .register('preview',    PreviewScene)
   .register('checkout',   CheckoutScene)
   .register('orders',     OrdersScene)
-  .register('my-orders',  OrderTrackingScene);
+  .register('my-orders',  OrderTrackingScene)
+  .register('settings',   SettingsScene);
 
 // Chờ auth xác định trạng thái trước khi mở scene đầu tiên
 // (tránh nhấp nháy khi đã đăng nhập mà bị redirect về login)
