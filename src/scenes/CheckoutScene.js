@@ -155,17 +155,23 @@ export class CheckoutScene extends BaseScene {
   }
 
   async _loadArtistBankInfo() {
+    const artistIds   = [...new Set(this._cart.map(it => it.artistId).filter(Boolean))];
     const artistNames = [...new Set(this._cart.map(it => it.artist).filter(Boolean))];
-    if (!artistNames.length) {
+    if (!artistIds.length && !artistNames.length) {
       const el = document.getElementById('co-bank-name');
       if (el) el.textContent = '—';
       return;
     }
 
-    const { data } = await supabase
+    let query = supabase
       .from('profiles')
-      .select('display_name, bank_name, bank_account_number, bank_account_holder')
-      .in('display_name', artistNames);
+      .select('display_name, bank_name, bank_account_number, bank_account_holder');
+    if (artistIds.length) {
+      query = query.in('id', artistIds);
+    } else {
+      query = query.in('display_name', artistNames);
+    }
+    const { data } = await query;
 
     if (this._disposed) return;
 
@@ -210,7 +216,7 @@ export class CheckoutScene extends BaseScene {
     `;
   }
 
-  _placeOrder() {
+  async _placeOrder() {
     const nameEl    = document.getElementById('co-name');
     const phoneEl   = document.getElementById('co-phone');
     const addressEl = document.getElementById('co-address');
@@ -229,6 +235,9 @@ export class CheckoutScene extends BaseScene {
     check(addressEl, 'co-address-err', address);
     if (!valid) return;
 
+    const btn = document.getElementById('co-confirm');
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang xử lý...'; }
+
     const profile = this.manager.auth.profile;
     let total = 0, allParsed = true;
     this._cart.forEach(item => {
@@ -237,21 +246,26 @@ export class CheckoutScene extends BaseScene {
     });
 
     const order = {
-      id: this._orderId,
-      userId: profile?.id || 'guest',
-      userName: name,
-      userPhone: phone,
-      createdAt: new Date().toISOString(),
-      items: this._cart,
-      total: allParsed ? total : null,
-      delivery: { name, phone, address },
-      payment: 'bank_transfer',
-      status: 'placed',
+      order_id:       this._orderId,
+      user_id:        profile?.id || null,
+      buyer_name:     name,
+      buyer_phone:    phone,
+      buyer_email:    this.manager.auth.user?.email || null,
+      buyer_address:  address,
+      artworks:       this._cart,
+      total:          allParsed ? String(total) : null,
+      payment_method: 'bank_transfer',
+      status:         'placed',
     };
 
-    const orders = JSON.parse(localStorage.getItem('gallery_orders') || '[]');
-    orders.unshift(order);
-    localStorage.setItem('gallery_orders', JSON.stringify(orders));
+    const { error } = await supabase.from('orders').insert(order);
+
+    if (error) {
+      console.error('Order insert error:', error);
+      if (btn) { btn.disabled = false; btn.textContent = '✦ Xác nhận đặt hàng →'; }
+      alert('Có lỗi khi đặt hàng. Vui lòng thử lại.');
+      return;
+    }
 
     localStorage.removeItem('gallery_cart');
     window.dispatchEvent(new CustomEvent('cart-updated'));

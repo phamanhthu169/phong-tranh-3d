@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BaseScene } from './BaseScene.js';
 import { HEADER_H } from '../core/SceneManager.js';
+import { supabase } from '../utils/supabase.js';
 
 const STEPS = [
   { key: 'placed',    label: 'Đặt hàng',       icon: '📦' },
@@ -18,6 +19,7 @@ const CHIP_STYLE = {
   packing:   'background:rgba(118,170,171,.12);border:1px solid rgba(118,170,171,.35);color:#4d9ea0',
   shipping:  'background:rgba(60,120,200,.1);border:1px solid rgba(60,120,200,.3);color:#3a70c8',
   delivered: 'background:rgba(90,170,122,.1);border:1px solid rgba(90,170,122,.3);color:#4a9a6a',
+  cancelled: 'background:rgba(200,50,50,.08);border:1px solid rgba(200,50,50,.25);color:#c0392b',
 };
 
 export class OrderTrackingScene extends BaseScene {
@@ -27,22 +29,28 @@ export class OrderTrackingScene extends BaseScene {
 
     if (!this.manager.auth.isLoggedIn) { this.manager.navigateTo('login'); return; }
 
-    const profile = this.manager.auth.profile;
-    const all = JSON.parse(localStorage.getItem('gallery_orders') || '[]');
-    this._orders = all.filter(o => o.userId === profile?.id);
-
     this.threeScene.background = new THREE.Color(0xF1FAFF);
     this.camera.position.set(0, 0, 5);
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.1));
 
-    this._buildOverlay();
-  }
-
-  _buildOverlay() {
     const overlay = document.createElement('div');
+    overlay.id = 'ot-overlay';
     overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;background:#F1FAFF;font-family:'Montserrat',sans-serif;padding:40px;box-sizing:border-box;`;
     document.body.appendChild(overlay);
     this._el(overlay);
+
+    await this._render();
+  }
+
+  async _render() {
+    const overlay = document.getElementById('ot-overlay');
+    if (!overlay) return;
+
+    overlay.innerHTML = `<div style="text-align:center;padding:80px 0;color:#182D58;font-family:'Montserrat',sans-serif;font-size:13px;letter-spacing:.14em;text-transform:uppercase;opacity:.5">Đang tải...</div>`;
+
+    const userId = this.manager.auth.user?.id;
+    const { data } = await supabase.from('orders').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    this._orders = data || [];
 
     const ordersHtml = this._orders.length === 0
       ? `<div style="text-align:center;padding:80px 0;color:#182D58;font-family:'Montserrat',sans-serif;font-size:13px;letter-spacing:.14em;text-transform:uppercase;opacity:.5">Chưa có đơn hàng nào</div>`
@@ -69,6 +77,10 @@ export class OrderTrackingScene extends BaseScene {
         .ot-item-price{color:#182D58;white-space:nowrap;font-weight:600}
         .ot-delivery{margin-top:16px;padding-top:14px;border-top:1px solid rgba(24,45,88,.08);font-family:'Montserrat',sans-serif;font-size:11px;color:#182D58;letter-spacing:.08em;line-height:1.8;opacity:.75}
         .ot-delivery b{color:#182D58;opacity:1;font-weight:700}
+        .ot-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+        .ot-btn-cancel{padding:7px 16px;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-radius:3px;cursor:pointer;background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.3);color:#c0392b;transition:all .2s;font-weight:600}
+        .ot-btn-cancel:hover{background:rgba(200,50,50,.14)}
+        .ot-btn-cancel:disabled{opacity:.5;cursor:default}
       </style>
 
       <div class="ot-wrap">
@@ -76,16 +88,54 @@ export class OrderTrackingScene extends BaseScene {
         ${ordersHtml}
       </div>
     `;
+
+    overlay.querySelectorAll('.ot-btn-cancel[data-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        await supabase.from('orders').update({ status: 'cancelled' }).eq('order_id', btn.dataset.id);
+        await this._render();
+      });
+    });
   }
 
   _orderCard(order) {
-    const stepIdx = STATUS_INDEX[order.status] ?? 0;
-    const date = new Date(order.createdAt).toLocaleDateString('vi-VN', {
+    const date = new Date(order.created_at).toLocaleDateString('vi-VN', {
       day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
     const statusLabel = STEPS.find(s => s.key === order.status)?.label || order.status;
     const chipStyle   = CHIP_STYLE[order.status] || CHIP_STYLE.placed;
 
+    const itemsHtml = (order.artworks || []).map(item => `
+      <div class="ot-item">
+        <span class="ot-item-name">${item.title || 'Untitled'}</span>
+        <span class="ot-item-price">${item.price || '—'}</span>
+      </div>
+    `).join('');
+
+    const deliveryHtml = `
+      <div class="ot-delivery">
+        <b>Người nhận:</b> ${order.buyer_name || '—'} &nbsp;·&nbsp; ${order.buyer_phone || ''}<br>
+        <b>Địa chỉ:</b> ${order.buyer_address || '—'}
+      </div>
+    `;
+
+    if (order.status === 'cancelled') {
+      return `
+        <div class="ot-card">
+          <div class="ot-card-head">
+            <div>
+              <div class="ot-id"># ${order.order_id}</div>
+              <div class="ot-date">${date}</div>
+            </div>
+            <span class="ot-chip" style="${chipStyle}">Đã hủy</span>
+          </div>
+          <div>${itemsHtml}</div>
+          ${deliveryHtml}
+        </div>
+      `;
+    }
+
+    const stepIdx = STATUS_INDEX[order.status] ?? 0;
     const timelineHtml = STEPS.map((step, i) => {
       const done   = i <= stepIdx;
       const active = i === stepIdx;
@@ -104,28 +154,23 @@ export class OrderTrackingScene extends BaseScene {
       `;
     }).join('');
 
-    const itemsHtml = (order.items || []).map(item => `
-      <div class="ot-item">
-        <span class="ot-item-name">${item.title || 'Untitled'}</span>
-        <span class="ot-item-price">${item.price || '—'}</span>
-      </div>
-    `).join('');
+    const cancelBtn = order.status === 'placed'
+      ? `<div class="ot-actions"><button class="ot-btn-cancel" data-id="${order.order_id}">✕ Hủy đơn</button></div>`
+      : '';
 
     return `
       <div class="ot-card">
         <div class="ot-card-head">
           <div>
-            <div class="ot-id"># ${order.id}</div>
+            <div class="ot-id"># ${order.order_id}</div>
             <div class="ot-date">${date}</div>
           </div>
           <span class="ot-chip" style="${chipStyle}">${statusLabel}</span>
         </div>
         <div class="ot-timeline">${timelineHtml}</div>
         <div>${itemsHtml}</div>
-        <div class="ot-delivery">
-          <b>Người nhận:</b> ${order.delivery?.name || '—'} &nbsp;·&nbsp; ${order.delivery?.phone || ''}<br>
-          <b>Địa chỉ:</b> ${order.delivery?.address || '—'}
-        </div>
+        ${deliveryHtml}
+        ${cancelBtn}
       </div>
     `;
   }

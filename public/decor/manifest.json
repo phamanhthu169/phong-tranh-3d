@@ -1,6 +1,9 @@
 [
-  { "file": "Chicken.glb", "name": "Con gà" },
-  { "file": "cypress_tree.glb", "name": "Cây bách" },
-  { "file": "military_trenches_wall_metal_corrugated_06_ydxnbdns_mid.glb", "name": "Vách kim loại" },
+  { "file": "cypress_tree.glb", "name": "Chậu cây 1" },
+  { "file": "updated_maxwell_the_cat.glb", "name": "Con u i a" },
+  { "file": "low_poly_roman_doric_column.glb", "name": "Cột thạch cao" },
+  { "file": "vase_flower_pot_-_24_mb.glb", "name": "Chậu cây 2" },
+  { "file": "Bench.glb", "name": "Ghé dài" },
+  { "file": "i_kea_strelitzia_planta_ave_del_paraiso.glb", "name": "Chậu cây 3" },
   { "file": "drawer.glb", "name": "Drawer" }
 ]

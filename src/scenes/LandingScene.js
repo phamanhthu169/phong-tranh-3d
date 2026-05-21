@@ -13,87 +13,69 @@ export class LandingScene extends BaseScene {
   }
 
   _buildFixedNavButtons() {
+    // SVG viewBox width — all pixel values below are in SVG coordinate space
+    const W = 1571;
+    const vw = (n) => `calc(${(n / W).toFixed(6)} * 100vw)`;
+
     const buttons = [
       {
         src: '/landingpage/cta.svg',
         alt: 'Bắt đầu xây phòng',
-        top: 430, width: 300, height: 57,
+        top: 476, width: 300, left: 127.25, centered: false,
         onClick: () => this.manager.navigateTo(this.manager.auth.isLoggedIn ? 'studio' : 'register'),
       },
       {
         src: '/landingpage/explore.svg',
         alt: 'Khám phá',
-        top: 2220, width: 334, height: 73,
+        top: 2565.3, width: 334, left: 0, centered: true,
         onClick: () => this.manager.navigateTo('explore'),
       },
       {
         src: '/landingpage/studio.svg',
         alt: 'Studio',
-        top: 2680, width: 289, height: 66.14,
+        top: 3082.7, width: 289 * 0.85, left: 253, centered: false,
         onClick: () => this.manager.navigateTo(this.manager.auth.isLoggedIn ? 'studio' : 'register'),
       },
       {
         src: '/landingpage/forum.svg',
         alt: 'Diễn đàn',
-        top: 3030, width: 289, height: 66.14,
+        top: 3490.3, width: 289 * 0.85, left: 253, centered: false,
         onClick: () => this.manager.navigateTo('forum'),
       },
     ];
 
-    buttons.forEach(({ src, alt, top, width, height, onClick }) => {
+    buttons.forEach(({ src, alt, top, width, left, centered, onClick }) => {
       const btn = document.createElement('button');
-      
-      if (src === '/landingpage/explore.svg') {
+
+      if (centered) {
         btn.style.cssText = `
-          position:absolute;left:50%;transform:translateX(-50%);top:${top}px;z-index:9999;
-          background:none;border:none;padding:0;cursor:pointer;
-          transition:transform 0.2s,filter 0.2s;
-        `;
-      } else if (src === '/landingpage/studio.svg' || src === '/landingpage/forum.svg') {
-        btn.style.cssText = `
-          position:absolute;left:230px;top:${top}px;z-index:9999;
+          position:absolute;left:50%;transform:translateX(-50%);top:${vw(top)};z-index:9999;
           background:none;border:none;padding:0;cursor:pointer;
           transition:transform 0.2s,filter 0.2s;
         `;
       } else {
         btn.style.cssText = `
-          position:absolute;left:110px;top:${top}px;z-index:9999;
+          position:absolute;left:${vw(left)};top:${vw(top)};z-index:9999;
           background:none;border:none;padding:0;cursor:pointer;
           transition:transform 0.2s,filter 0.2s;
         `;
       }
-      
+
       const img = document.createElement('img');
       img.src = src;
       img.alt = alt;
-      
-      if (src === '/landingpage/studio.svg' || src === '/landingpage/forum.svg') {
-        const scale = 0.85;
-        img.style.cssText = `width:${width * scale}px;height:auto;display:block;`;
-      } else {
-        img.style.cssText = `width:${width}px;height:auto;display:block;`;
-      }
-      
+      img.style.cssText = `width:${vw(width)};height:auto;display:block;`;
       btn.appendChild(img);
-      
+
       btn.addEventListener('mouseenter', () => {
-        if (src === '/landingpage/explore.svg') {
-          btn.style.transform = 'translateX(-50%) scale(1.05)';
-        } else {
-          btn.style.transform = 'scale(1.05)';
-        }
+        btn.style.transform = centered ? 'translateX(-50%) scale(1.05)' : 'scale(1.05)';
         btn.style.filter = 'brightness(1.12)';
       });
-      
       btn.addEventListener('mouseleave', () => {
-        if (src === '/landingpage/explore.svg') {
-          btn.style.transform = 'translateX(-50%) scale(1)';
-        } else {
-          btn.style.transform = 'scale(1)';
-        }
+        btn.style.transform = centered ? 'translateX(-50%) scale(1)' : 'scale(1)';
         btn.style.filter = 'none';
       });
-      
+
       btn.addEventListener('click', onClick);
       document.body.appendChild(btn);
       this._fixedNavBtns = this._fixedNavBtns || [];
@@ -140,7 +122,7 @@ export class LandingScene extends BaseScene {
 
     const wrap = document.createElement('div');
     wrap.style.cssText = `
-      position:absolute;left:0;right:0;top:1730px;
+      position:absolute;left:0;right:0;top:calc(${((1730+115.1+172.6-23.0)/1571).toFixed(6)} * 100vw);
       overflow:hidden;z-index:9990;
     `;
 

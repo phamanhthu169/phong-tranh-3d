@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BaseScene } from './BaseScene.js';
 import { HEADER_H } from '../core/SceneManager.js';
+import { supabase } from '../utils/supabase.js';
 
 const STEPS = [
   { key: 'placed',    label: 'Đặt hàng' },
@@ -23,6 +24,7 @@ const CHIP_STYLE = {
   packing:   'background:rgba(118,170,171,.12);border:1px solid rgba(118,170,171,.35);color:#4d9ea0',
   shipping:  'background:rgba(60,120,200,.1);border:1px solid rgba(60,120,200,.3);color:#3a70c8',
   delivered: 'background:rgba(90,170,122,.1);border:1px solid rgba(90,170,122,.3);color:#4a9a6a',
+  cancelled: 'background:rgba(200,50,50,.08);border:1px solid rgba(200,50,50,.25);color:#c0392b',
 };
 
 export class OrdersScene extends BaseScene {
@@ -43,25 +45,28 @@ export class OrdersScene extends BaseScene {
     document.body.appendChild(overlay);
     this._el(overlay);
 
-    this._render();
+    await this._render();
   }
 
-  _loadOrders() {
+  async _loadOrders() {
     const currentId   = this.manager.auth.user?.id;
     const currentName = this.manager.auth.profile?.display_name;
-    return JSON.parse(localStorage.getItem('gallery_orders') || '[]').filter(o =>
-      (o.items || []).some(item =>
+    const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    return (data || []).filter(o =>
+      (o.artworks || []).some(item =>
         (item.artistId && item.artistId === currentId) ||
         (!item.artistId && currentName && item.artist === currentName)
       )
     );
   }
 
-  _render() {
+  async _render() {
     const overlay = document.getElementById('os-overlay');
     if (!overlay) return;
 
-    const orders = this._loadOrders();
+    overlay.innerHTML = `<div style="text-align:center;padding:80px 0;color:#182D58;font-family:'Montserrat',sans-serif;font-size:13px;letter-spacing:.14em;text-transform:uppercase;opacity:.5">Đang tải...</div>`;
+
+    const orders = await this._loadOrders();
 
     const ordersHtml = orders.length === 0
       ? `<div style="text-align:center;padding:80px 0;color:#182D58;font-family:'Montserrat',sans-serif;font-size:13px;letter-spacing:.14em;text-transform:uppercase;opacity:.5">Chưa có đơn hàng nào</div>`
@@ -86,6 +91,10 @@ export class OrdersScene extends BaseScene {
         .os-btn-next{padding:7px 16px;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-radius:3px;cursor:pointer;background:rgba(24,45,88,.07);border:1px solid rgba(24,45,88,.25);color:#182D58;transition:all .2s;font-weight:600}
         .os-btn-next:hover{background:rgba(24,45,88,.15)}
         .os-btn-done{padding:7px 16px;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-radius:3px;background:rgba(90,170,122,.08);border:1px solid rgba(90,170,122,.3);color:#4a9a6a;cursor:default;font-weight:600}
+        .os-btn-reject{padding:7px 16px;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-radius:3px;cursor:pointer;background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.3);color:#c0392b;transition:all .2s;font-weight:600}
+        .os-btn-reject:hover{background:rgba(200,50,50,.14)}
+        .os-btn-reject:disabled{opacity:.5;cursor:default}
+        .os-btn-cancelled{padding:7px 16px;font-family:'Montserrat',sans-serif;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-radius:3px;background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.25);color:#c0392b;cursor:default;font-weight:600}
       </style>
       <div class="os-wrap">
         <div class="os-heading">Quản lý đơn hàng</div>
@@ -94,26 +103,30 @@ export class OrdersScene extends BaseScene {
     `;
 
     overlay.querySelectorAll('.os-btn-next[data-id]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const orders = this._loadOrders();
-        const idx = orders.findIndex(o => o.id === btn.dataset.id);
-        if (idx !== -1) {
-          orders[idx].status = btn.dataset.next;
-          localStorage.setItem('gallery_orders', JSON.stringify(orders));
-        }
-        this._render();
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        await supabase.from('orders').update({ status: btn.dataset.next }).eq('order_id', btn.dataset.id);
+        await this._render();
+      });
+    });
+
+    overlay.querySelectorAll('.os-btn-reject[data-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        await supabase.from('orders').update({ status: 'cancelled' }).eq('order_id', btn.dataset.id);
+        await this._render();
       });
     });
   }
 
   _orderCard(order) {
-    const date = new Date(order.createdAt).toLocaleDateString('vi-VN', {
+    const date = new Date(order.created_at).toLocaleDateString('vi-VN', {
       day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
     const statusLabel = STEPS.find(s => s.key === order.status)?.label || order.status;
     const chipStyle   = CHIP_STYLE[order.status] || CHIP_STYLE.placed;
 
-    const itemsHtml = (order.items || []).map(item => `
+    const itemsHtml = (order.artworks || []).map(item => `
       <div class="os-item">
         <span class="os-item-name">${item.title || 'Untitled'}${item.artist ? ` <span style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:10px;opacity:.55">— ${item.artist}</span>` : ''}</span>
         <span class="os-item-price">${item.price || '—'}</span>
@@ -124,20 +137,25 @@ export class OrdersScene extends BaseScene {
     const nextLabel = next ? STEPS.find(s => s.key === next)?.label : null;
     const actionBtn = order.status === 'delivered'
       ? `<span class="os-btn-done">✓ Đã giao thành công</span>`
-      : `<button class="os-btn-next" data-id="${order.id}" data-next="${next}">→ ${nextLabel}</button>`;
+      : order.status === 'cancelled'
+      ? `<span class="os-btn-cancelled">✕ Đã hủy</span>`
+      : `
+        <button class="os-btn-next" data-id="${order.order_id}" data-next="${next}">→ ${nextLabel}</button>
+        ${order.status === 'placed' ? `<button class="os-btn-reject" data-id="${order.order_id}">✕ Từ chối</button>` : ''}
+      `;
 
     return `
       <div class="os-card">
         <div class="os-card-head">
           <div>
-            <div class="os-id"># ${order.id}</div>
-            <div class="os-meta">${date} &nbsp;·&nbsp; ${order.userName || ''} &nbsp;·&nbsp; ${order.userPhone || ''}</div>
+            <div class="os-id"># ${order.order_id}</div>
+            <div class="os-meta">${date} &nbsp;·&nbsp; ${order.buyer_name || ''} &nbsp;·&nbsp; ${order.buyer_phone || ''}</div>
           </div>
           <span class="os-chip" style="${chipStyle}">${statusLabel}</span>
         </div>
         <div>${itemsHtml}</div>
         <div class="os-delivery">
-          <b>Địa chỉ:</b> ${order.delivery?.address || '—'}
+          <b>Địa chỉ:</b> ${order.buyer_address || '—'}
         </div>
         <div class="os-actions">${actionBtn}</div>
       </div>

@@ -105,7 +105,9 @@ export class MissionSystem {
             const sz   = box.getSize(new THREE.Vector3());
             const base = 0.6 / Math.max(sz.x, sz.y, sz.z);
             mesh.scale.setScalar(base * (cp.scale ?? 1.0));
-            mesh.position.set(cp.pos_x, cp.pos_y ?? 0, cp.pos_z);
+            const scaledBox = new THREE.Box3().setFromObject(mesh);
+            const chestFloorY = (this._s.floorY ?? 0) - scaledBox.min.y;
+            mesh.position.set(cp.pos_x, chestFloorY, cp.pos_z);
             mesh.rotation.y = cp.rot_y ?? 0;
             this._s.threeScene.add(mesh);
             this._eggObjects.push(mesh);
@@ -117,7 +119,7 @@ export class MissionSystem {
             new THREE.SphereGeometry(0.7, 10, 10),
             new THREE.MeshBasicMaterial({ visible: false })
           );
-          sphere.position.set(cp.pos_x, cp.pos_y ?? 0, cp.pos_z);
+          sphere.position.set(cp.pos_x, this._s.floorY ?? 0, cp.pos_z);
           this._s.threeScene.add(sphere);
           this._eggSpheres.push({ sphere, missionIndex: m.mission_index, eggIndex: -1, isChestRiddle: true, mission: m });
         }
@@ -410,10 +412,9 @@ export class MissionSystem {
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1000;display:flex;align-items:center;justify-content:center;';
 
     const box = document.createElement('div');
-    box.style.cssText = 'background:#0d1520;border:.5px solid rgba(200,169,110,0.4);border-radius:16px;padding:28px;max-width:420px;width:90%;display:flex;flex-direction:column;gap:14px;font-family:"Montserrat",sans-serif;';
-
+    box.style.cssText = 'background:linear-gradient(135deg,rgba(118,170,171,1),rgba(35,92,208,0.5));border:.5px solid rgba(200,169,110,0.4);border-radius:16px;padding:28px;max-width:420px;width:90%;display:flex;flex-direction:column;gap:14px;font-family:"Montserrat",sans-serif;color:#FFFFFF;';
     const titleDiv = document.createElement('div');
-    titleDiv.style.cssText = 'color:#c8a96e;font-size:14px;font-weight:700;letter-spacing:.05em;';
+    titleDiv.style.cssText = 'color:#FFE066;font-size:14px;font-weight:700;letter-spacing:.05em;';
     titleDiv.textContent = `🗝 ${mission.title || 'Giải mã rương câu đố'}`;
     box.appendChild(titleDiv);
 
@@ -446,7 +447,7 @@ export class MissionSystem {
       const btn = document.createElement('button');
       btn.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,255,255,0.05);border:.5px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-family:"Montserrat",sans-serif;font-size:13px;cursor:pointer;text-align:left;transition:background .15s;width:100%;';
       const labelSpan = document.createElement('span');
-      labelSpan.style.cssText = 'color:#c8a96e;font-weight:700;flex-shrink:0;';
+      labelSpan.style.cssText = 'color:#FFE066;font-weight:700;flex-shrink:0;';
       labelSpan.textContent = 'ABCD'[i] + '.';
       const textSpan = document.createElement('span');
       textSpan.textContent = choiceText;
@@ -458,7 +459,7 @@ export class MissionSystem {
         if (key === correctKey) {
           answered = true;
           btn.style.cssText += 'background:rgba(50,200,100,0.15);border-color:rgba(50,200,100,0.5);';
-          feedback.style.color = '#c8a96e';
+          feedback.style.color = '#FFE066';
           feedback.textContent = '✓ Chính xác! Rương đã mở!';
           setTimeout(() => { overlay.remove(); this._completeMission(mission.mission_index); }, 800);
         } else {

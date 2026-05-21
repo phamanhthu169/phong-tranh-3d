@@ -39,8 +39,8 @@ export class ForumScene extends BaseScene {
     const overlay = document.createElement('div');
     overlay.id = 'fr-overlay-wrap';
     overlay.style.cssText = `
-      position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;
-      overflow-y:auto;z-index:100;font-family:'Montserrat',sans-serif;background:#F1FAFF;
+      position:relative;width:100%;min-height:calc(100vh - ${HEADER_H}px);
+      overflow-y:visible;z-index:100;font-family:'Montserrat',sans-serif;background:#F1FAFF;
       color:#182D58;
     `;
 
@@ -70,7 +70,7 @@ export class ForumScene extends BaseScene {
         .fr-sub {
           color: #182D58;
           font-family: 'Montserrat', sans-serif;
-          font-size: 25px;
+          font-size: clamp(14px, 1.5vw, 20px);
           font-weight: 600;
           font-style: italic;
           margin-top: 4px;
@@ -613,7 +613,7 @@ export class ForumScene extends BaseScene {
         /* ── Global font overrides (+2px, Montserrat, #182D58) ── */
         #fr-overlay-wrap { font-family: 'Montserrat', sans-serif; color: #182D58; }
         #fr-overlay-wrap .fr-title { font-size: 42px; }
-        #fr-overlay-wrap .fr-sub { font-size: 27px; }
+        #fr-overlay-wrap .fr-sub { font-size: clamp(14px, 1.5vw, 20px); }
         #fr-overlay-wrap .fr-back { font-size: 12px; font-family: 'Montserrat', sans-serif; color: #182D58; }
         #fr-overlay-wrap .fr-compose-name { font-size: 13px; font-family: 'Montserrat', sans-serif; color: #182D58; }
         #fr-overlay-wrap .fr-textarea { font-size: 15px; font-family: 'Montserrat', sans-serif; color: #182D58; }

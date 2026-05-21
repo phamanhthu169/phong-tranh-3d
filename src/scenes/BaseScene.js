@@ -37,7 +37,7 @@ export class BaseScene {
     this._loadingOverlay = null;
   }
 
-  _showLoadingScreen(text = 'Đang tải phòng tranh...') {
+  _showLoadingScreen(text = 'Đang tải phòng tranh...', tips = null) {
     const overlay = document.createElement('div');
     overlay.id = 'room-loading-overlay';
     overlay.style.cssText = [
@@ -79,21 +79,40 @@ export class BaseScene {
           letter-spacing:0.05em;
         }
         #room-loading-overlay .rl-text {
-          color:rgba(212,197,169,0.5);
-          font-family:monospace;
-          font-size:10px;
-          letter-spacing:0.18em;
-          text-transform:uppercase;
+          color:rgba(212,197,169,0.72);
+          font-size:12.5px;
+          letter-spacing:0.02em;
+          text-align:center;
+          max-width:calc(100vw - 200px);
+          line-height:1.65;
+          transition:opacity 0.55s ease;
         }
+        #room-loading-overlay .rl-text.rl-fade { opacity:0; }
       </style>
       <div class="rl-ring"></div>
       <div class="rl-pct" id="rl-pct-label">0%</div>
       <div class="rl-bar-wrap"><div class="rl-bar-fill" id="rl-bar-fill"></div></div>
-      <div class="rl-text" id="rl-status-text">${text}</div>
+      <div class="rl-text" id="rl-status-text">${tips ? '' : text}</div>
     `;
     document.body.appendChild(overlay);
     this._loadingOverlay = overlay;
     requestAnimationFrame(() => { overlay.style.opacity = '1'; });
+
+    if (tips && tips.length > 0) {
+      const tipEl = overlay.querySelector('#rl-status-text');
+      const pool = [...tips].sort(() => Math.random() - 0.5);
+      let idx = 0;
+      const showNext = () => {
+        tipEl.classList.add('rl-fade');
+        setTimeout(() => {
+          tipEl.textContent = pool[idx % pool.length];
+          idx++;
+          tipEl.classList.remove('rl-fade');
+        }, 560);
+      };
+      showNext();
+      this._tipsInterval = setInterval(showNext, 5000);
+    }
   }
 
   _setLoadingProgress(pct, label) {
@@ -108,6 +127,8 @@ export class BaseScene {
   }
 
   _hideLoadingScreen() {
+    clearInterval(this._tipsInterval);
+    this._tipsInterval = null;
     this._setLoadingProgress(100);
     const overlay = this._loadingOverlay;
     if (!overlay) return;

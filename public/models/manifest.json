@@ -1,6 +1,8 @@
 [
   { "file": "scene.glb", "name": "Phòng mặc định" },
-  { "file": "modern_vr_art_gallery_pyramid.glb", "name": "Gallery Kim Tự Tháp" },
   { "file": "backrooms_vr_room_baked.glb", "name": "Backroom" },
+  { "file": "vr_art_gallery_-_vr_room_light.glb", "name": "Room light" },
+  { "file": "vr_exhibition_gallery_baked.glb", "name": "Black Gallery" },
+  { "file": "white_round_exhibition_gallery.glb", "name": "White Round Gallery" },
   { "file": "Lafayette_Street_New_York.glb", "name": "Lafayette Street New York" }
 ]

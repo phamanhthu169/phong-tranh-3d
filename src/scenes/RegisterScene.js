@@ -25,7 +25,7 @@ export class RegisterScene extends BaseScene {
 
   _buildForm() {
     const overlay = document.createElement('div');
-    overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;z-index:100;pointer-events:none;`;
+    overlay.style.cssText = `position:relative;width:100%;min-height:calc(100vh - ${HEADER_H}px);display:flex;align-items:center;justify-content:center;z-index:100;pointer-events:none;`;
 
     const card = document.createElement('div');
     card.style.cssText = 'background:#ffffff;border:1px solid rgba(0,0,0,.12);border-radius:6px;padding:32px;width:360px;display:flex;flex-direction:column;gap:14px;font-family:monospace;pointer-events:all;box-shadow:0 4px 24px rgba(0,0,0,.08);';

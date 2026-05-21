@@ -29,7 +29,7 @@ export class ExploreScene extends BaseScene {
 
   _buildOverlay() {
     const overlay = document.createElement('div');
-    overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;font-family:monospace;padding:36px 100px;box-sizing:border-box;background:#F1FAFF;`;
+    overlay.style.cssText = `position:relative;width:100%;min-height:calc(100vh - ${HEADER_H}px);overflow-y:visible;z-index:100;font-family:monospace;padding:36px 100px;box-sizing:border-box;background:#F1FAFF;`;
     overlay.innerHTML = `
       <style>
         .ex-card{background:transparent;border:none;box-shadow:none;cursor:pointer;display:flex;flex-direction:column;}
@@ -60,7 +60,7 @@ export class ExploreScene extends BaseScene {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px">
         <div>
           <div class="page-title">Khám phá</div>
-          <div style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:25px;font-weight:600;font-style:italic;margin-top:5px">Phòng tranh đã được publish</div>
+          <div style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:clamp(14px,1.5vw,20px);font-weight:600;font-style:italic;margin-top:5px">Phòng tranh đã được publish</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <span style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:9px;letter-spacing:.08em;margin-right:2px">Sắp xếp:</span>

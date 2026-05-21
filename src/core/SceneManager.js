@@ -6,10 +6,12 @@ import { AuthManager } from './AuthManager.js';
 // Chiều cao header thực tế — dùng bởi các 2D scene để offset overlay
 export const HEADER_H = 90;
 
-// Scene dùng document-flow (body cuộn, footer hiện)
-const PAGE_SCENES   = ['landing'];
+// Scene dùng document-flow (body cuộn, footer hiện, header trong suốt)
+const PAGE_SCENES     = ['landing', 'pricing', 'support'];
+// Scene dùng overlay relative (body cuộn, footer ở đáy, header đặc)
+const APP_PAGE_SCENES = ['forum', 'dashboard', 'explore', 'profile', 'settings', 'login', 'register'];
 // Scene dùng Three.js canvas full-screen, ẩn mọi UI
-const FULL3D_SCENES = ['studio', 'viewer', 'preview'];
+const FULL3D_SCENES   = ['studio', 'viewer', 'preview'];
 
 export class SceneManager {
   constructor() {
@@ -79,11 +81,28 @@ export class SceneManager {
 
     } else if (PAGE_SCENES.includes(name)) {
       // ── Page 2D: document flow, body cuộn, header + footer hiện ──
-      document.body.style.overflow   = 'auto';
-      document.body.style.paddingTop = HEADER_H + 'px';
-      document.body.style.background = '';
+      document.body.style.overflow        = 'auto';
+      document.body.style.paddingTop      = HEADER_H + 'px';
+      document.body.style.background      = '';
+      document.body.style.backgroundColor = '#F1FAFF';
       canvas.style.display = 'none';
       this._header.show();
+      this._header.setTransparentBg();
+      this._footer.show();
+      window.scrollTo(0, 0);
+      this._is3D = false;
+
+    } else if (APP_PAGE_SCENES.includes(name)) {
+      // ── App Page 2D: body cuộn, canvas cố định làm nền, footer ở đáy ──
+      document.body.style.overflow        = 'auto';
+      document.body.style.paddingTop      = HEADER_H + 'px';
+      document.body.style.background      = '';
+      document.body.style.backgroundColor = '#F1FAFF';
+      canvas.style.display = 'block';
+      canvas.style.top     = HEADER_H + 'px';
+      this.renderer.setSize(innerWidth, this.canvasH);
+      this._header.show();
+      this._header.setOpaqueBg();
       this._footer.show();
       window.scrollTo(0, 0);
       this._is3D = false;
@@ -97,6 +116,7 @@ export class SceneManager {
       canvas.style.top     = HEADER_H + 'px';
       this.renderer.setSize(innerWidth, this.canvasH);
       this._header.show();
+      this._header.setOpaqueBg();
       this._footer.hide();
       this._is3D = false;
     }

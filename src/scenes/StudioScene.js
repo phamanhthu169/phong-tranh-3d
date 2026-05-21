@@ -9,6 +9,39 @@ import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { MissionBuilder } from './MissionBuilder.js';
 import { ViewerSpawn } from './ViewerSpawn.js';
 
+const STUDIO_TIPS = [
+  'Đang mở studio sáng tạo của bạn...',
+  'Tip: Bạn cũng có thể treo tranh lên trần nhà đấy.',
+  'Tip: Hãy luôn chọn vật thể trước khi điều chỉnh nhé.',
+  'Bạn có thể chỉnh độ sáng của căn phòng bất cứ lúc nào.',
+  'Tip: Hãy đặt tác phẩm quan trọng ở nơi người xem dễ nhìn thấy đầu tiên.',
+  'Đang tải mô hình 3D và công cụ xây dựng...',
+  'Tip: Lộ trình giúp dẫn người xem đi theo đúng lộ trình bạn muốn.',
+  'Bạn có thể thêm nhạc nền cho gallery của mình.',
+  'Tip: Đừng đặt quá nhiều artwork sát nhau.',
+  'Đang đồng bộ texture và vật thể trong không gian...',
+  'Tip: Thử dùng vật thể trang trí để làm không gian sinh động hơn.',
+  'Bạn có thể tăng hoặc giảm độ sáng để dễ quan sát artwork hơn.',
+  'Tip: Một căn phòng dễ di chuyển sẽ tạo trải nghiệm tốt hơn cho visitor.',
+  'Đang chuẩn bị không gian triển lãm của bạn...',
+  'Tip: Quan sát minimap để biết mình đang ở đâu.',
+  'Autosave đang tự động lưu thay đổi của bạn.',
+  'Tip: Hãy xem thử gallery ở nhiều góc khác nhau trước khi xuất bản.',
+  'Bạn có thể thêm tường ngăn để chia không gian triển lãm.',
+  'Tip: Nhạc nền nhẹ thường giúp người xem ở lại lâu hơn.',
+  'Bạn còn có thể điều chỉnh tốc độ di chuyển của visitor.',
+  'Mỗi gallery đều có thể mang phong cách hoàn toàn riêng biệt.',
+  'Cho thêm cảnh vật bên ngoài sẽ giúp căn phòng của bạn sinh động hơn đấy.',
+  'Bạn thích sơn tường chứ?',
+  'Tip: Bạn có thể tải ảnh và sticker lên thumbnail của bạn.',
+  'Nếu có điều gì băn khoăn, bạn có thể chat cùng đội ngũ của Creatory.',
+  'Nếu file video nặng quá, bạn cũng có thể nhúng link URL.',
+  'Nhớ lưu mọi thay đổi trước khi thoát trang nhé.',
+  'Nếu bạn không thấy ai ghé thăm phòng, hãy thử kiểm tra xem mình đã xuất bản phòng chưa.',
+  'Thêm bộ câu đố thú vị về phòng của bạn sẽ giúp visitor ở lại lâu hơn.',
+  'Nếu tác phẩm chỉ để trưng bày và không bán, bạn không cần điền gì trong phần giá tiền đâu.',
+];
+
 export class StudioScene extends BaseScene {
   async init() {
     /* ── Route guard: chỉ Artist mới vào được ── */
@@ -55,7 +88,7 @@ export class StudioScene extends BaseScene {
 
     /* ── Load phòng GLB ── */
     this.modelMeshes = [];
-    this._showLoadingScreen();
+    this._showLoadingScreen(undefined, STUDIO_TIPS);
     await this._loadRoomGLB();
 
     if (this._disposed) return;
@@ -243,7 +276,7 @@ export class StudioScene extends BaseScene {
       .hud-btn:hover{background:rgba(212,197,169,.2);color:#fff}
       .hud-btn.danger:hover{background:rgba(181,74,58,.3);border-color:rgba(181,74,58,.6);color:#ffaaaa}
       .uth.sel,.model-th.sel{border-color:#c8a96e!important}
-      #toast{position:fixed;bottom:50px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(20,18,14,.96);border:.5px solid rgba(212,197,169,.18);color:#d4c5a9;font-size:9px;letter-spacing:.14em;text-transform:uppercase;padding:8px 18px;border-radius:3px;pointer-events:none;opacity:0;transition:opacity .3s,transform .3s;z-index:50;white-space:nowrap}
+      #toast{position:fixed;bottom:50px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(24,45,88,.96);border:.5px solid rgba(133,212,231,.3);color:#FFFFFF;font-size:9px;letter-spacing:.14em;text-transform:uppercase;padding:8px 18px;border-radius:3px;pointer-events:none;opacity:0;transition:opacity .3s,transform .3s;z-index:50;white-space:nowrap}
       #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
       #toast.success{background:#6aaa7a;border-color:#CFFFDB;color:#CFFFDB}
       #toast.error{background:#b54a3a;border-color:#FFDDD8;color:#FFDDD8}
@@ -268,14 +301,14 @@ export class StudioScene extends BaseScene {
       #save-success-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);z-index:10000;display:none;align-items:center;justify-content:center;animation:ssOverlayIn .25s ease}
       #save-success-overlay.open{display:flex}
       @keyframes ssOverlayIn{from{opacity:0}to{opacity:1}}
-      #save-success-card{background:rgba(15,13,12,.97);border:1px solid rgba(200,169,110,.45);border-radius:10px;padding:36px 48px;display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 16px 48px rgba(0,0,0,.6);animation:ssCardIn .3s cubic-bezier(.34,1.56,.64,1);font-family:monospace;min-width:320px;text-align:center}
+      #save-success-card{background:#182D58;border:1px solid rgba(133,212,231,.5);border-radius:10px;padding:36px 48px;display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 16px 48px rgba(0,0,0,.6);animation:ssCardIn .3s cubic-bezier(.34,1.56,.64,1);font-family:monospace;min-width:320px;text-align:center}
       @keyframes ssCardIn{from{transform:scale(.78);opacity:0}to{transform:scale(1);opacity:1}}
       #save-success-icon{font-size:40px;line-height:1;animation:ssIconBounce .5s cubic-bezier(.34,1.56,.64,1) .1s both}
       @keyframes ssIconBounce{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
-      #save-success-title{color:#c8a96e;font-size:13px;letter-spacing:.2em;text-transform:uppercase;font-weight:700}
-      #save-success-msg{color:rgba(212,197,169,.7);font-size:10px;letter-spacing:.1em;line-height:1.7}
-      #save-success-progress-wrap{width:100%;height:2px;background:rgba(212,197,169,.12);border-radius:2px;overflow:hidden;margin-top:4px}
-      #save-success-progress{height:100%;width:100%;background:linear-gradient(90deg,#c8a96e,#f0d090);border-radius:2px;transform-origin:left;animation:ssProgress 1.6s linear forwards}
+      #save-success-title{color:#85d4e7;font-size:13px;letter-spacing:.2em;text-transform:uppercase;font-weight:700}
+      #save-success-msg{color:rgba(133,212,231,.8);font-size:10px;letter-spacing:.1em;line-height:1.7}
+      #save-success-progress-wrap{width:100%;height:2px;background:rgba(133,212,231,.15);border-radius:2px;overflow:hidden;margin-top:4px}
+      #save-success-progress{height:100%;width:100%;background:linear-gradient(90deg,#3a6abf,#85d4e7);border-radius:2px;transform-origin:left;animation:ssProgress 1.6s linear forwards}
       @keyframes ssProgress{from{transform:scaleX(1)}to{transform:scaleX(0)}}
       .wp-item{display:flex;align-items:center;gap:6px;background:rgba(212,197,169,.04);border:.5px solid rgba(212,197,169,.12);border-radius:2px;padding:5px 8px;cursor:grab;transition:all .2s}
       .wp-item:active{cursor:grabbing}
@@ -1048,30 +1081,81 @@ _buildStudioLeftBtns() {
     document.body.appendChild(col);
     this._el(col);
 
-    // --- Tutorial overlay ---
+    // --- Tutorial overlay (slide-based, giống ViewerScene) ---
     const tutOverlay = document.createElement('div');
     tutOverlay.id = 'studio-tutorial-overlay';
-    tutOverlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:60;display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px)';
-    tutOverlay.innerHTML = `
-        <div style="background:linear-gradient(180deg, rgba(118,170,171,1), rgba(35,92,208,0.5));border:.5px solid rgba(212,197,169,.3);border-radius:8px;padding:32px 36px;width:420px;font-family:monospace;display:flex;flex-direction:column;gap:16px;">        
-        <div style="color:#FFFFFF;font-size:16px;letter-spacing:.1em;border-bottom:.5px solid rgba(212,197,169,.15);padding-bottom:10px;">📖 Hướng dẫn xây phòng</div>
-        <div style="color:#FFFFFF;font-size:9px;line-height:2;letter-spacing:.08em;">
-          <b style="color:#FFFFFF">🚶 Walk</b> — Di chuyển trong phòng<br>
-          <b style="color:#FFFFFF">📌 Place</b> — Đặt tranh / model lên tường hoặc sàn<br>
-          <b style="color:#FFFFFF">✦ Select</b> — Chọn và di chuyển / xoay / scale vật thể<br>
-          <b style="color:#FFFFFF">💡 Light</b> — Điều chỉnh ánh sáng phòng<br>
-          <b style="color:#FFFFFF">🛤 Path</b> — Tạo lộ trình tham quan<br>
-          <b style="color:#FFFFFF">🏛 Template</b> — Đổi mẫu phòng<br>
-          <b style="color:#FFFFFF">🎨 Decor</b> — Thêm đồ trang trí<br>
-          <b style="color:#FFFFFF">🗝 Rương</b> — Đặt rương kho báu<br>
-          <b style="color:#FFFFFF">💾 Save</b> — Lưu phòng<br>
-          <b style="color:#FFFFFF">🌐 Publish</b> — Công khai phòng tranh
-        </div>
-        <button id="studio-tut-close" style="align-self:flex-end;padding:7px 20px;background:rgba(212,197,169,.08);border:.5px solid rgba(212,197,169,.2);color:#FFFFFF;font-family:monospace;font-size:9px;letter-spacing:.12em;cursor:pointer;border-radius:3px;transition:all .2s">Đã hiểu ✓</button>
-      </div>
-    `;
+    tutOverlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);display:none;align-items:center;justify-content:center;';
     document.body.appendChild(tutOverlay);
     this._el(tutOverlay);
+
+    const TUT_SLIDES = [
+      '/tutorialstudio/slide1.svg',
+      '/tutorialstudio/slide2.svg',
+      '/tutorialstudio/slide3.svg',
+      '/tutorialstudio/slide4.svg',
+      '/tutorialstudio/slide5.svg',
+      '/tutorialstudio/slide6.svg',
+    ];
+    const TUT_TOTAL = TUT_SLIDES.length;
+    let tutCurrent = 0;
+
+    const tutSlideWrap = document.createElement('div');
+    tutSlideWrap.style.cssText = 'position:relative;display:inline-flex;align-items:center;justify-content:center;';
+
+    const tutImg = document.createElement('img');
+    tutImg.style.cssText = 'width:803px;max-width:95vw;height:auto;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.45);display:block;';
+
+    const tutNav = document.createElement('div');
+    tutNav.style.cssText = 'position:absolute;bottom:22px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;';
+
+    const tutPill = document.createElement('div');
+    tutPill.style.cssText = 'width:145px;height:39px;border-radius:24.5px;background:rgba(199,217,237,1);display:flex;align-items:center;justify-content:space-between;padding:0 4px;box-sizing:border-box;';
+
+    const tutBtnPrev = document.createElement('button');
+    tutBtnPrev.style.cssText = 'width:31px;height:31px;border-radius:50%;border:none;background:rgba(255,255,255,0.55);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:opacity 0.15s,background 0.15s;flex-shrink:0;';
+    const tutPrevIcon = document.createElement('img');
+    tutPrevIcon.src = '/tutorialviewer/previous.svg';
+    tutPrevIcon.style.cssText = 'width:18.5px;height:21.37px;display:block;';
+    tutBtnPrev.appendChild(tutPrevIcon);
+
+    const tutCount = document.createElement('span');
+    tutCount.style.cssText = "font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;color:#2d4a6e;letter-spacing:.03em;text-align:center;flex:1;";
+
+    const tutBtnNext = document.createElement('button');
+    tutBtnNext.style.cssText = 'width:31px;height:31px;border-radius:50%;border:none;background:rgba(255,255,255,0.55);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:opacity 0.15s,background 0.15s;flex-shrink:0;';
+    const tutNextIcon = document.createElement('img');
+    tutNextIcon.src = '/tutorialviewer/next.svg';
+    tutNextIcon.style.cssText = 'width:18.5px;height:21.37px;display:block;';
+    tutBtnNext.appendChild(tutNextIcon);
+
+    tutPill.append(tutBtnPrev, tutCount, tutBtnNext);
+
+    const tutBtnEnter = document.createElement('button');
+    tutBtnEnter.style.cssText = "width:160px;height:39px;border-radius:24.5px;border:none;background:url('/tutorialviewer/enter.svg') center/cover no-repeat;cursor:pointer;padding:0;display:none;";
+
+    const tutRender = () => {
+      tutImg.src = TUT_SLIDES[tutCurrent];
+      tutCount.textContent = `${tutCurrent + 1} / ${TUT_TOTAL}`;
+      tutBtnPrev.style.opacity = tutCurrent === 0 ? '0.35' : '1';
+      tutBtnPrev.style.pointerEvents = tutCurrent === 0 ? 'none' : 'auto';
+      if (tutCurrent === TUT_TOTAL - 1) {
+        tutBtnEnter.style.display = 'flex';
+        tutBtnNext.style.opacity = '0.35';
+        tutBtnNext.style.pointerEvents = 'none';
+      } else {
+        tutBtnEnter.style.display = 'none';
+        tutBtnNext.style.opacity = '1';
+        tutBtnNext.style.pointerEvents = 'auto';
+      }
+    };
+
+    tutBtnPrev.addEventListener('click', () => { if (tutCurrent > 0) { tutCurrent--; tutRender(); } });
+    tutBtnNext.addEventListener('click', () => { if (tutCurrent < TUT_TOTAL - 1) { tutCurrent++; tutRender(); } });
+    tutBtnEnter.addEventListener('click', () => { tutOverlay.style.display = 'none'; });
+
+    tutNav.append(tutBtnEnter, tutPill);
+    tutSlideWrap.append(tutImg, tutNav);
+    tutOverlay.appendChild(tutSlideWrap);
 
     // --- Settings panel ---
     const sspPanel = document.createElement('div');
@@ -1094,13 +1178,9 @@ _buildStudioLeftBtns() {
 
     // --- Events ---
     document.getElementById('btn-studio-tutorial').addEventListener('click', () => {
+      tutCurrent = 0;
+      tutRender();
       tutOverlay.style.display = 'flex';
-    });
-    document.getElementById('studio-tut-close').addEventListener('click', () => {
-      tutOverlay.style.display = 'none';
-    });
-    tutOverlay.addEventListener('click', e => {
-      if (e.target === tutOverlay) tutOverlay.style.display = 'none';
     });
 
     document.getElementById('btn-studio-faq').addEventListener('click', () => {
@@ -1313,8 +1393,8 @@ _buildStudioLeftBtns() {
         padding: 10px 14px 14px 14px;
         box-sizing: border-box;
       }
-      .rp-tpl-card:hover { border-color: rgba(104,229,227,0.5); filter: brightness(1.1); }
-      .rp-tpl-card.active { border-color: rgba(104,229,227,0.9); filter: brightness(1.15); outline: 2px solid rgba(104,229,227,0.6); outline-offset: 1px; }
+      .rp-tpl-card:hover { border-color: rgba(104,229,227,0.5); }
+      .rp-tpl-card.active { border-color: rgba(104,229,227,0.9); outline: 2px solid rgba(104,229,227,0.6); outline-offset: 1px; }
       .rp-tpl-name {
         color: #fff; font-size: 10px; font-weight: 600;
         font-family: 'Montserrat', sans-serif;
@@ -2651,7 +2731,7 @@ _renderMusicPlaylist() {
         {
           const pedestalRow = document.createElement('div');
           pedestalRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 10px 8px;';
-          pedestalRow.innerHTML = `<label style="color:#ccc;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="rp-pedestal-toggle" style="accent-color:#68e5e3;cursor:pointer;width:13px;height:13px;"> Đặt trên bục trắng</label>`;
+          pedestalRow.innerHTML = `<label style="color:#FFFFFF;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="rp-pedestal-toggle" style="accent-color:#68e5e3;cursor:pointer;width:13px;height:13px;"> Đặt trên bục trắng</label>`;
           pane.appendChild(pedestalRow);
           const pedestalChk = pedestalRow.querySelector('#rp-pedestal-toggle');
           pedestalChk.checked = this._usePedestal;
@@ -2673,7 +2753,7 @@ _renderMusicPlaylist() {
         pane.style.borderRadius = '17px';
         pane.style.padding = '20px';
         pane.style.boxSizing = 'border-box';
-        pane.innerHTML = `<div class="rp-section-title">Cảnh ngoài (HDR)</div>`;
+        pane.innerHTML = `<div class="rp-section-title">Cảnh vật</div>`;
         {
           const hdrGrid = document.createElement('div');
           hdrGrid.id = 'rp-hdr-grid';
@@ -5438,7 +5518,9 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       const sz = box.getSize(new THREE.Vector3());
       const baseScale = 0.6 / Math.max(sz.x, sz.y, sz.z);
       mesh.scale.setScalar(baseScale * (chest.chest_scale > 0 ? chest.chest_scale : 1.0));
-      mesh.position.set(chest.pos_x, chest.pos_y, chest.pos_z);
+      const scaledBox = new THREE.Box3().setFromObject(mesh);
+      const chestFloorY = (this.floorY ?? 0) - scaledBox.min.y;
+      mesh.position.set(chest.pos_x, chestFloorY, chest.pos_z);
       mesh.rotation.y = chest.rot_y || 0;
       chest.mesh = mesh;
       chest._baseScale = baseScale;

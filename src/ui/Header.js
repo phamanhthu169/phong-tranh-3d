@@ -48,7 +48,7 @@ export class Header {
     const navItems = [
       { label: 'KHÁM PHÁ',       scene: 'explore'  },
       { label: 'DIỄN ĐÀN',       scene: 'forum'    },
-      { label: 'SUPPORT & LEGAL', scene: 'support'  },
+      { label: 'FAQs', scene: 'support'  },
       { label: 'ĐĂNG KÝ GÓI',    scene: 'pricing'  },
     ];
 
@@ -376,6 +376,16 @@ export class Header {
 
   hide() { this._el.style.display = 'none'; }
   show() { this._el.style.display = 'flex'; }
+
+  setOpaqueBg() {
+    this._el.style.background = 'linear-gradient(to bottom, rgba(106,173,230,0.54), rgba(255,255,255,0)), #F1FAFF';
+    this._el.style.boxShadow = 'none';
+  }
+
+  setTransparentBg() {
+    this._el.style.background = "url('/header/linear.svg') center/cover no-repeat";
+    this._el.style.boxShadow = '';
+  }
 
   dispose() {
     if (this._unsubAuth) this._unsubAuth();

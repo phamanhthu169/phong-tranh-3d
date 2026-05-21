@@ -20,6 +20,38 @@ function formatPrice(n) {
   return n.toLocaleString('vi-VN') + ' ₫';
 }
 
+const VIEWER_TIPS = [
+  'Đang bước vào phòng triển lãm 3D...',
+  'Đang tải tác phẩm và dữ liệu không gian...',
+  'Bạn có thể di chuyển tự do trong gallery.',
+  'Tip: Quan sát minimap để biết mình đang ở đâu.',
+  'Đang kết nối trải nghiệm tham quan...',
+  'Một số gallery có nhạc nền riêng.',
+  'Tip: Hãy thử tiến lại gần tác phẩm để xem chi tiết hơn.',
+  'Đang đồng bộ không gian triển lãm...',
+  'Bạn có thể theo waypoint để tham quan theo lộ trình gợi ý.',
+  'Tip: Một vài vật thể trong gallery có thể tương tác.',
+  'Đang chuẩn bị hành trình tham quan của bạn...',
+  'Một số artist giấu easter egg trong gallery của họ.',
+  'Tip: Đừng quên bật âm thanh để có trải nghiệm đầy đủ hơn.',
+  'Đang tải soundtrack và dữ liệu triển lãm...',
+  'Bạn có thể khám phá gallery theo ý muốn của riêng mình.',
+  'Thỉnh thoảng hãy nhìn lên trần nhà nhé.',
+  'Tip: Hãy thử đi theo lộ trình nếu bạn chưa biết bắt đầu từ đâu.',
+  'Chào mừng bạn đến với không gian sáng tạo 3D.',
+  'Hãy hoàn thành câu đố trước khi rời phòng.',
+  'Chăm chỉ giải đố có thể giúp bạn leo rank.',
+  'Một số bí mật chỉ xuất hiện với những người khám phá đủ kỹ.',
+  'Hãy thả tim cho căn phòng yêu thích của bạn nhé.',
+  'Bạn có thể lan toả câu chuyện của Creatory thông qua chia sẻ lên các nền tảng mạng xã hội.',
+  'Để lại tin nhắn của bạn để mọi người biết bạn đã ở đây!',
+  'Tác phẩm hay đồ lưu niệm, đều có thể thêm vào giỏ hàng.',
+  'Lộ trình mà creator tạo ra chưa chắc đã đi hết căn phòng đâu nhé.',
+  'Điều chỉnh ánh sáng sẽ giúp bạn quan sát tác phẩm tốt hơn.',
+  'Bạn cũng có thể tự tạo cho mình một căn phòng đấy.',
+  'Bạn đang tiến vào trí tưởng tượng của một người khác.',
+];
+
 export class ViewerScene extends BaseScene {
 
   constructor(manager, canvas) {
@@ -171,7 +203,7 @@ export class ViewerScene extends BaseScene {
       this.keys[e.code] = false;
     });
 
-    this._showLoadingScreen();
+    this._showLoadingScreen(undefined, VIEWER_TIPS);
     await this._loadRoom();
     if (this._disposed) return;
     this._loadCharacter();
@@ -616,6 +648,12 @@ export class ViewerScene extends BaseScene {
       display:inline-flex;
       margin-top:2px;
 }
+      #chat-box {
+        position:absolute;
+        bottom:calc(100% + 6px);
+        left:0;
+        z-index:50;
+      }
 
       #chat-toggle-btn:hover { background:#bccad8; }
       #chat-icon { font-size:13px; color:#fff; background:#a0b4c8; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; flex-shrink:0; letter-spacing:1px; }
@@ -637,7 +675,6 @@ export class ViewerScene extends BaseScene {
         border:.5px solid var(--border); border-radius:var(--radius);
         overflow:hidden; display:none; flex-direction:column;
         box-shadow:0 8px 32px rgba(0,0,0,.5);
-        margin-bottom:6px;
       }
       #chat-box.open { display:flex; }
       #chat-box-header {
@@ -909,13 +946,13 @@ export class ViewerScene extends BaseScene {
       }
       #ap-expand-btn:hover{ background:rgba(200,169,110,.3); }
       #ap-body{ padding:14px 16px; display:flex; flex-direction:column; gap:8px; }
-      #ap-title{ font-family:var(--font-head); font-size:18px; font-weight:400; font-style:italic; color:var(--gold); }
+      #ap-title{ font-family:var(--font-head); font-size:18px; font-weight:700; font-style:italic; color:#7ecfff; }
       #ap-sub{ display:flex; align-items:center; gap:8px; }
-      #ap-artist{ font-family:var(--font-mono); font-size:8px; letter-spacing:.14em; color:var(--accent); text-transform:uppercase; }
-      #ap-year{ font-family:var(--font-mono); font-size:8px; letter-spacing:.1em; color:var(--text-dim); }
-      #ap-desc{ font-size:11px; line-height:1.75; color:rgba(212,197,169,.7); letter-spacing:.03em; word-break: break-all; }      #ap-price-row{ display:flex; flex-direction:column; gap:2px; }
-      #ap-price-label{ font-family:var(--font-mono); font-size:7px; letter-spacing:.16em; text-transform:uppercase; color:var(--text-dim); }
-      #ap-price{ font-family:var(--font-head); font-size:20px; color:var(--accent2); letter-spacing:.04em; }
+      #ap-artist{ font-family:var(--font-mono); font-size:8px; letter-spacing:.14em; color:#85d4e7; text-transform:uppercase; font-weight:700; }
+      #ap-year{ font-family:var(--font-mono); font-size:8px; letter-spacing:.1em; color:#a8c8e0; font-weight:700; }
+      #ap-desc{ font-size:11px; line-height:1.75; color:#c8e4f4; letter-spacing:.03em; word-break: break-all; font-weight:600; }      #ap-price-row{ display:flex; flex-direction:column; gap:2px; }
+      #ap-price-label{ font-family:var(--font-mono); font-size:7px; letter-spacing:.16em; text-transform:uppercase; color:#a8c8e0; font-weight:700; }
+      #ap-price{ font-family:var(--font-head); font-size:20px; color:#FFD700; letter-spacing:.04em; font-weight:700; }
       #ap-add-cart{
         width:100%; padding:10px;
         background:linear-gradient(135deg, rgba(200,169,110,.2) 0%, rgba(200,169,110,.08) 100%);
@@ -953,15 +990,15 @@ export class ViewerScene extends BaseScene {
 
       #vw-toast{
         position:fixed; bottom:54px; left:50%; transform:translateX(-50%) translateY(16px);
-        background:rgba(20,17,14,.97); border:.5px solid var(--border);
-        color:var(--gold); font-family:var(--font-mono); font-size:8px;
+        background:rgba(24,45,88,.96); border:.5px solid rgba(133,212,231,.3);
+        color:#FFFFFF; font-family:var(--font-mono); font-size:8px;
         letter-spacing:.14em; text-transform:uppercase; padding:8px 18px; border-radius:20px;
         pointer-events:none; opacity:0; transition:opacity .3s, transform .3s;
         z-index:40; white-space:nowrap; backdrop-filter:blur(8px);
       }
       #vw-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
-      #vw-toast.success{ border-color:var(--green); color:var(--green); }
-      #vw-toast.error{ border-color:var(--danger); color:var(--danger); }
+      #vw-toast.success{ background:#6aaa7a; border-color:#CFFFDB; color:#CFFFDB; }
+      #vw-toast.error{ background:#b54a3a; border-color:#FFDDD8; color:#FFDDD8; }
 
       #vw-nav{ position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(15,13,12,.94); border:.5px solid #c8a96e; border-radius:4px; padding:6px 10px; display:none; align-items:center; gap:8px; z-index:25; font-family:monospace; }
       #vw-nav.show{ display:flex; }
@@ -1031,7 +1068,7 @@ export class ViewerScene extends BaseScene {
       </div>
       <div class="icon-btn" id="btn-settings" title="Cài đặt"><img src="/icons/settings.svg" style="width:18px;height:18px"></div>
       <div class="icon-btn" id="btn-help" title="Hướng dẫn sử dụng"><img src="/icons/help.svg" style="width:18px;height:18px"></div>
-      <div class="icon-btn" id="btn-share" title="Chia sẻ phòng tranh"><img src="/icons/share.svg" style="width:18px;height:18px"></div>
+      <div class="icon-btn" id="btn-share" title="Chia sẻ phòng tranh"><img src="/icons/link.svg" style="width:18px;height:18px"></div>
 
       <div id="chat-wrap">
         <div id="chat-box">
@@ -2670,7 +2707,9 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
           const sz = box.getSize(new THREE.Vector3());
           const baseScale = 0.6 / Math.max(sz.x, sz.y, sz.z);
           mesh.scale.setScalar(baseScale * (row.chest_scale > 0 ? row.chest_scale : 1.0));
-          mesh.position.set(row.pos_x, row.pos_y, row.pos_z);
+          const scaledBox = new THREE.Box3().setFromObject(mesh);
+          const chestFloorY = (this.floorY ?? 0) - scaledBox.min.y;
+          mesh.position.set(row.pos_x, chestFloorY, row.pos_z);
           mesh.rotation.y = row.rot_y || 0;
           chest.mesh = mesh;
           this.threeScene.add(mesh);

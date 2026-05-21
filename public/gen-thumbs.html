@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Room Thumbnail Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0d1a;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 20px;
+      gap: 20px;
+    }
+    h1 { color: #c8a96e; font-size: 15px; letter-spacing: .18em; text-transform: uppercase; }
+    #hint {
+      font-size: 9px; color: rgba(255,255,255,.4); letter-spacing: .08em;
+      line-height: 2; text-align: center; max-width: 520px;
+    }
+    #hint code { color: #c8a96e; background: rgba(200,169,110,.1); padding: 1px 6px; border-radius: 3px; }
+    .grid {
+      display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; max-width: 840px;
+    }
+    .card {
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      width: 180px;
+    }
+    .card canvas {
+      width: 180px; height: 180px; display: block;
+      border-radius: 8px; border: 1px solid rgba(212,197,169,.15);
+      background: #111;
+    }
+    .card .name {
+      font-size: 8px; letter-spacing: .07em; color: rgba(200,169,110,.65);
+      text-align: center; max-width: 180px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .card .st { font-size: 8px; letter-spacing: .06em; }
+    .st.loading { color: #c8a96e; }
+    .st.ok  { color: #5aaa7a; }
+    .st.err { color: #b54a3a; }
+    #actions {
+      display: none;
+      flex-direction: column; align-items: center; gap: 10px;
+    }
+    .btn {
+      padding: 11px 28px;
+      background: linear-gradient(135deg, #c8a96e, #a07840);
+      color: #0d0d1a; border: none; border-radius: 4px;
+      font-family: inherit; font-size: 10px; font-weight: 700;
+      letter-spacing: .14em; text-transform: uppercase; cursor: pointer;
+      transition: filter .2s;
+    }
+    .btn:hover { filter: brightness(1.15); }
+    .btn.secondary {
+      background: rgba(200,169,110,.12);
+      border: .5px solid rgba(200,169,110,.35);
+      color: #c8a96e;
+    }
+    #footer-note {
+      font-size: 8px; color: rgba(255,255,255,.3); text-align: center;
+      letter-spacing: .07em; line-height: 2;
+    }
+  </style>
+</head>
+<body>
+  <h1>🖼 Room Thumbnail Generator</h1>
+
+  <div id="hint">
+    Đang render các mẫu phòng còn thiếu thumbnail…<br>
+    Khi xong, bấm <b style="color:#c8a96e">Lưu vào thư mục</b> để ghi thẳng vào
+    <code>public/models/thumbnails/</code>
+  </div>
+
+  <div id="grid" class="grid"></div>
+
+  <div id="actions">
+    <button class="btn" id="btn-save">💾 Lưu tất cả vào thư mục thumbnails</button>
+    <button class="btn secondary" id="btn-dl">⬇ Hoặc tải về thủ công</button>
+  </div>
+  <div id="footer-note"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader }  from 'three/addons/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+    /* ── Danh sách phòng cần tạo thumbnail ────────────────────── */
+    const MODELS = [
+      { file: 'abandoned_vr_gallery.glb',           name: 'Abandoned Gallery' },
+      { file: 'vr_art_gallery_-_vr_room_light.glb', name: 'Room Light' },
+      { file: 'sky_gallery_series_01.glb',           name: 'Sky Gallery' },
+      { file: 'vr_exhibition_gallery_baked.glb',     name: 'Black Gallery' },
+      { file: 'vr_modern_gallery_room.glb',          name: 'Modern Gallery' },
+      { file: 'white_round_exhibition_gallery.glb',  name: 'White Round Gallery' },
+    ];
+
+    const SIZE = 512;
+
+    /* ── Renderer dùng chung (offscreen) ──────────────────────── */
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = SIZE; offCanvas.height = SIZE;
+    const renderer = new THREE.WebGLRenderer({
+      canvas: offCanvas, antialias: true, preserveDrawingBuffer: true,
+    });
+    renderer.setSize(SIZE, SIZE);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping    = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.3;
+
+    /* ── GLTFLoader dùng chung ─────────────────────────────────── */
+    const draco = new DRACOLoader();
+    draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
+
+    /* ── Tìm vị trí spawn trong phòng ─────────────────────────── */
+    function findSpawn(box, meshes) {
+      const ray    = new THREE.Raycaster();
+      const down   = new THREE.Vector3(0, -1, 0);
+      const center = box.getCenter(new THREE.Vector3());
+      const scanY  = box.max.y + 1;
+      const dz     = box.max.z - box.min.z;
+      const candidates = [
+        { x: center.x, z: center.z },
+        { x: center.x, z: center.z - dz * 0.2 },
+        { x: center.x, z: center.z + dz * 0.2 },
+        { x: center.x, z: box.min.z + Math.min(3, dz * 0.25) },
+        { x: center.x, z: box.max.z - Math.min(3, dz * 0.25) },
+      ];
+      for (const c of candidates) {
+        ray.set(new THREE.Vector3(c.x, scanY, c.z), down);
+        const hits = ray.intersectObjects(meshes, false).filter(h =>
+          h.point.y >= box.min.y - 0.1 && h.point.y <= box.max.y - 0.8
+        );
+        if (hits.length) return { x: c.x, z: c.z, floorY: hits[0].point.y };
+      }
+      return { x: center.x, z: center.z, floorY: box.min.y };
+    }
+
+    /* ── Render 1 model → dataURL ──────────────────────────────── */
+    function renderModel(file) {
+      return new Promise(resolve => {
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+
+        scene.add(new THREE.AmbientLight(0xfff8f0, 2.0));
+        const dir = new THREE.DirectionalLight(0xffffff, 3.0);
+        dir.position.set(5, 10, 7);
+        scene.add(dir);
+        scene.add(new THREE.HemisphereLight(0xfff0e0, 0x404040, 1.2));
+
+        loader.load(`/models/${file}`, gltf => {
+          const root = gltf.scene;
+          const meshes = [];
+          root.traverse(c => {
+            if (!c.isMesh) return;
+            meshes.push(c);
+            const mats = Array.isArray(c.material) ? c.material : [c.material];
+            mats.forEach(m => { if (m && !m.transparent) m.side = THREE.DoubleSide; });
+          });
+
+          scene.add(root);
+          root.updateMatrixWorld(true);
+
+          const box    = new THREE.Box3().setFromObject(root);
+          const size   = box.getSize(new THREE.Vector3());
+          const spawn  = findSpawn(box, meshes);
+          const camH   = spawn.floorY + Math.min(1.8, size.y * 0.32);
+
+          const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 1000);
+          // Đứng hơi lệch trái, nhìn vào trong phòng
+          camera.position.set(
+            spawn.x - size.x * 0.12,
+            camH,
+            spawn.z - size.z * 0.08,
+          );
+          camera.lookAt(
+            spawn.x + size.x * 0.08,
+            camH - 0.15,
+            spawn.z + size.z * 0.15,
+          );
+          camera.updateProjectionMatrix();
+
+          renderer.render(scene, camera);
+          resolve(offCanvas.toDataURL('image/png'));
+        }, undefined, err => {
+          console.error(file, err);
+          resolve(null);
+        });
+      });
+    }
+
+    /* ── Tạo card UI ───────────────────────────────────────────── */
+    function makeCard(model) {
+      const grid   = document.getElementById('grid');
+      const card   = document.createElement('div'); card.className = 'card';
+      const canvas = document.createElement('canvas');
+      canvas.width = SIZE; canvas.height = SIZE;
+      const name   = document.createElement('div'); name.className = 'name'; name.textContent = model.name;
+      const st     = document.createElement('div'); st.className = 'st loading'; st.textContent = '⏳ rendering…';
+      card.append(canvas, name, st);
+      grid.appendChild(card);
+      return { canvas, st };
+    }
+
+    /* ── Main ──────────────────────────────────────────────────── */
+    const results = []; // { thumbName, dataUrl }
+
+    async function run() {
+      for (const model of MODELS) {
+        const { canvas, st } = makeCard(model);
+        const dataUrl = await renderModel(model.file);
+
+        if (dataUrl) {
+          // Copy to display canvas
+          const ctx = canvas.getContext('2d');
+          const img = new Image();
+          img.src = dataUrl;
+          await new Promise(r => { img.onload = r; });
+          ctx.drawImage(img, 0, 0);
+
+          st.className = 'st ok';
+          st.textContent = '✓ xong';
+
+          const thumbName = model.file.replace(/\.glb$/i, '.png');
+          results.push({ thumbName, dataUrl });
+        } else {
+          st.className = 'st err';
+          st.textContent = '✗ load thất bại';
+        }
+
+        // Cho DOM thở
+        await new Promise(r => requestAnimationFrame(r));
+      }
+
+      if (results.length === 0) return;
+
+      const actions = document.getElementById('actions');
+      actions.style.display = 'flex';
+      wireButtons();
+    }
+
+    /* ── Nút lưu / tải ─────────────────────────────────────────── */
+    function wireButtons() {
+      const btnSave = document.getElementById('btn-save');
+      const btnDl   = document.getElementById('btn-dl');
+      const note    = document.getElementById('footer-note');
+
+      // Lưu thẳng vào thư mục — dùng File System Access API (Chrome)
+      btnSave.addEventListener('click', async () => {
+        if (!window.showDirectoryPicker) {
+          note.textContent = 'Trình duyệt không hỗ trợ File System API. Dùng nút Tải về bên dưới.';
+          return;
+        }
+        try {
+          const dir = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'desktop' });
+          for (const { thumbName, dataUrl } of results) {
+            const blob   = await (await fetch(dataUrl)).blob();
+            const handle = await dir.getFileHandle(thumbName, { create: true });
+            const ws     = await handle.createWritable();
+            await ws.write(blob);
+            await ws.close();
+          }
+          note.style.color = '#5aaa7a';
+          note.textContent = `✅ Đã lưu ${results.length} file vào thư mục. Chuyển chúng vào public/models/thumbnails/ nếu chưa đúng chỗ.`;
+        } catch (e) {
+          if (e.name !== 'AbortError') note.textContent = 'Lỗi: ' + e.message;
+        }
+      });
+
+      // Fallback: tải từng file
+      btnDl.addEventListener('click', () => {
+        results.forEach(({ thumbName, dataUrl }) => {
+          const a = document.createElement('a');
+          a.href = dataUrl; a.download = thumbName;
+          a.click();
+        });
+        note.textContent = 'Sau khi tải về, chuyển các file PNG vào thư mục: public/models/thumbnails/';
+      });
+    }
+
+    run();
+  </script>
+</body>
+</html>

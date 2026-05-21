@@ -136,21 +136,14 @@ export class Footer {
     const navColLeft = _makeNavColumn([
       { label: 'KHÁM PHÁ',       scene: 'explore'  },
       { label: 'DIỄN ĐÀN',       scene: 'forum'    },
-      { label: 'SUPPORT & LEGAL',scene: 'support'  },
+      { label: 'FAQs',scene: 'support'  },
       { label: 'ĐĂNG KÝ GÓI',   scene: 'pricing'  },
-    ], this.manager);
-
-    const navColRight = _makeNavColumn([
-      { label: 'FAQ',                  scene: 'faq'     },
-      { label: 'CHÍNH SÁCH PHÁP LÝ',  scene: 'legal'   },
-      { label: 'ĐIỀU KHOẢN DỊCH VỤ',  scene: 'terms'   },
     ], this.manager);
 
     // Assemble
     el.appendChild(leftCol);
     el.appendChild(spacer);
     el.appendChild(navColLeft);
-    el.appendChild(navColRight);
 
     document.body.appendChild(el);
     this._el = el;

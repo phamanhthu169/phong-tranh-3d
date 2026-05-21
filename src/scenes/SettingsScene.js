@@ -22,8 +22,8 @@ export class SettingsScene extends BaseScene {
 
     const overlay = document.createElement('div');
     overlay.style.cssText = `
-      position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;
-      overflow-y:auto;z-index:100;background:#F1FAFF;
+      position:relative;width:100%;min-height:calc(100vh - ${HEADER_H}px);
+      overflow-y:visible;z-index:100;background:#F1FAFF;
       font-family:'Montserrat',sans-serif;padding:40px 100px;
       box-sizing:border-box;
     `;

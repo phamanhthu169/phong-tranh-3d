@@ -33,7 +33,7 @@ export class DashboardScene extends BaseScene {
 
   _buildOverlay() {
     const overlay = document.createElement('div');
-    overlay.style.cssText = `position:fixed;top:${HEADER_H}px;left:0;right:0;bottom:0;overflow-y:auto;z-index:100;font-family:monospace;padding:36px 40px;box-sizing:border-box;`;
+    overlay.style.cssText = `position:relative;width:100%;min-height:calc(100vh - ${HEADER_H}px);overflow-y:visible;z-index:100;font-family:monospace;padding:36px 40px;box-sizing:border-box;`;
     overlay.innerHTML = `
       <style>
         .db-card{background:#ffffff;border:1px solid rgba(0,0,0,.1);border-radius:6px;padding:20px;display:flex;flex-direction:column;gap:12px;transition:border-color .2s;box-shadow:0 2px 8px rgba(0,0,0,.06)}
@@ -42,8 +42,8 @@ export class DashboardScene extends BaseScene {
         .db-badge.pub{background:rgba(106,170,122,.15);border:1px solid rgba(106,170,122,.35);color:#6aaa7a}
         .db-badge.draft{background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#777}
         .db-btn{padding:6px 14px;font-size:10px;cursor:pointer;font-family:monospace;letter-spacing:.08em;border-radius:3px;transition:all .2s;border:1px solid}
-        .db-btn.edit{background:rgba(200,169,110,.12);border-color:rgba(200,169,110,.4);color:#c8a96e}
-        .db-btn.edit:hover{background:rgba(200,169,110,.28)}
+        .db-btn.edit{background:rgba(18,47,106,.1);border-color:rgba(18,47,106,.35);color:#122F6A}
+        .db-btn.edit:hover{background:rgba(18,47,106,.2)}
         .db-btn.del{background:none;border-color:rgba(181,74,58,.25);color:rgba(181,74,58,.6)}
         .db-btn.del:hover{background:rgba(181,74,58,.1);border-color:rgba(181,74,58,.5);color:#ff9090}
       </style>
@@ -53,7 +53,7 @@ export class DashboardScene extends BaseScene {
           <div class="page-title">Phòng tranh của tôi</div>
           <div id="db-artist" style="color:#666;font-size:10px;letter-spacing:.1em;margin-top:5px"></div>
         </div>
-        <button id="db-new-btn" style="background:rgba(200,169,110,.15);border:1px solid rgba(200,169,110,.5);color:#c8a96e;font-family:monospace;font-size:11px;letter-spacing:.1em;padding:10px 22px;border-radius:3px;cursor:pointer;transition:background .2s;">
+        <button id="db-new-btn" style="background:#122F6A;border:none;box-shadow:inset 0 0 0 2px rgba(255,255,255,0.18),0 4px 16px #76AAAB;color:#FFFFFF;font-family:'Montserrat',sans-serif;font-weight:700;font-size:11px;letter-spacing:.1em;padding:10px 26px;border-radius:26px;cursor:pointer;transition:background .2s,box-shadow .2s;">
           ＋ Tạo phòng mới
         </button>
       </div>
@@ -72,8 +72,8 @@ export class DashboardScene extends BaseScene {
     document.getElementById('db-artist').textContent = this.manager.auth.profile.name;
 
     const newBtn = document.getElementById('db-new-btn');
-    newBtn.addEventListener('mouseenter', () => newBtn.style.background = 'rgba(200,169,110,.28)');
-    newBtn.addEventListener('mouseleave', () => newBtn.style.background = 'rgba(200,169,110,.15)');
+    newBtn.addEventListener('mouseenter', () => { newBtn.style.background = '#1a3f8a'; newBtn.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.18),0 6px 20px #76AAAB'; });
+    newBtn.addEventListener('mouseleave', () => { newBtn.style.background = '#122F6A'; newBtn.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.18),0 4px 16px #76AAAB'; });
     newBtn.addEventListener('click', () => this._createNewRoom());
   }
 

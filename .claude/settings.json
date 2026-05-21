@@ -21,7 +21,8 @@
       "Bash(curl -s \"https://ejdzwaekpejmfajfnccl.supabase.co/rest/v1/gallery_stats?select=*&limit=5\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqZHp3YWVrcGVqbWZhamZuY2NsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MDgyNDYsImV4cCI6MjA5MzE4NDI0Nn0.69bZ3hQcCuhEPmy-Pi4Phou6OhCrbNIR7kuPR1yfr1I\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqZHp3YWVrcGVqbWZhamZuY2NsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MDgyNDYsImV4cCI6MjA5MzE4NDI0Nn0.69bZ3hQcCuhEPmy-Pi4Phou6OhCrbNIR7kuPR1yfr1I\")",
       "Bash(curl -s -X POST \"https://ejdzwaekpejmfajfnccl.supabase.co/rest/v1/gallery_stats\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqZHp3YWVrcGVqbWZhamZuY2NsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MDgyNDYsImV4cCI6MjA5MzE4NDI0Nn0.69bZ3hQcCuhEPmy-Pi4Phou6OhCrbNIR7kuPR1yfr1I\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqZHp3YWVrcGVqbWZhamZuY2NsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MDgyNDYsImV4cCI6MjA5MzE4NDI0Nn0.69bZ3hQcCuhEPmy-Pi4Phou6OhCrbNIR7kuPR1yfr1I\" -H \"Content-Type: application/json\" -d '{\"gallery_name\":\"__test__\",\"views\":1}')",
       "Bash(dir public\\\\header)",
-      "Bash(dir public\\\\footer)"
+      "Bash(dir public\\\\footer)",
+      "Bash(git checkout *)"
     ]
   }
 }
