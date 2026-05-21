@@ -281,7 +281,7 @@ export class ViewerScene extends BaseScene {
     overlay.style.cssText = `
       position:fixed;inset:0;z-index:9999;
       background:rgba(0,0,0,0.55);
-      display:flex;align-items:center;justify-content:center;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
     `;
 
     // Wrapper bao quanh ảnh, dùng để đặt nav bên trong (position relative)
@@ -403,7 +403,14 @@ export class ViewerScene extends BaseScene {
 
     nav.append(btnEnter, pill);
     slideWrap.append(img, nav);
+
+    const btnSkip = document.createElement('button');
+    btnSkip.textContent = 'Bỏ qua';
+    btnSkip.style.cssText = "font-family:'Nunito',sans-serif;font-size:14px;font-weight:600;color:#FFFFFF;background:transparent;border:1.5px solid rgba(255,255,255,0.6);border-radius:20px;padding:8px 28px;cursor:pointer;letter-spacing:0.03em;";
+    btnSkip.addEventListener('click', () => { close(); });
+
     overlay.appendChild(slideWrap);
+    overlay.appendChild(btnSkip);
     document.body.appendChild(overlay);
 
     render();
@@ -883,6 +890,7 @@ export class ViewerScene extends BaseScene {
       .product-thumb-canvas{ width: 100%; height: 100%; display: block; object-fit: cover; border-radius: 10px;}
       .product-body{ flex:1; padding: 14px 4px 14px 12px; display:flex; flex-direction:column; justify-content:space-between; min-width:0; }
       .product-name{ font-family:'Montserrat', sans-serif; font-size:13px; font-weight:400; color:#FFFFFF; letter-spacing:.04em; white-space:normal; line-height:1.4; overflow:hidden; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; }
+      .product-artist{ font-family:'Montserrat', sans-serif; font-size:11px; font-weight:500; color:#FFE066; letter-spacing:.04em; margin-top:4px; }
       .product-price{ font-family:var(--font-mono); font-size:13px; font-weight:600; color:#FFFFFF; letter-spacing:.04em; margin-top:4px; }
       .product-price.contact{ color:#FFFFFF; font-size:11px; font-family:var(--font-mono); }
       .product-actions{ flex-shrink:0; display:flex; flex-direction:column; border-left:.5px solid rgba(212,197,169,.08); }

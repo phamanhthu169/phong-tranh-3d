@@ -410,6 +410,7 @@ export class ProfileScene extends BaseScene {
           <div>
             <div style="color:#1a1a1a;font-size:15px;font-weight:bold;letter-spacing:.08em" id="pf-name-display"></div>
             <div style="margin-top:4px"><span class="pf-role-badge" id="pf-role-display"></span></div>
+            <div id="pf-follow-stats" style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap"></div>
           </div>
         </div>
 
@@ -678,11 +679,97 @@ export class ProfileScene extends BaseScene {
     // Nút action
     const actionsEl = document.getElementById('pf-actions');
     if (this._isSelf) {
-      actionsEl.innerHTML = `
-        <button id="pf-edit-btn" class="pf-btn gold">✎ Chỉnh sửa</button>
-      `;
+      actionsEl.innerHTML = `<button id="pf-edit-btn" class="pf-btn gold">✎ Chỉnh sửa</button>`;
       document.getElementById('pf-edit-btn').addEventListener('click', () => this._enterEdit());
+    } else if (this.manager.auth.isLoggedIn) {
+      actionsEl.innerHTML = `<button id="pf-follow-btn" class="pf-btn ghost" style="min-width:120px;letter-spacing:.06em" disabled>...</button>`;
+      this._loadFollowState();
     }
+    this._loadFollowCounts();
+  }
+
+  // ─── Tải trạng thái follow ────────────────────────────────────────────────────
+  async _loadFollowState() {
+    const me = this.manager.auth.profile;
+    const targetId = this._target.id;
+    if (!me?.id || !targetId) {
+      const btn = document.getElementById('pf-follow-btn');
+      if (btn) { btn.textContent = '+ Theo dõi'; btn.disabled = true; }
+      return;
+    }
+    const { data } = await supabase
+      .from('follows')
+      .select('follower_id')
+      .eq('follower_id', me.id)
+      .eq('following_id', targetId)
+      .maybeSingle();
+    if (this._disposed) return;
+    this._isFollowing = !!data;
+    this._updateFollowBtn();
+  }
+
+  _updateFollowBtn() {
+    const btn = document.getElementById('pf-follow-btn');
+    if (!btn) return;
+    btn.disabled = false;
+    if (this._isFollowing) {
+      btn.textContent = '✓ Đang theo dõi';
+      btn.className = 'pf-btn ghost';
+    } else {
+      btn.textContent = '+ Theo dõi';
+      btn.className = 'pf-btn gold';
+    }
+    btn.onclick = () => this._toggleFollow();
+  }
+
+  async _toggleFollow() {
+    const me = this.manager.auth.profile;
+    const targetId = this._target.id;
+    if (!me?.id || !targetId) return;
+    const btn = document.getElementById('pf-follow-btn');
+    if (btn) btn.disabled = true;
+    if (this._isFollowing) {
+      await supabase.from('follows').delete()
+        .eq('follower_id', me.id).eq('following_id', targetId);
+      this._isFollowing = false;
+    } else {
+      await supabase.from('follows').insert({ follower_id: me.id, following_id: targetId });
+      this._isFollowing = true;
+    }
+    if (this._disposed) return;
+    this._updateFollowBtn();
+    this._loadFollowCounts();
+    this._reloadFollowTabs();
+  }
+
+  _reloadFollowTabs() {
+    ['following', 'followers'].forEach(type => {
+      if (!this._followLoaded?.[type]) return;
+      const listEl    = document.getElementById('pf-' + type + '-list');
+      const emptyEl   = document.getElementById('pf-' + type + '-empty');
+      const loadingEl = document.getElementById('pf-' + type + '-loading');
+      if (listEl)    { listEl.innerHTML = ''; listEl.style.display = 'none'; }
+      if (emptyEl)   emptyEl.style.display = 'none';
+      if (loadingEl) loadingEl.style.display = 'block';
+      this._followLoaded[type] = false;
+      this._loadFollows(type);
+    });
+  }
+
+  async _loadFollowCounts() {
+    const targetId = this._target.id;
+    if (!targetId) return;
+    const [{ count: followers }, { count: following }] = await Promise.all([
+      supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', targetId),
+      supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', targetId),
+    ]);
+    if (this._disposed) return;
+    const el = document.getElementById('pf-follow-stats');
+    if (!el) return;
+    el.innerHTML = `
+      <span style="font-size:12px;color:#666"><strong style="color:#182D58;font-weight:700">${followers ?? 0}</strong> người theo dõi</span>
+      <span style="font-size:12px;color:#666"><strong style="color:#182D58;font-weight:700">${following ?? 0}</strong> đang theo dõi</span>
+    `;
   }
 
   // ─── Bind nút quay lại + cart FAB + checkout ─────────────────────────────────
@@ -1943,7 +2030,7 @@ export class ProfileScene extends BaseScene {
     const ids = follows.map(r => r[resultCol]).filter(Boolean);
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, name, role, avatar_url')
+      .select('id, display_name, role, avatar_url')
       .in('id', ids);
 
     if (this._disposed) return;
@@ -1955,20 +2042,21 @@ export class ProfileScene extends BaseScene {
 
     listEl.style.display = 'grid';
     profiles.forEach(p => {
+      const name = p.display_name || 'Ẩn danh';
       const card = document.createElement('div');
       card.className = 'pf-follow-card';
       const avatarHtml = p.avatar_url
         ? `<img src="${this._esc(p.avatar_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />`
-        : `<span>${(p.name || '?').charAt(0).toUpperCase()}</span>`;
+        : `<span>${name.charAt(0).toUpperCase()}</span>`;
       card.innerHTML = `
         <div class="pf-avatar-circle" style="width:38px;height:38px;font-size:16px;flex-shrink:0;cursor:default">${avatarHtml}</div>
         <div>
-          <div style="font-size:13px;font-weight:600;letter-spacing:.04em">${this._esc(p.name || 'Ẩn danh')}</div>
+          <div style="font-size:13px;font-weight:600;letter-spacing:.04em">${this._esc(name)}</div>
           <div style="font-size:11px;letter-spacing:.1em;color:#888;text-transform:uppercase;margin-top:2px">${p.role === 'artist' ? 'Artist' : 'Visitor'}</div>
         </div>
       `;
       card.addEventListener('click', () => {
-        this.manager.profileTarget = { ...p, avatarUrl: p.avatar_url };
+        this.manager.profileTarget = { ...p, name, avatarUrl: p.avatar_url };
         this.manager.navigateTo('profile');
       });
       listEl.appendChild(card);
