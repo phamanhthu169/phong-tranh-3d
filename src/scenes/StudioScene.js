@@ -54,17 +54,24 @@ export class StudioScene extends BaseScene {
     if (!this.manager.auth.isArtist) {
       this.manager.navigateTo('landing'); return;
     }
-    if (!this.manager.currentRoom) {
+    const _studioUserId = this.manager.auth.user?.id;
+    if (this.manager.currentRoom) {
+      // Vào từ in-app navigation — kiểm tra ownership
+      if (!_studioUserId || !this.manager.currentRoom.id.startsWith(_studioUserId + ':::')) {
+        this.manager.currentRoom = null;
+        this.manager.navigateTo('dashboard'); return;
+      }
+    } else {
+      // Vào từ URL trực tiếp
       const _urlRoomId = new URLSearchParams(location.search).get('room');
       if (_urlRoomId) {
         const roomId = decodeURIComponent(_urlRoomId);
-        const userId = this.manager.auth.user?.id;
-        if (!userId || !roomId.startsWith(userId + ':::')) {
+        if (!_studioUserId || !roomId.startsWith(_studioUserId + ':::')) {
           this.manager.navigateTo('dashboard'); return;
         }
         const { data } = await supabase.from('gallery').select('name, scene_data').eq('name', roomId).limit(1);
         const meta = data?.[0]?.scene_data?._meta || {};
-        this.manager.currentRoom = { id: roomId, name: meta.roomName || null, artistId: userId, isPublished: !!meta.isPublished };
+        this.manager.currentRoom = { id: roomId, name: meta.roomName || null, artistId: _studioUserId, isPublished: !!meta.isPublished };
       } else {
         this.manager.navigateTo('dashboard'); return;
       }

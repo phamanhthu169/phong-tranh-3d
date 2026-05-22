@@ -1957,7 +1957,7 @@ export class ProfileScene extends BaseScene {
 
   // ─── Tạo phòng mới (chỉ artist xem profile mình) ───────────────────────────
   _createNewRoom() {
-    const artistId = this._target.id || this._target.name;
+    const artistId = this.manager.auth.user.id;
     const roomId   = artistId + ':::' + Date.now();
     this.manager.currentRoom = { id: roomId, name: null, artistId, isPublished: false };
     this.manager.navigateTo('studio');
