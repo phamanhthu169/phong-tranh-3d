@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BaseScene } from './BaseScene.js';
 import { HEADER_H } from '../core/SceneManager.js';
-import { supabase } from '../utils/supabase.js';
+import { supabase, compressImage, toCDN } from '../utils/supabase.js';
 
 export class ForumScene extends BaseScene {
   async init() {
@@ -1091,7 +1091,10 @@ export class ForumScene extends BaseScene {
 
     // Upload media to Supabase Storage (bucket: forum-media)
     const mediaUrls = [];
-    for (const m of (this._mediaFiles || [])) {
+    for (let m of (this._mediaFiles || [])) {
+      const maxSize = m.type === 'video' ? 50 * 1024 * 1024 : 20 * 1024 * 1024;
+      if (m.file.size > maxSize) { this._toast(`${m.file.name} quá lớn (tối đa ${m.type === 'video' ? '50' : '20'} MB)`, 'err'); continue; }
+      m = { ...m, file: await compressImage(m.file) };
       const ext  = m.file.name.split('.').pop();
       const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
       const { error: upErr } = await supabase.storage
@@ -1104,7 +1107,7 @@ export class ForumScene extends BaseScene {
         return;
       }
       const { data: { publicUrl } } = supabase.storage.from('forum-media').getPublicUrl(path);
-      mediaUrls.push({ url: publicUrl, type: m.type });
+      mediaUrls.push({ url: toCDN(publicUrl), type: m.type });
     }
 
     const { error } = await supabase.from('forum_posts').insert({

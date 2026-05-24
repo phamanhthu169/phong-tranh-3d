@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BaseScene } from './BaseScene.js';
 import { HEADER_H } from '../core/SceneManager.js';
-import { supabase, STORAGE_BUCKET } from '../utils/supabase.js';
+import { supabase, STORAGE_BUCKET, compressImage } from '../utils/supabase.js';
 
 /*
   ProfileScene — /profile
@@ -787,14 +787,16 @@ export class ProfileScene extends BaseScene {
         if (this._isSelf) avatarInp.click();
       });
       avatarInp.addEventListener('change', async () => {
-        const file = avatarInp.files?.[0];
+        let file = avatarInp.files?.[0];
         if (!file) return;
         if (file.size > 5 * 1024 * 1024) { this._showToast('Ảnh quá lớn (tối đa 5 MB)'); return; }
+        file = await compressImage(file);
         const ext  = file.name.split('.').pop().toLowerCase();
         const path = `avatars/${this._target.id || this._target.name}_${Date.now()}.${ext}`;
         const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { upsert: true });
         if (error) { this._showToast('Lỗi tải ảnh: ' + error.message); return; }
-        const { data: { publicUrl } } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+        const { data: { publicUrl: _avatarUrl } } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+        const publicUrl = toCDN(_avatarUrl);
         // Cập nhật UI
         const initial = document.getElementById('pf-avatar-initial');
         if (initial) initial.style.display = 'none';
@@ -818,14 +820,16 @@ export class ProfileScene extends BaseScene {
         if (e.target !== coverInp) coverInp.click();
       });
       coverInp.addEventListener('change', async () => {
-        const file = coverInp.files?.[0];
+        let file = coverInp.files?.[0];
         if (!file) return;
         if (file.size > 10 * 1024 * 1024) { this._showToast('Ảnh quá lớn (tối đa 10 MB)'); return; }
+        file = await compressImage(file);
         const ext  = file.name.split('.').pop().toLowerCase();
         const path = `covers/${this._target.id || this._target.name}_${Date.now()}.${ext}`;
         const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { upsert: true });
         if (error) { this._showToast('Lỗi tải ảnh: ' + error.message); return; }
-        const { data: { publicUrl } } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+        const { data: { publicUrl: _coverUrl } } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+        const publicUrl = toCDN(_coverUrl);
         const coverImg = document.getElementById('pf-cover-img');
         if (coverImg) { coverImg.src = publicUrl; coverImg.style.display = 'block'; }
         this.manager.auth.updateProfile({ coverUrl: publicUrl });
@@ -1889,7 +1893,9 @@ export class ProfileScene extends BaseScene {
     const urls = [];
     for (let i = 0; i < files.length; i++) {
       if (this._disposed) break;
-      const file = files[i];
+      let file = files[i];
+      if (file.size > 20 * 1024 * 1024) { this._showToast(`${file.name} quá lớn (tối đa 20 MB)`); continue; }
+      file = await compressImage(file);
       const ext  = file.name.split('.').pop().toLowerCase();
       const path = `products/${artistName}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
 
@@ -1901,7 +1907,7 @@ export class ProfileScene extends BaseScene {
       }
 
       const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-      if (urlData?.publicUrl) urls.push(urlData.publicUrl);
+      if (urlData?.publicUrl) urls.push(toCDN(urlData.publicUrl));
 
       if (progressBar) progressBar.style.width = `${Math.round(((i + 1) / files.length) * 100)}%`;
     }

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OBJLoader }  from 'three/addons/loaders/OBJLoader.js';
-import { supabase } from '../utils/supabase.js';
+import { supabase, toCDN } from '../utils/supabase.js';
 import { BaseScene } from './BaseScene.js';
 import { TextEditor } from './TextEditor.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
@@ -2101,7 +2101,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
             _artTick();
           })();
         } else if (a.isVideo) {
-          const vid = document.createElement('video'); vid.src = a.storageUrl; vid.loop=true; vid.muted=true; vid.playsInline=true; vid.crossOrigin='anonymous';
+          const vid = document.createElement('video'); vid.src = toCDN(a.storageUrl); vid.loop=true; vid.muted=true; vid.playsInline=true; vid.crossOrigin='anonymous';
           vid.addEventListener('loadeddata', () => {
             const tex = new THREE.VideoTexture(vid); tex.minFilter = THREE.LinearFilter; tex.colorSpace = THREE.SRGBColorSpace;
             const AH = 1.65, AW = AH * (vid.videoWidth / vid.videoHeight || 4/3);
@@ -2119,7 +2119,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
           return Promise.resolve();
         } else {
           return new Promise(resolve => {
-            const img = new Image(); img.crossOrigin = 'anonymous'; img.src = a.storageUrl;
+            const img = new Image(); img.crossOrigin = 'anonymous'; img.src = toCDN(a.storageUrl);
             img.onload = () => {
               const sw = img.naturalWidth, sh = img.naturalHeight;
               const scale = Math.min(1, MAX_TEX / Math.max(sw, sh));
@@ -2173,8 +2173,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
           this.models3d.push({ object:obj, name:m.name, meta });
         };
         return new Promise(resolve => {
-          if (ext==='glb'||ext==='gltf') this.gltfLoader.load(m.storageUrl, g=>{ onLoad(g.scene); _modTick(); resolve(); }, null, () => { _modTick(); resolve(); });
-          else if (ext==='obj') this.objLoader.load(m.storageUrl, obj=>{ obj.traverse(c=>{ if(c.isMesh)c.material=new THREE.MeshLambertMaterial({color:0xccbbaa}); }); onLoad(obj); _modTick(); resolve(); }, null, () => { _modTick(); resolve(); });
+          if (ext==='glb'||ext==='gltf') this.gltfLoader.load(toCDN(m.storageUrl), g=>{ onLoad(g.scene); _modTick(); resolve(); }, null, () => { _modTick(); resolve(); });
+          else if (ext==='obj') this.objLoader.load(toCDN(m.storageUrl), obj=>{ obj.traverse(c=>{ if(c.isMesh)c.material=new THREE.MeshLambertMaterial({color:0xccbbaa}); }); onLoad(obj); _modTick(); resolve(); }, null, () => { _modTick(); resolve(); });
           else { _modTick(); resolve(); }
         });
       });

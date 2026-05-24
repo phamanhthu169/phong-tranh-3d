@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
-import { supabase, STORAGE_BUCKET } from '../utils/supabase.js';
+import { supabase, STORAGE_BUCKET, compressImage, toCDN } from '../utils/supabase.js';
 import { BaseScene } from './BaseScene.js';
 import { TextEditor } from './TextEditor.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
@@ -1809,6 +1809,7 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
 
     document.getElementById('fi-3d').addEventListener('change', async (e) => {
       for (const file of Array.from(e.target.files)) {
+        if (file.size > 50 * 1024 * 1024) { this._showFileSizeLimitModal(file.name, file.size); continue; }
         const ext = file.name.split('.').pop().toLowerCase();
         try {
           this.toast('Đang upload ' + file.name + '...', 'info', 15000);
@@ -1836,6 +1837,7 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
   async uploadToStorage(file) {
     // Làm sạch tên file: bỏ dấu tiếng Việt, thay ký tự đặc biệt bằng '_'
     // Tránh lỗi 400 Bad Request khi tên có ký tự unicode
+    file = await compressImage(file);
     const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
     const safeName = file.name
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -1846,7 +1848,7 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
     const path = `${Date.now()}_${safeName || ('file.' + ext)}`;
     const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { upsert: true });
     if (error) { console.error('Upload error:', error.message); return null; }
-    return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+    return toCDN(supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl);
   }
 
   _showFileSizeLimitModal(filename, sizeBytes) {
@@ -3756,7 +3758,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     const path = `thumbnails/${roomId}_${Date.now()}.png`;
     const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { upsert: true, contentType: 'image/png' });
     if (error) { console.error('Thumbnail upload error:', error); return null; }
-    return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+    return toCDN(supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl);
   }
 
   async _loadRpTemplateList(container) {
