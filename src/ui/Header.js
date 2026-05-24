@@ -194,6 +194,7 @@ export class Header {
     }
 
     const isArtist = this.manager.auth.profile?.role === 'artist';
+    const isAdmin  = this.manager.auth.profile?.role === 'admin';
 
     const _makeBtn = (label, color, hoverBg, onClick) => {
       const btn = document.createElement('button');
@@ -238,6 +239,15 @@ export class Header {
         '#1a3a6e',
         'rgba(24,45,88,.07)',
         () => { this._closeDropdown(); this.manager.navigateTo('my-orders'); }
+      ));
+    }
+
+    if (isAdmin) {
+      dd.appendChild(_makeBtn(
+        '🛡  Quản lý khiếu nại',
+        '#b86000',
+        'rgba(200,100,0,.08)',
+        () => { this._closeDropdown(); this.manager.navigateTo('admin'); }
       ));
     }
 

@@ -16,6 +16,7 @@ import { OrderTrackingScene }  from './scenes/OrderTrackingScene.js';
 import { SettingsScene }       from './scenes/SettingsScene.js';
 import { PricingScene }        from './scenes/PricingScene.js';
 import { SupportScene }        from './scenes/SupportScene.js';
+import { AdminScene }          from './scenes/AdminScene.js';
 
 
 const manager = new SceneManager();
@@ -36,7 +37,8 @@ manager
   .register('my-orders',  OrderTrackingScene)
   .register('settings',   SettingsScene)
   .register('pricing',    PricingScene)
-  .register('support',    SupportScene);
+  .register('support',    SupportScene)
+  .register('admin',      AdminScene);
 
 // Chờ auth xác định trạng thái trước khi mở scene đầu tiên
 // (tránh nhấp nháy khi đã đăng nhập mà bị redirect về login)

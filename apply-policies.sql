@@ -1,3 +1,42 @@
+-- Thêm cột mới nếu chưa tồn tại
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS province text DEFAULT '';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS district text DEFAULT '';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ward     text DEFAULT '';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS street   text DEFAULT '';
+ALTER TABLE orders   ADD COLUMN IF NOT EXISTS payment_proof_url    text        DEFAULT NULL;
+ALTER TABLE orders   ADD COLUMN IF NOT EXISTS tracking_code        text        DEFAULT NULL;
+ALTER TABLE orders   ADD COLUMN IF NOT EXISTS is_complained        boolean     DEFAULT false;
+ALTER TABLE orders   ADD COLUMN IF NOT EXISTS seller_delivered_at  timestamptz DEFAULT NULL;
+
+-- Bảng khiếu nại
+CREATE TABLE IF NOT EXISTS complaints (
+  id          uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  order_id    text,
+  user_id     uuid,
+  buyer_name  text,
+  description text,
+  screenshot_url text,
+  status      text        DEFAULT 'open',
+  admin_note  text,
+  created_at  timestamptz DEFAULT now()
+);
+ALTER TABLE complaints ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "public insert complaints"  ON complaints;
+CREATE POLICY "public insert complaints"  ON complaints FOR INSERT TO public WITH CHECK (true);
+DROP POLICY IF EXISTS "anon insert complaints"    ON complaints;
+CREATE POLICY "anon insert complaints"    ON complaints FOR INSERT TO anon   WITH CHECK (true);
+DROP POLICY IF EXISTS "public read complaints"    ON complaints;
+CREATE POLICY "public read complaints"    ON complaints FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "anon read complaints"      ON complaints;
+CREATE POLICY "anon read complaints"      ON complaints FOR SELECT TO anon   USING (true);
+DROP POLICY IF EXISTS "public update complaints"  ON complaints;
+CREATE POLICY "public update complaints"  ON complaints FOR UPDATE TO public USING (true);
+DROP POLICY IF EXISTS "anon update complaints"    ON complaints;
+CREATE POLICY "anon update complaints"    ON complaints FOR UPDATE TO anon   USING (true);
+
+-- Để trở thành admin: chạy lệnh sau trong Supabase SQL Editor (thay YourDisplayName):
+-- UPDATE profiles SET role = 'admin' WHERE display_name = 'YourDisplayName';
+
 -- Xóa policies đã tạo thủ công trước đó để tránh conflict
 DROP POLICY IF EXISTS "allow_all_patbk" ON storage.objects;
 DROP POLICY IF EXISTS "allow_all_forum_media" ON storage.objects;
@@ -70,6 +109,12 @@ CREATE POLICY "Enable all for authenticated users" ON gallery FOR ALL TO public 
 DROP POLICY IF EXISTS "Allow all for authenticated" ON gallery;
 CREATE POLICY "Allow all for authenticated" ON gallery FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "anon update gallery" ON gallery;
+CREATE POLICY "anon update gallery" ON gallery FOR UPDATE TO anon USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "anon delete gallery" ON gallery;
+CREATE POLICY "anon delete gallery" ON gallery FOR DELETE TO anon USING (true);
+
 DROP POLICY IF EXISTS "Allow read messages" ON messages;
 CREATE POLICY "Allow read messages" ON messages FOR SELECT TO public USING (true);
 
@@ -89,10 +134,13 @@ DROP POLICY IF EXISTS "insert orders" ON orders;
 CREATE POLICY "insert orders" ON orders FOR INSERT TO public WITH CHECK (true);
 
 DROP POLICY IF EXISTS "read orders" ON orders;
-CREATE POLICY "read orders" ON orders FOR SELECT TO public USING (auth.role() = 'authenticated');
+CREATE POLICY "read orders" ON orders FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "anon read orders" ON orders;
+CREATE POLICY "anon read orders" ON orders FOR SELECT TO anon USING (true);
 
 DROP POLICY IF EXISTS "update order status" ON orders;
-CREATE POLICY "update order status" ON orders FOR UPDATE TO public USING (auth.role() = 'authenticated');
+CREATE POLICY "update order status" ON orders FOR UPDATE TO public USING (true);
 
 DROP POLICY IF EXISTS "Owner can read orders" ON orders;
 CREATE POLICY "Owner can read orders" ON orders FOR SELECT TO authenticated USING (true);
@@ -118,6 +166,12 @@ CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT 
 DROP POLICY IF EXISTS "Users can insert their own profile" ON profiles;
 CREATE POLICY "Users can insert their own profile" ON profiles FOR INSERT TO public WITH CHECK (true);
 
+DROP POLICY IF EXISTS "anon update own profile" ON profiles;
+CREATE POLICY "anon update own profile" ON profiles FOR UPDATE TO anon USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "public update own profile" ON profiles;
+CREATE POLICY "public update own profile" ON profiles FOR UPDATE TO public USING (true) WITH CHECK (true);
+
 DROP POLICY IF EXISTS "public_read_posts" ON forum_posts;
 CREATE POLICY "public_read_posts" ON forum_posts FOR SELECT TO public USING (true);
 
@@ -128,7 +182,7 @@ DROP POLICY IF EXISTS "public_update_posts" ON forum_posts;
 CREATE POLICY "public_update_posts" ON forum_posts FOR UPDATE TO public USING (true);
 
 DROP POLICY IF EXISTS "author can delete own post" ON forum_posts;
-CREATE POLICY "author can delete own post" ON forum_posts FOR DELETE TO public USING (author_name = (current_setting('request.jwt.claims', true)::json ->> 'name'));
+CREATE POLICY "author can delete own post" ON forum_posts FOR DELETE TO anon USING (true);
 
 DROP POLICY IF EXISTS "public_read_comments" ON forum_comments;
 CREATE POLICY "public_read_comments" ON forum_comments FOR SELECT TO public USING (true);
@@ -181,6 +235,9 @@ CREATE POLICY "Authenticated can write room missions" ON room_missions FOR ALL T
 DROP POLICY IF EXISTS "Anyone can read room missions" ON room_missions;
 CREATE POLICY "Anyone can read room missions" ON room_missions FOR SELECT TO anon USING (true);
 
+DROP POLICY IF EXISTS "anon write missions" ON room_missions;
+CREATE POLICY "anon write missions" ON room_missions FOR ALL TO anon USING (true) WITH CHECK (true);
+
 DROP POLICY IF EXISTS "public read completion cfg" ON room_completion_config;
 CREATE POLICY "public read completion cfg" ON room_completion_config FOR SELECT TO public USING (true);
 
@@ -192,6 +249,9 @@ CREATE POLICY "Authenticated can write completion config" ON room_completion_con
 
 DROP POLICY IF EXISTS "Anyone can read completion config" ON room_completion_config;
 CREATE POLICY "Anyone can read completion config" ON room_completion_config FOR SELECT TO anon USING (true);
+
+DROP POLICY IF EXISTS "anon write completion cfg" ON room_completion_config;
+CREATE POLICY "anon write completion cfg" ON room_completion_config FOR ALL TO anon USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "own mission completions" ON mission_completions;
 CREATE POLICY "own mission completions" ON mission_completions FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());

@@ -57,6 +57,10 @@ export class AuthManager {
     if (profile.bank_name !== undefined)           payload.bank_name           = profile.bank_name           || null;
     if (profile.bank_account_number !== undefined) payload.bank_account_number = profile.bank_account_number || null;
     if (profile.bank_account_holder !== undefined) payload.bank_account_holder = profile.bank_account_holder || null;
+    if (profile.province !== undefined)            payload.province            = profile.province             || null;
+    if (profile.district !== undefined)            payload.district            = profile.district             || null;
+    if (profile.ward !== undefined)                payload.ward                = profile.ward                 || null;
+    if (profile.street !== undefined)              payload.street              = profile.street               || null;
 
     const { error } = await supabase
       .from('profiles')
@@ -134,6 +138,10 @@ export class AuthManager {
       bank_name: data.bank_name || '',
       bank_account_number: data.bank_account_number || '',
       bank_account_holder: data.bank_account_holder || '',
+      province: data.province || '',
+      district: data.district || '',
+      ward:     data.ward     || '',
+      street:   data.street   || '',
     };
     this._saveToLocal(this._profile);
     this._notify();

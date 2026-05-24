@@ -1697,6 +1697,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       artistId,
       year:     ci.art.meta?.year   || '',
       price:    ci.art.meta?.price  || '',
+      weight:   ci.art.meta?.weight || '',
       roomId:   this._galleryDbKey  || '',
     }));
     localStorage.setItem('gallery_cart', JSON.stringify(payload));
@@ -1705,6 +1706,11 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
 
   _addToCart(art) {
     if (this.cartItems.some(ci => ci.art === art)) return;
+    const w = parseFloat(art.meta?.weight);
+    if (!w || w <= 0) {
+      this._toast('Tác phẩm chưa có khối lượng — artist cần cập nhật trước khi bán', 'error');
+      return;
+    }
     this.cartItems.push({ art, id: ++this.cartIdCnt });
     this._syncCartToStorage();
     this._renderCart();

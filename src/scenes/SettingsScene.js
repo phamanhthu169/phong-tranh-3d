@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BaseScene } from './BaseScene.js';
 import { HEADER_H } from '../core/SceneManager.js';
+import { VN_DISTRICTS } from '../data/vn-districts.js';
 
 export class SettingsScene extends BaseScene {
   async init() {
@@ -85,6 +86,41 @@ export class SettingsScene extends BaseScene {
           <div class="st-ok"  id="st-bank-ok">✓ Đã lưu</div>
           <button id="st-bank-save" class="st-btn" style="margin-top:4px">Lưu tài khoản ngân hàng</button>
         </div>
+
+        <!-- Address (artist only) -->
+        <div class="st-card" id="st-addr-card">
+          <div class="st-title">Địa chỉ lấy hàng</div>
+          <div class="st-desc">Dùng để tính phí vận chuyển cho khách hàng</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+            <div>
+              <div class="st-label">Tỉnh / Thành phố</div>
+              <select id="st-province" class="st-input" style="cursor:pointer">
+                <option value="">-- Chọn tỉnh/thành --</option>
+                ${Object.keys(VN_DISTRICTS).map(p => `<option value="${p}"${(profile.province||'')===p?' selected':''}>${p}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <div class="st-label">Quận / Huyện</div>
+              <select id="st-district" class="st-input" style="cursor:pointer" ${!profile.province ? 'disabled' : ''}>
+                <option value="">-- Chọn quận/huyện --</option>
+                ${(VN_DISTRICTS[profile.province||'']||[]).map(d => `<option value="${d}"${(profile.district||'')===d?' selected':''}>${d}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+            <div>
+              <div class="st-label">Phường / Xã</div>
+              <input id="st-ward" class="st-input" placeholder="VD: Phường Bến Nghé" value="${(profile.ward||'').replace(/"/g,'&quot;')}" />
+            </div>
+            <div>
+              <div class="st-label">Số nhà, đường</div>
+              <input id="st-street" class="st-input" placeholder="VD: 123 Nguyễn Huệ" value="${(profile.street||'').replace(/"/g,'&quot;')}" />
+            </div>
+          </div>
+          <div class="st-err" id="st-addr-err"></div>
+          <div class="st-ok"  id="st-addr-ok">✓ Đã lưu</div>
+          <button id="st-addr-save" class="st-btn" style="margin-top:4px">Lưu địa chỉ</button>
+        </div>
         ` : ''}
 
         <!-- Change password -->
@@ -136,16 +172,30 @@ export class SettingsScene extends BaseScene {
       this.manager.navigateTo('profile');
     });
 
-    // Bank (artist only)
+    // Bank + Address (artist only)
     if (isArtist) {
+      // Province → District cascade
+      document.getElementById('st-province').addEventListener('change', () => {
+        const province = document.getElementById('st-province').value;
+        const districtSel = document.getElementById('st-district');
+        if (!province) {
+          districtSel.innerHTML = '<option value="">-- Chọn tỉnh trước --</option>';
+          districtSel.disabled = true;
+        } else {
+          const districts = VN_DISTRICTS[province] || [];
+          districtSel.innerHTML = '<option value="">-- Chọn quận/huyện --</option>' +
+            districts.map(d => `<option value="${d}">${d}</option>`).join('');
+          districtSel.disabled = false;
+        }
+      });
+
+      // Save bank info
       document.getElementById('st-bank-save').addEventListener('click', async () => {
-        const btn = document.getElementById('st-bank-save');
+        const btn   = document.getElementById('st-bank-save');
         const errEl = document.getElementById('st-bank-err');
         const okEl  = document.getElementById('st-bank-ok');
-        errEl.style.display = 'none';
-        okEl.style.display  = 'none';
-        btn.disabled = true;
-        btn.textContent = 'Đang lưu...';
+        errEl.style.display = 'none'; okEl.style.display = 'none';
+        btn.disabled = true; btn.textContent = 'Đang lưu...';
         try {
           await this.manager.auth.updateProfile({
             bank_name:           document.getElementById('st-bank-name').value.trim(),
@@ -155,11 +205,32 @@ export class SettingsScene extends BaseScene {
           okEl.style.display = 'block';
           setTimeout(() => { okEl.style.display = 'none'; }, 2500);
         } catch (e) {
-          errEl.textContent = e.message;
-          errEl.style.display = 'block';
+          errEl.textContent = e.message; errEl.style.display = 'block';
         } finally {
-          btn.disabled = false;
-          btn.textContent = 'Lưu tài khoản ngân hàng';
+          btn.disabled = false; btn.textContent = 'Lưu tài khoản ngân hàng';
+        }
+      });
+
+      // Save address
+      document.getElementById('st-addr-save').addEventListener('click', async () => {
+        const btn   = document.getElementById('st-addr-save');
+        const errEl = document.getElementById('st-addr-err');
+        const okEl  = document.getElementById('st-addr-ok');
+        errEl.style.display = 'none'; okEl.style.display = 'none';
+        btn.disabled = true; btn.textContent = 'Đang lưu...';
+        try {
+          await this.manager.auth.updateProfile({
+            province: document.getElementById('st-province').value,
+            district: document.getElementById('st-district').value,
+            ward:     document.getElementById('st-ward').value.trim(),
+            street:   document.getElementById('st-street').value.trim(),
+          });
+          okEl.style.display = 'block';
+          setTimeout(() => { okEl.style.display = 'none'; }, 2500);
+        } catch (e) {
+          errEl.textContent = e.message; errEl.style.display = 'block';
+        } finally {
+          btn.disabled = false; btn.textContent = 'Lưu địa chỉ';
         }
       });
     }

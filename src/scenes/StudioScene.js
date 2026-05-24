@@ -2192,9 +2192,35 @@ _renderMusicPlaylist() {
           });
         };
         card.addEventListener('click', () => {
-          this.selectSource(item.src);
-          this.setMode('place');
-          updateAllCards();
+          const url = item.src?.storageUrl;
+          let placed = null, placedType = null, placedIdx = -1;
+          if (type === 'model') {
+            placedIdx = this.models3d.findIndex(m => m.storageUrl === url);
+            if (placedIdx >= 0) { placed = this.models3d[placedIdx]; placedType = 'model'; }
+          } else {
+            placedIdx = this.artworks.findIndex(a => a.storageUrl === url);
+            if (placedIdx >= 0) { placed = this.artworks[placedIdx]; placedType = 'artwork'; }
+          }
+          if (placed && this._infoPopup) {
+            this.selectedItem = { type: placedType, data: placed, index: placedIdx };
+            const m = placed.meta || {};
+            ['title', 'artist', 'year', 'desc', 'price', 'weight'].forEach(k => {
+              const el = document.getElementById('pop-' + k);
+              if (el) el.value = m[k] || '';
+            });
+            const _wv = m['weight'] || '';
+            document.querySelectorAll('[data-w]').forEach(b => {
+              const on = b.dataset.w === _wv;
+              b.style.background  = on ? 'rgba(255,220,80,0.2)' : 'rgba(255,255,255,0.10)';
+              b.style.borderColor = on ? 'rgba(255,220,80,0.6)' : 'rgba(255,255,255,0.2)';
+              b.style.color       = on ? 'rgba(255,220,80,1)'   : '#FFFFFF';
+            });
+            this._infoPopup.style.display = 'flex';
+          } else {
+            this.selectSource(item.src);
+            this.setMode('place');
+            updateAllCards();
+          }
         });
         card.dataset.upcard = type + '-' + idx;
         const isSel = this.selectedSource === item.src;
@@ -2382,8 +2408,8 @@ _renderMusicPlaylist() {
       inner.appendChild(card);
     });
 
-    // Tự mở dropdown khi có text đầu tiên
-    if (texts.length === 1 && !row._openState()) {
+    // Tự mở dropdown khi có text
+    if (texts.length && !row._openState()) {
       row._toggle();
     }
   }
@@ -3003,8 +3029,9 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         rowImg.querySelector('div').style.background   = "url('/panelstudio/picture.svg') no-repeat center center / 100% 100%";
         rowVid.querySelector('div').style.background   = "url('/panelstudio/video.svg') no-repeat center center / 100% 100%";
         rowModel.querySelector('div').style.background = "url('/panelstudio/3dmodel.svg') no-repeat center center / 100% 100%";
-        rowText.querySelector('div').style.background  = "url('/panelstudio/text.svg') no-repeat center center / 100% 100%";        this._renderUploadedList();
+        rowText.querySelector('div').style.background  = "url('/panelstudio/text.svg') no-repeat center center / 100% 100%";
         this._renderUploadedList();
+        this._renderTextList();
         break;
       }
 
@@ -3988,10 +4015,20 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       <div style="color:#FFFFFF;font-size:14px;font-weight:700;font-family:'Montserrat',sans-serif;margin-bottom:6px;">📝 Thông tin</div>
       ${['title:Tên', 'artist:Nghệ sĩ', 'year:Năm', 'price:Giá'].map(f => {
         const [k, lbl] = f.split(':');
-        return k === 'price' 
+        return k === 'price'
   ? `<div style="display:flex;flex-direction:column;gap:3px"><label style="color:#FFFFFF;font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-family:'Montserrat',sans-serif;">${lbl}</label><input id="pop-${k}" placeholder="VD: 1.500.000" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#FFFFFF;font-family:'Montserrat',sans-serif;font-size:11px;padding:6px 8px;outline:none;width:100%;box-sizing:border-box;"></div>`
   : `<div style="display:flex;flex-direction:column;gap:3px"><label style="color:#FFFFFF;font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-family:'Montserrat',sans-serif;">${lbl}</label><input id="pop-${k}" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#FFFFFF;font-family:'Montserrat',sans-serif;font-size:11px;padding:6px 8px;outline:none;width:100%;box-sizing:border-box;"></div>`;
       }).join('')}
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="color:#FFFFFF;font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-family:'Montserrat',sans-serif;">Khối lượng</label>
+        <input id="pop-weight" type="hidden" value="">
+        <div style="display:flex;gap:6px">
+          <button type="button" id="wt-btn-1" data-w="1"   style="flex:1;background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#FFFFFF;font-family:'Montserrat',sans-serif;font-size:10px;padding:7px 4px;cursor:pointer;letter-spacing:.04em;transition:all .15s">0 – 1 kg</button>
+          <button type="button" id="wt-btn-2" data-w="1.5" style="flex:1;background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#FFFFFF;font-family:'Montserrat',sans-serif;font-size:10px;padding:7px 4px;cursor:pointer;letter-spacing:.04em;transition:all .15s">1 – 1.5 kg</button>
+          <button type="button" id="wt-btn-3" data-w="2"   style="flex:1;background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#FFFFFF;font-family:'Montserrat',sans-serif;font-size:10px;padding:7px 4px;cursor:pointer;letter-spacing:.04em;transition:all .15s">1.5 – 2 kg</button>
+        </div>
+        <div style="color:rgba(255,220,80,0.9);font-size:9px;font-family:'Montserrat',sans-serif;">⚠ Bắt buộc điền để khách có thể thêm vào giỏ hàng</div>
+      </div>
       <div style="color:rgba(255, 208, 0, 0.94);font-size:10px;margin-top:-4px;font-family:'Montserrat',sans-serif;">* Những bức tranh không bán bạn cứ để trống ô giá tiền nhé</div>
       <div style="display:flex;flex-direction:column;gap:3px">
         <label style="color:#FFFFFF;font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-family:'Montserrat',sans-serif;">Mô tả</label>
@@ -4030,7 +4067,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     this.threeScene.add(object);
     const pl = new THREE.PointLight(0xfff0dd, 1.5, 4); pl.position.set(pos.x, pos.y + 2, pos.z); this.threeScene.add(pl);
     const ped = usePedestal ? this.makePedestal(new THREE.Vector3(pos.x, 0, pos.z)) : null;
-    const md = { object, light: pl, pedestal: ped, hasPedestal: usePedestal, storageUrl: storageUrl || null, name: name || null, meta: { title: '', artist: '', year: '', desc: '', price: '', ...meta } };
+    const md = { object, light: pl, pedestal: ped, hasPedestal: usePedestal, storageUrl: storageUrl || null, name: name || null, meta: { title: '', artist: '', year: '', desc: '', price: '', weight: '', ...meta } };
     this.models3d.push(md); return md;
   }
 
@@ -4083,7 +4120,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       frameVisible,
       frameColor,
       frameThickness,
-      meta: { title: '', artist: '', year: '', desc: '', price: '', ...meta },
+      meta: { title: '', artist: '', year: '', desc: '', price: '', weight: '', ...meta },
     };
     this.artworks.push(ad); return ad;
   }
@@ -4690,15 +4727,34 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     document.getElementById('th-info').addEventListener('click', () => {
       if (!this.selectedItem) return;
       const m = this.selectedItem.data.meta;
-      ['title', 'artist', 'year', 'desc', 'price'].forEach(k => { document.getElementById('pop-' + k).value = m[k] || ''; });
+      ['title', 'artist', 'year', 'desc', 'price', 'weight'].forEach(k => { document.getElementById('pop-' + k).value = m[k] || ''; });
+      const _wv = m['weight'] || '';
+      document.querySelectorAll('[data-w]').forEach(b => {
+        const on = b.dataset.w === _wv;
+        b.style.background   = on ? 'rgba(255,220,80,0.2)' : 'rgba(255,255,255,0.10)';
+        b.style.borderColor  = on ? 'rgba(255,220,80,0.6)' : 'rgba(255,255,255,0.2)';
+        b.style.color        = on ? 'rgba(255,220,80,1)'   : '#FFFFFF';
+      });
       this._infoPopup.style.display = 'flex';
     });
     document.getElementById('pop-cancel').addEventListener('click', () => { this._infoPopup.style.display = 'none'; });
+    ['wt-btn-1', 'wt-btn-2', 'wt-btn-3'].forEach(id => {
+      document.getElementById(id).addEventListener('click', () => {
+        const v = document.getElementById(id).dataset.w;
+        document.getElementById('pop-weight').value = v;
+        document.querySelectorAll('[data-w]').forEach(b => {
+          const on = b.dataset.w === v;
+          b.style.background  = on ? 'rgba(255,220,80,0.2)' : 'rgba(255,255,255,0.10)';
+          b.style.borderColor = on ? 'rgba(255,220,80,0.6)' : 'rgba(255,255,255,0.2)';
+          b.style.color       = on ? 'rgba(255,220,80,1)'   : '#FFFFFF';
+        });
+      });
+    });
     document.getElementById('pop-save').addEventListener('click', () => {
       if (!this.selectedItem) return;
-      ['title', 'artist', 'year', 'desc', 'price'].forEach(k => { this.selectedItem.data.meta[k] = document.getElementById('pop-' + k).value; });
+      ['title', 'artist', 'year', 'desc', 'price', 'weight'].forEach(k => { this.selectedItem.data.meta[k] = document.getElementById('pop-' + k).value; });
       document.getElementById('hud-name').textContent = this.selectedItem.data.meta.title || (this.selectedItem.type === 'model' ? `Model #${this.selectedItem.index + 1}` : `Tác phẩm #${this.selectedItem.index + 1}`);
-      this._infoPopup.style.display = 'none'; this.toast('Đã lưu thông tin', 'success');
+      this._infoPopup.style.display = 'none'; this._triggerAutosave(); this.toast('Đã lưu thông tin', 'success');
     });
 
 
