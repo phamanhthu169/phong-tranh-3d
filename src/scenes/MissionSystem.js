@@ -50,6 +50,7 @@ export class MissionSystem {
     this._config   = config;
     this._allDone  = !!roomComp;
     (userCompletions || []).forEach(c => this._completed.add(c.mission_index));
+    if (this._allDone) missions.forEach(m => this._completed.add(m.mission_index));
 
     await this._placeEggObjects();
     this._applyStoryArtworkOverlay();
@@ -642,16 +643,16 @@ export class MissionSystem {
         await supabase.from('room_completions').insert({
           user_id: userId, room_id: this._roomId, tokens_awarded: tokenReward,
         });
-        const { data: tokenRow } = await supabase
-          .from('user_tokens').select('balance').eq('user_id', userId).maybeSingle();
-        const newBalance = (tokenRow?.balance || 0) + tokenReward;
+        const { data: pf } = await supabase
+          .from('profiles').select('token_balance').eq('id', userId).maybeSingle();
+        const newBalance = (pf?.token_balance || 0) + tokenReward;
+        await supabase.from('profiles').update({ token_balance: newBalance }).eq('id', userId);
         await supabase.from('user_tokens').upsert(
           { user_id: userId, balance: newBalance },
           { onConflict: 'user_id' }
         );
         if (this._s.manager.auth.profile) {
-          this._s.manager.auth.profile.token_balance =
-            (this._s.manager.auth.profile.token_balance || 0) + tokenReward;
+          this._s.manager.auth.profile.token_balance = newBalance;
           this._s._updateTokenDisplay?.();
         }
       }
