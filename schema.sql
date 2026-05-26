@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS forum_posts (id uuid NOT NULL DEFAULT gen_random_uuid
 
 CREATE TABLE IF NOT EXISTS forum_comments (id uuid NOT NULL DEFAULT gen_random_uuid(), post_id uuid NOT NULL, author_name text NOT NULL, author_role text NOT NULL DEFAULT 'visitor'::text, content text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (id));
 
+CREATE TABLE IF NOT EXISTS forum_likes (id uuid NOT NULL DEFAULT gen_random_uuid(), user_id uuid NOT NULL, post_id uuid NOT NULL, created_at timestamptz DEFAULT now(), PRIMARY KEY (id), UNIQUE (user_id, post_id));
+
 CREATE TABLE IF NOT EXISTS artist_products (id uuid NOT NULL DEFAULT gen_random_uuid(), artist_name text NOT NULL, title text NOT NULL, description text, price text, image_url text, created_at timestamptz DEFAULT now(), media_urls jsonb DEFAULT '[]'::jsonb, material text, dimensions text, stock_qty integer, variants jsonb DEFAULT '[]'::jsonb, PRIMARY KEY (id));
 
 CREATE TABLE IF NOT EXISTS product_reviews (id uuid NOT NULL DEFAULT gen_random_uuid(), product_id uuid NOT NULL, reviewer_name text, rating integer NOT NULL, comment text, created_at timestamptz DEFAULT now(), PRIMARY KEY (id));

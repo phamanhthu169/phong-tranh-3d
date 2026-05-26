@@ -13,7 +13,7 @@ export class ForumScene extends BaseScene {
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.2));
     this._createParticles();
 
-    this._likedPosts = new Set(JSON.parse(localStorage.getItem('forum_liked') || '[]'));
+    this._likedPosts = new Set();
     this._posts      = [];
     this._offset     = 0;
     this._pageSize   = 12;
@@ -858,8 +858,9 @@ export class ForumScene extends BaseScene {
     this._loading = true;
 
     if (!more) {
-      this._offset = 0;
-      this._posts  = [];
+      this._offset    = 0;
+      this._posts     = [];
+      this._likedPosts = new Set();
     }
 
     const { data, error } = await supabase
@@ -880,6 +881,16 @@ export class ForumScene extends BaseScene {
     const posts = data || [];
     this._posts  = more ? [...this._posts, ...posts] : posts;
     this._offset += posts.length;
+
+    const profile = this.manager.auth.profile;
+    if (profile && posts.length) {
+      const { data: likes } = await supabase
+        .from('forum_likes')
+        .select('post_id')
+        .eq('user_id', profile.id)
+        .in('post_id', posts.map(p => p.id));
+      if (likes) likes.forEach(l => this._likedPosts.add(l.post_id));
+    }
 
     this._renderFeed();
 
@@ -1214,6 +1225,12 @@ export class ForumScene extends BaseScene {
   }
 
   async _toggleLike(postId, btn) {
+    const profile = this.manager.auth.profile;
+    if (!profile) {
+      this._toast('Vui lòng đăng nhập để thích bài viết', 'err');
+      return;
+    }
+
     const liked   = this._likedPosts.has(postId);
     const countEl = btn.querySelector('.fr-like-count');
     const cur     = parseInt(countEl.textContent) || 0;
@@ -1222,13 +1239,13 @@ export class ForumScene extends BaseScene {
     if (liked) {
       this._likedPosts.delete(postId);
       btn.classList.remove('liked');
+      await supabase.from('forum_likes').delete().eq('user_id', profile.id).eq('post_id', postId);
     } else {
       this._likedPosts.add(postId);
       btn.classList.add('liked');
+      await supabase.from('forum_likes').insert({ user_id: profile.id, post_id: postId });
     }
     countEl.textContent = next;
-    localStorage.setItem('forum_liked', JSON.stringify([...this._likedPosts]));
-
     await supabase.from('forum_posts').update({ like_count: next }).eq('id', postId);
   }
 

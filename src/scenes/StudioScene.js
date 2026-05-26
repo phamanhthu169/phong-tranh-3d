@@ -3149,6 +3149,8 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
             <button class="thumb-open-btn" id="pub-open-thumb-btn">🖼 Mở trình chỉnh thumbnail</button>
           </div>
 
+          <div class="pub-section-title">Xuất bản phòng tranh</div>
+
           <div class="pub-publish-section">
             <div class="rp-pub-info" id="pub-status-info">Phòng đang ở chế độ <b style="color:#fff">${isPub ? 'Public' : 'Draft'}</b></div>
             <button class="rp-pub-btn ${isPub ? 'danger' : 'primary'}" id="rp-btn-publish">${isPub ? '🔒 Huỷ xuất bản' : '🌐 Xuất bản ngay'}</button>

@@ -259,6 +259,12 @@ CREATE POLICY "own mission completions" ON mission_completions FOR ALL TO authen
 DROP POLICY IF EXISTS "User manages own mission completions" ON mission_completions;
 CREATE POLICY "User manages own mission completions" ON mission_completions FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "public read mission completions" ON mission_completions;
+CREATE POLICY "public read mission completions" ON mission_completions FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "public write mission completions" ON mission_completions;
+CREATE POLICY "public write mission completions" ON mission_completions FOR ALL TO public USING (true) WITH CHECK (true);
+
 DROP POLICY IF EXISTS "public read room completions" ON room_completions;
 CREATE POLICY "public read room completions" ON room_completions FOR SELECT TO public USING (true);
 
@@ -268,5 +274,49 @@ CREATE POLICY "own room completions" ON room_completions FOR INSERT TO authentic
 DROP POLICY IF EXISTS "User manages own room completions" ON room_completions;
 CREATE POLICY "User manages own room completions" ON room_completions FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "public write room completions" ON room_completions;
+CREATE POLICY "public write room completions" ON room_completions FOR ALL TO public USING (true) WITH CHECK (true);
+
 DROP POLICY IF EXISTS "own token balance" ON user_tokens;
 CREATE POLICY "own token balance" ON user_tokens FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "public manage user tokens" ON user_tokens;
+CREATE POLICY "public manage user tokens" ON user_tokens FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- ── FORUM LIKES ───────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS forum_likes (id uuid NOT NULL DEFAULT gen_random_uuid(), user_id uuid NOT NULL, post_id uuid NOT NULL, created_at timestamptz DEFAULT now(), PRIMARY KEY (id));
+
+ALTER TABLE forum_likes DROP CONSTRAINT IF EXISTS forum_likes_user_post_unique;
+ALTER TABLE forum_likes ADD CONSTRAINT forum_likes_user_post_unique UNIQUE (user_id, post_id);
+
+ALTER TABLE forum_likes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "public read forum_likes" ON forum_likes;
+CREATE POLICY "public read forum_likes" ON forum_likes FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "public insert forum_likes" ON forum_likes;
+CREATE POLICY "public insert forum_likes" ON forum_likes FOR INSERT TO public WITH CHECK (true);
+
+DROP POLICY IF EXISTS "public delete forum_likes" ON forum_likes;
+CREATE POLICY "public delete forum_likes" ON forum_likes FOR DELETE TO public USING (true);
+
+-- ── GALLERY LIKES ─────────────────────────────────────────────────────────────
+
+ALTER TABLE gallery_likes ENABLE ROW LEVEL SECURITY;
+
+-- Unique constraint cần thiết cho upsert onConflict
+ALTER TABLE gallery_likes DROP CONSTRAINT IF EXISTS gallery_likes_user_gallery_unique;
+ALTER TABLE gallery_likes ADD CONSTRAINT gallery_likes_user_gallery_unique UNIQUE (user_id, gallery_name);
+
+DROP POLICY IF EXISTS "public read gallery_likes" ON gallery_likes;
+CREATE POLICY "public read gallery_likes" ON gallery_likes FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "public insert gallery_likes" ON gallery_likes;
+CREATE POLICY "public insert gallery_likes" ON gallery_likes FOR INSERT TO public WITH CHECK (true);
+
+DROP POLICY IF EXISTS "public update gallery_likes" ON gallery_likes;
+CREATE POLICY "public update gallery_likes" ON gallery_likes FOR UPDATE TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "public delete gallery_likes" ON gallery_likes;
+CREATE POLICY "public delete gallery_likes" ON gallery_likes FOR DELETE TO public USING (true);
