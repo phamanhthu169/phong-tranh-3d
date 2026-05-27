@@ -2766,7 +2766,7 @@ _renderMusicPlaylist() {
         {
           const pedestalRow = document.createElement('div');
           pedestalRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 10px 8px;';
-          pedestalRow.innerHTML = `<label style="color:#FFFFFF;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="rp-pedestal-toggle" style="accent-color:#68e5e3;cursor:pointer;width:13px;height:13px;"> Đặt trên bục trắng</label>`;
+          pedestalRow.innerHTML = `<label style="color:#FFFFFF;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="rp-pedestal-toggle" style="accent-color:#68e5e3;cursor:pointer;width:13px;height:13px;"> đặt lên bục trắng</label>`;
           pane.appendChild(pedestalRow);
           const pedestalChk = pedestalRow.querySelector('#rp-pedestal-toggle');
           pedestalChk.checked = this._usePedestal;
@@ -4053,7 +4053,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     g.position.copy(pos); this.threeScene.add(g); return g;
   }
 
-  place3DModel(object, pos, storageUrl, name, meta = {}, scaleVec = null, usePedestal = true) {
+  place3DModel(object, pos, storageUrl, name, meta = {}, scaleVec = null, usePedestal = true, floorMode = true) {
     if (scaleVec) { object.scale.copy(scaleVec); }
     else {
       const box = new THREE.Box3().setFromObject(object);
@@ -4065,11 +4065,17 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     object.position.set(0, 0, 0);
     object.updateMatrixWorld(true);
     const bBox = new THREE.Box3().setFromObject(object);
-    object.position.set(pos.x, usePedestal ? (0.90 - bBox.min.y) : -bBox.min.y, pos.z);
+    if (floorMode) {
+      object.position.set(pos.x, usePedestal ? (0.90 - bBox.min.y) : -bBox.min.y, pos.z);
+    } else {
+      // floating/wall mode: center model at the hit point's Y
+      const modelCenterY = (bBox.min.y + bBox.max.y) / 2;
+      object.position.set(pos.x, pos.y - modelCenterY, pos.z);
+    }
     this.threeScene.add(object);
     const pl = new THREE.PointLight(0xfff0dd, 1.5, 4); pl.position.set(pos.x, pos.y + 2, pos.z); this.threeScene.add(pl);
-    const ped = usePedestal ? this.makePedestal(new THREE.Vector3(pos.x, 0, pos.z)) : null;
-    const md = { object, light: pl, pedestal: ped, hasPedestal: usePedestal, storageUrl: storageUrl || null, name: name || null, meta: { title: '', artist: '', year: '', desc: '', price: '', weight: '', ...meta } };
+    const ped = (usePedestal && floorMode) ? this.makePedestal(new THREE.Vector3(pos.x, 0, pos.z)) : null;
+    const md = { object, light: pl, pedestal: ped, hasPedestal: usePedestal && floorMode, storageUrl: storageUrl || null, name: name || null, meta: { title: '', artist: '', year: '', desc: '', price: '', weight: '', ...meta } };
     this.models3d.push(md); return md;
   }
 
@@ -4840,7 +4846,14 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       if (!this.selectedSource) return;
       if (this.selectedSource.type === 'model3d') {
         const hits = this.raycaster.intersectObjects(this.modelMeshes, true); if (!hits.length) return;
-        this.place3DModel(this.selectedSource.object.clone(), hits[0].point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null, {}, null, this._usePedestal);
+        const hit = hits[0];
+        const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
+        const isFloor = n.y > 0.7;
+        if (isFloor) {
+          this.place3DModel(this.selectedSource.object.clone(), hit.point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null, {}, null, this._usePedestal, true);
+        } else {
+          this.place3DModel(this.selectedSource.object.clone(), hit.point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null, {}, null, false, false);
+        }
         this._renderUploadedList();
         this._triggerAutosave();
         this.toast('Model đặt thành công ✓', 'success'); return;
@@ -5030,19 +5043,28 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
           } else {
             this.camera.getWorldDirection(this.fwd); this.fwd.y = 0; this.fwd.normalize();
             this.rgt.crossVectors(this.fwd, new THREE.Vector3(0, 1, 0)).normalize();
-            obj.position.addScaledVector(this.rgt, dx * 0.012);
-            obj.position.addScaledVector(this.fwd, -dy * 0.012);
 
-            // ── Di chuyển bục (pedestal) và đèn theo cùng model ──
-            if (this.selectedItem?.type === 'model') {
-              const md = this.selectedItem.data ?? this.selectedItem;
-              if (md?.pedestal) {
-                md.pedestal.position.addScaledVector(this.rgt, dx * 0.012);
-                md.pedestal.position.addScaledVector(this.fwd, -dy * 0.012);
+            const _md = this.selectedItem?.type === 'model' ? (this.selectedItem.data ?? this.selectedItem) : null;
+            if (_md && !_md.hasPedestal) {
+              // floating model: trái/phải + lên/xuống tự do
+              obj.position.addScaledVector(this.rgt, dx * 0.012);
+              obj.position.y -= dy * 0.012;
+              if (_md.light) {
+                _md.light.position.addScaledVector(this.rgt, dx * 0.012);
+                _md.light.position.y -= dy * 0.012;
               }
-              if (md?.light) {
-                md.light.position.addScaledVector(this.rgt, dx * 0.012);
-                md.light.position.addScaledVector(this.fwd, -dy * 0.012);
+            } else {
+              obj.position.addScaledVector(this.rgt, dx * 0.012);
+              obj.position.addScaledVector(this.fwd, -dy * 0.012);
+              if (_md) {
+                if (_md.pedestal) {
+                  _md.pedestal.position.addScaledVector(this.rgt, dx * 0.012);
+                  _md.pedestal.position.addScaledVector(this.fwd, -dy * 0.012);
+                }
+                if (_md.light) {
+                  _md.light.position.addScaledVector(this.rgt, dx * 0.012);
+                  _md.light.position.addScaledVector(this.fwd, -dy * 0.012);
+                }
               }
             }
           }
