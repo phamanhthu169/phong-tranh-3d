@@ -3878,6 +3878,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
   }
 
   _applyHDR(path) {
+    this._selectedHdrPath = path;
     new RGBELoader().load(path, (texture) => {
       const pmrem = new THREE.PMREMGenerator(this.renderer);
       const envMap = pmrem.fromEquirectangular(texture).texture;
@@ -5270,6 +5271,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         hemisphereIntensity: this.hemiLight.intensity,
         directionalIntensity: this.dirLight.intensity,
       },
+      hdrPath: this._selectedHdrPath || null,
       gallery_name: room.name,
       artist_name: this.manager.auth.user?.name || 'Artist',
       musicUrl: this._musicPlaylist.length ? this._musicPlaylist[0].url : null,
@@ -5350,7 +5352,11 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       if (dirIntensity) dirIntensity.value = sd.lighting.directionalIntensity;
       if (dirVal) dirVal.textContent = sd.lighting.directionalIntensity.toFixed(2);
     }
-    
+
+    if (sd.hdrPath) {
+      this._applyHDR(sd.hdrPath);
+    }
+
     if (sd.artworks?.length) {
       for (const a of sd.artworks) {
         if (!a.storageUrl) continue;
