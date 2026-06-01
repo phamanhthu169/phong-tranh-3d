@@ -1368,7 +1368,7 @@ export class ViewerScene extends BaseScene {
     inp.value = '';
     this._appendMsg(this._chatUsername, text, true);
     const { data, error } = await supabase.from('messages')
-      .insert({ room: this._CHAT_ROOM, username: this._chatUsername, content: text }).select();
+      .insert({ id: Date.now(), room: this._CHAT_ROOM, username: this._chatUsername, content: text }).select();
     if (error) { this._toast('Gửi thất bại', 'error'); return; }
     if (data && data[0] && data[0].id) this._shownMsgIds.add(data[0].id);
   }

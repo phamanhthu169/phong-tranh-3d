@@ -219,6 +219,16 @@ export class StudioScene extends BaseScene {
     this._on(document, 'keydown', (e) => {
       if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') return;
       this.keys[e.code] = true;
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ' && !e.shiftKey) {
+        e.preventDefault();
+        this._undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyY' || (e.code === 'KeyZ' && e.shiftKey))) {
+        e.preventDefault();
+        this._redo();
+        return;
+      }
     });
     this._on(document, 'keyup', (e) => {
       if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') return;
@@ -847,7 +857,7 @@ bar.appendChild(makeSimpleBtn('stb2-flipfb', 'mirror.svg', 'Lật trước/sau')
     const obj = this.getSelObj();
     if (!obj || !this.selectedItem) return;
     this._undoStack.push({ type: this.selectedItem.type, index: this.selectedItem.index, position: obj.position.clone(), rotation: obj.rotation.clone(), scale: obj.scale.clone() });
-    if (this._undoStack.length > 50) this._undoStack.shift();
+    if (this._undoStack.length > 100) this._undoStack.shift();
     this._redoStack = [];
   }
 
@@ -1596,7 +1606,7 @@ _buildStudioLeftBtns() {
     stepsBar.id = 'rp-steps';
     STEPS.forEach((s, i) => {
       const btn = document.createElement('div');
-      btn.className = 'rp-step' + (i === 1 ? ' active' : '');
+      btn.className = 'rp-step' + (i === 0 ? ' active' : '');
       btn.dataset.step = i;
       btn.innerHTML = `<span class="rp-step-num">${s.num}</span><span class="rp-step-label">${s.label.replace('\n', '<br>')}</span>`;
       stepsBar.appendChild(btn);
@@ -1667,7 +1677,7 @@ _buildStudioLeftBtns() {
       },
     ];
 
-    let currentStep = 1; // bước 02
+    let currentStep = 0; // bước 01
 
     const STEP_WITH_SUBTABS = 2; // chỉ step 03 (index 2) mới hiện subtabs
 
@@ -1742,7 +1752,7 @@ _buildStudioLeftBtns() {
       });
     });
 
-    renderStep(1); // mặc định mở bước 02
+    renderStep(0); // mặc định mở bước 01
 
     // File input listeners (giữ nguyên)
     document.getElementById('uz-img')?.addEventListener('click', () => document.getElementById('fi-img').click());
@@ -3231,6 +3241,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
             const nameInput = pane.querySelector('#pub-name');
             if (!nameInput.value.trim()) { this.toast('❌ Vui lòng điền tên phòng', 'error'); return; }
             if (!room.thumbnailUrl) { this.toast('❌ Vui lòng lưu thumbnail trước', 'error'); return; }
+            if (this.chests.length === 0) { this.toast('❌ Phòng phải có ít nhất 1 rương câu đố trước khi xuất bản', 'error'); return; }
             room.name = nameInput.value.trim();
             room.description = descEl.value;
             room.tags = [...currentTags];
@@ -4710,7 +4721,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         const idx = this.selectedItem.index;
         const aw = this.selectedItem.data;
         this._undoStack.push({ type: 'delete-artwork', index: idx, data: aw });
-        if (this._undoStack.length > 50) this._undoStack.shift();
+        if (this._undoStack.length > 100) this._undoStack.shift();
         this._redoStack = [];
         this.threeScene.remove(aw.group);
         this.artworks.splice(idx, 1);
@@ -4720,7 +4731,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         const idx = this.selectedItem.index;
         const md = this.selectedItem.data;
         this._undoStack.push({ type: 'delete-model', index: idx, data: md });
-        if (this._undoStack.length > 50) this._undoStack.shift();
+        if (this._undoStack.length > 100) this._undoStack.shift();
         this._redoStack = [];
         this.threeScene.remove(md.object);
         this.threeScene.remove(md.light);
@@ -4849,14 +4860,18 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         const hit = hits[0];
         const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
         const isFloor = n.y > 0.7;
+        let md;
         if (isFloor) {
-          this.place3DModel(this.selectedSource.object.clone(), hit.point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null, {}, null, this._usePedestal, true);
+          md = this.place3DModel(this.selectedSource.object.clone(), hit.point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null, {}, null, this._usePedestal, true);
         } else {
-          this.place3DModel(this.selectedSource.object.clone(), hit.point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null, {}, null, false, false);
+          md = this.place3DModel(this.selectedSource.object.clone(), hit.point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null, {}, null, false, false);
         }
         this._renderUploadedList();
         this._triggerAutosave();
-        this.toast('Model đặt thành công ✓', 'success'); return;
+        this.toast('Model đặt thành công ✓', 'success');
+        this.setMode('select');
+        this.selectItem('model', md, this.models3d.length - 1);
+        return;
       }
       // Include interior wall meshes as placement surfaces
       const wallMeshes = this.interiorWalls.flatMap(w => [w.frontMesh, w.backMesh]);
@@ -4866,10 +4881,13 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
       pt.add(n.clone().multiplyScalar(.05));
       if (this.selectedSource.isVideo) this.selectedSource.videoEl.play();
-      this.placeArtwork(this.selectedSource, pt, [0, Math.atan2(n.x, n.z), 0]);
+      const ad = this.placeArtwork(this.selectedSource, pt, [0, Math.atan2(n.x, n.z), 0]);
       this._renderUploadedList();
       this._triggerAutosave();
-      this.toast('Đã đặt tranh ✓', 'success'); return;
+      this.toast('Đã đặt tranh ✓', 'success');
+      this.setMode('select');
+      this.selectItem('artwork', ad, this.artworks.length - 1);
+      return;
     }
 
     if (this._chestPlacingMode) {
@@ -5136,6 +5154,9 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
   async _togglePublish() {
     if (!this._isRoomNameValid()) return;
     const room = this.manager.currentRoom;
+    if (!room.isPublished && this.chests.length === 0) {
+      this.toast('❌ Phòng phải có ít nhất 1 rương câu đố trước khi xuất bản', 'error'); return;
+    }
     room.isPublished = !room.isPublished;
     const btn = document.getElementById('rp-btn-publish');
     if (btn) {
