@@ -105,7 +105,7 @@ export class LandingScene extends BaseScene {
         text-align:center;
       }
       .lp-strip-label-room {
-        color:#FFE033;
+        color:#FFF3A3;
         font-size:14px;
         white-space:normal;
         word-break:break-word;
