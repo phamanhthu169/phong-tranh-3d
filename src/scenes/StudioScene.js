@@ -33,7 +33,7 @@ const STUDIO_TIPS = [
   'Mỗi gallery đều có thể mang phong cách hoàn toàn riêng biệt.',
   'Cho thêm cảnh vật bên ngoài sẽ giúp căn phòng của bạn sinh động hơn đấy.',
   'Bạn thích sơn tường chứ?',
-  'Tip: Bạn có thể tải ảnh và sticker lên thumbnail của bạn.',
+  'Tip: Bạn có thể tải ảnh lên và kéo để chỉnh vùng crop thumbnail.',
   'Nếu có điều gì băn khoăn, bạn có thể chat cùng đội ngũ của Creatory.',
   'Nếu file video nặng quá, bạn cũng có thể nhúng link URL.',
   'Nhớ lưu mọi thay đổi trước khi thoát trang nhé.',
@@ -251,6 +251,11 @@ export class StudioScene extends BaseScene {
 
     await this.loadGallery();
     this._hideLoadingScreen();
+    const _pendingRooms = JSON.parse(localStorage.getItem('creatory_feedback_pending') || '[]');
+    const _roomId = this.manager.currentRoom?.id;
+    if (_roomId && _pendingRooms.includes(_roomId)) {
+      setTimeout(() => this._showFeedbackModal(), 1500);
+    }
 
     // Load egg 3D previews vào scene ngay khi init (không cần mở panel Mission)
     if (this.manager.currentRoom?.id) {
@@ -1477,39 +1482,38 @@ _buildStudioLeftBtns() {
       /* ── Thumbnail Modal ── */
       #thumb-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:2000; opacity:0; pointer-events:none; transition:opacity .22s; }
       #thumb-modal-overlay.open { opacity:1; pointer-events:auto; }
+      /* ── Feedback Modal ── */
+      #feedback-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:3000; opacity:0; pointer-events:none; transition:opacity .25s; }
+      #feedback-modal-overlay.open { opacity:1; pointer-events:auto; }
+      #feedback-modal { width:92vw; max-width:440px; background:linear-gradient(160deg,rgba(18,47,106,0.97),rgba(22,55,120,0.97)); border:.5px solid rgba(212,197,169,0.25); border-radius:10px; padding:32px 28px 24px; display:flex; flex-direction:column; gap:16px; box-shadow:0 8px 40px rgba(0,0,0,0.5); }
+      #feedback-modal-icon { font-size:28px; text-align:center; }
+      #feedback-modal-text { color:#FFFFFF; font-family:'Montserrat',sans-serif; font-size:13px; line-height:1.65; text-align:center; letter-spacing:.02em; }
+      #feedback-modal-actions { display:flex; flex-direction:column; gap:8px; margin-top:4px; }
+      #feedback-modal-actions button { font-family:'Montserrat',sans-serif; font-size:11px; letter-spacing:.08em; font-weight:600; border-radius:5px; padding:9px 16px; cursor:pointer; transition:all .18s; border:none; }
+      #fbm-btn-yes { background:linear-gradient(90deg,#68e5e3,#4db8b6); color:#0a2040; }
+      #fbm-btn-yes:hover { filter:brightness(1.1); }
+      #fbm-btn-later { background:rgba(212,197,169,0.1); border:.5px solid rgba(212,197,169,0.25) !important; color:rgba(212,197,169,0.8); }
+      #fbm-btn-later:hover { background:rgba(212,197,169,0.18); }
+      #fbm-btn-no { background:none; color:rgba(212,197,169,0.4); font-size:10px; font-weight:400; padding:4px; }
+      #fbm-btn-no:hover { color:rgba(212,197,169,0.7); }
+      #feedback-modal-actions button { border:.5px solid transparent; }
       #thumb-modal { width:92vw; max-width:1080px; height:88vh; background:rgba(35, 92, 208, 0.5); border:.5px solid rgba(212,197,169,0.18); border-radius:8px; display:flex; flex-direction:column; overflow:hidden; }
 #thumb-modal-title { color:#FFFFFF; font-family:'Montserrat',sans-serif; font-size:12px; letter-spacing:.12em; font-weight:700; margin-left:30px; position:relative; top:5px; }      
 #thumb-modal-close { background:none; border:.5px solid rgba(212,197,169,0.2); border-radius:3px; color:#FFFFFF; cursor:pointer; font-size:12px; padding:3px 9px; transition:all .2s; position:relative; top:5px; }      #thumb-modal-close:hover { background:rgba(181,74,58,.2); border-color:rgba(181,74,58,.5); color:#ff9982; }
       #thumb-modal-body { display:flex; flex:1; overflow:hidden; }
       #thumb-canvas-container { flex:1; display:flex; align-items:center; justify-content:center; padding:16px; overflow:hidden; background:rgba(255,255,255,0.015); }
-      #thumb-canvas-area { position:relative; border:.5px solid rgba(212,197,169,0.2); border-radius:4px; overflow:hidden; flex-shrink:0; background: repeating-conic-gradient(#3a3835 0% 25%, #2a2826 0% 50%) 0 0 / 16px 16px; cursor:crosshair; }
-      #thumb-draw-canvas { display:block; background: transparent; position:relative; z-index:1; }
-      #thumb-obj-layer { position:absolute; inset:0; z-index:2; pointer-events:none; }
-      #thumb-door-overlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:0; object-fit:fill; opacity:0.5; }
-      #thumb-guide-hint { position:absolute; bottom:12%; left:50%; transform:translateX(-50%); pointer-events:none; z-index:3; text-align:center; background:rgba(0,0,0,0.45); border:.5px solid rgba(212,197,169,0.25); border-radius:4px; padding:4px 10px; white-space:nowrap; }
-      #thumb-guide-hint span { display:block; color:rgba(212,197,169,0.6); font-size:9px; letter-spacing:.08em; font-family:'Montserrat',sans-serif; line-height:1.5; }
-      .thumb-obj-item { position:absolute; box-sizing:border-box; cursor:move; touch-action:none; pointer-events:auto; }
-      .thumb-obj-item.selected { outline:1.5px dashed rgba(104,229,227,0.75); outline-offset:1px; }
-      .thumb-obj-item img { width:100%; height:100%; pointer-events:none; display:block; object-fit:fill; }
-      .obj-handle { position:absolute; width:10px; height:10px; background:#68e5e3; border-radius:2px; z-index:10; display:none; box-sizing:border-box; }
-      .thumb-obj-item.selected .obj-handle { display:block; }
-      .obj-handle.tl { top:-5px; left:-5px; cursor:nwse-resize; }
-      .obj-handle.tr { top:-5px; right:-5px; cursor:nesw-resize; }
-      .obj-handle.bl { bottom:-5px; left:-5px; cursor:nesw-resize; }
-      .obj-handle.br { bottom:-5px; right:-5px; cursor:nwse-resize; }
-      .obj-rotate-handle { position:absolute; top:-22px; left:50%; transform:translateX(-50%); width:12px; height:12px; background:#c8a96e; border-radius:50%; cursor:crosshair; display:none; z-index:10; }
-      .thumb-obj-item.selected .obj-rotate-handle { display:block; }
-      .obj-delete-btn { position:absolute; top:-10px; right:-10px; width:18px; height:18px; background:rgba(181,74,58,.85); border:none; border-radius:50%; color:#fff; font-size:9px; cursor:pointer; display:none; align-items:center; justify-content:center; z-index:10; padding:0; line-height:1; font-family:monospace; }
-      .thumb-obj-item.selected .obj-delete-btn { display:flex; }
+      #thumb-canvas-area { position:relative; border:.5px solid rgba(212,197,169,0.2); border-radius:4px; overflow:hidden; flex-shrink:0; background: repeating-conic-gradient(#3a3835 0% 25%, #2a2826 0% 50%) 0 0 / 16px 16px; cursor:default; }
+      #thumb-preview-canvas { display:block; position:relative; z-index:1; }
+      #thumb-canvas-area.has-image { cursor:grab; }
+      #thumb-canvas-area.has-image.dragging { cursor:grabbing; }
+      #thumb-empty-state { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; pointer-events:none; z-index:2; }
+      #thumb-empty-state .tp-empty-icon { font-size:28px; opacity:.35; }
+      #thumb-empty-state .tp-empty-text { color:rgba(212,197,169,0.45); font-size:10px; letter-spacing:.08em; font-family:'Montserrat',sans-serif; text-align:center; }
+      .tp-crop-hint { color:rgba(212,197,169,0.5); font-size:9px; letter-spacing:.06em; padding:4px 12px 8px; font-family:'Montserrat',sans-serif; }
       #thumb-tool-panel { width:210px; flex-shrink:0; display:flex; flex-direction:column; background:linear-gradient(180deg, rgba(18, 47, 106, 1), rgba(118, 170, 171, 1));
 ; border-left:.5px solid rgba(212,197,169,0.1); overflow-y:auto; padding-bottom:12px; }
       .tp-section { color:#FFFFFF; font-size:8px; letter-spacing:.15em; text-transform:uppercase; padding:10px 12px 5px; flex-shrink:0; }
-      .tp-brushes { display:flex; flex-wrap:wrap; gap:4px; padding:0 10px 8px; }
-      .tp-brush { background:rgba(255,255,255,0.06); border:.5px solid rgba(212,197,169,0.18); border-radius:4px; color:#FFFFFF; font-family:'Montserrat',sans-serif; cursor:pointer; font-size:14px; padding:5px 8px; transition:all .15s; line-height:1.2; }
-      .tp-brush:hover { background:rgba(255,255,255,0.12); }
-      .tp-brush.active { background:rgba(104,229,227,0.15); border-color:rgba(104,229,227,0.5); }
       .tp-row { display:flex; align-items:center; gap:8px; padding:0 12px 7px; }
-      .tp-color { width:30px; height:28px; border:.5px solid rgba(212,197,169,0.2); border-radius:4px; padding:1px; cursor:pointer; background:none; flex-shrink:0; }
       .tp-range { flex:1; -webkit-appearance:none; height:2px; background:rgba(212,197,169,0.18); border-radius:1px; cursor:pointer; outline:none; }
       .tp-range::-webkit-slider-thumb { -webkit-appearance:none; width:10px; height:10px; border-radius:50%; background:#d4c5a9; cursor:pointer; }
       .tp-label { color:rgb(255, 255, 255); font-size:8px; min-width:22px; text-align:right; flex-shrink:0; }
@@ -3241,7 +3245,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
             const nameInput = pane.querySelector('#pub-name');
             if (!nameInput.value.trim()) { this.toast('❌ Vui lòng điền tên phòng', 'error'); return; }
             if (!room.thumbnailUrl) { this.toast('❌ Vui lòng lưu thumbnail trước', 'error'); return; }
-            if (this.chests.length === 0) { this.toast('❌ Phòng phải có ít nhất 1 rương câu đố trước khi xuất bản', 'error'); return; }
+            if (!this._missionData?.some(d => d?.mission_type)) { this.toast('❌ Phòng phải có ít nhất 1 rương câu đố trước khi xuất bản', 'error'); return; }
             room.name = nameInput.value.trim();
             room.description = descEl.value;
             room.tags = [...currentTags];
@@ -3253,6 +3257,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
             statusEl.innerHTML = 'Phòng đang ở chế độ <b style="color:#fff">Public</b>';
             await this.saveGallery();
             this.toast('Đã xuất bản phòng ✓', 'success');
+            setTimeout(() => this._showFeedbackModal(), 1200);
           }
         });
 
@@ -3306,55 +3311,82 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     this._thumbModal.classList.add('open');
   }
 
+  _showFeedbackModal() {
+    if (localStorage.getItem('creatory_feedback_dismissed') === 'true') return;
+
+    if (!this._feedbackModal) {
+      const overlay = document.createElement('div');
+      overlay.id = 'feedback-modal-overlay';
+      overlay.innerHTML = `
+        <div id="feedback-modal">
+          <div id="feedback-modal-icon">🎉</div>
+          <div id="feedback-modal-text">Phòng tranh của bạn vừa được xuất bản! Bạn có thể dành 2 phút chia sẻ trải nghiệm sử dụng Creatory không? Ý kiến của bạn giúp chúng tôi cải thiện rất nhiều.</div>
+          <div id="feedback-modal-actions">
+            <button id="fbm-btn-yes">Có, để lại nhận xét ngay</button>
+            <button id="fbm-btn-later">Nhắc tôi sau</button>
+            <button id="fbm-btn-no">Không, cảm ơn</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      this._feedbackModal = overlay;
+
+      const close = () => overlay.classList.remove('open');
+
+      overlay.querySelector('#fbm-btn-yes').addEventListener('click', () => {
+        localStorage.setItem('creatory_feedback_dismissed', 'true');
+        window.open('https://forms.gle/2TxWUnPVizCFfosv6', '_blank');
+        close();
+      });
+      overlay.querySelector('#fbm-btn-later').addEventListener('click', () => {
+        const roomId = this.manager.currentRoom?.id;
+        if (roomId) {
+          const pending = JSON.parse(localStorage.getItem('creatory_feedback_pending') || '[]');
+          if (!pending.includes(roomId)) pending.push(roomId);
+          localStorage.setItem('creatory_feedback_pending', JSON.stringify(pending));
+        }
+        close();
+      });
+      overlay.querySelector('#fbm-btn-no').addEventListener('click', () => {
+        localStorage.setItem('creatory_feedback_dismissed', 'true');
+        close();
+      });
+      overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    }
+
+    this._feedbackModal.classList.add('open');
+  }
+
   _buildThumbModal() {
     const overlay = document.createElement('div');
     overlay.id = 'thumb-modal-overlay';
     overlay.innerHTML = `
       <div id="thumb-modal">
         <div id="thumb-modal-header">
-          <span id="thumb-modal-title">🖼 CHỈNH SỬA THUMBNAIL</span>
+          <span id="thumb-modal-title">🖼 CHỌN THUMBNAIL</span>
           <button id="thumb-modal-close">✕ Đóng</button>
         </div>
         <div id="thumb-modal-body">
           <div id="thumb-canvas-container">
             <div id="thumb-canvas-area">
-              <img id="thumb-door-overlay" src="/studio/door-frame.png" alt="">
-              <canvas id="thumb-draw-canvas"></canvas>
-              <div id="thumb-obj-layer"></div>
-              <div id="thumb-guide-hint">
-                <span>↑ Vẽ cửa ở khu vực này</span>
-                <span style="opacity:.7;">Phần còn lại vẽ tự do</span>
+              <canvas id="thumb-preview-canvas"></canvas>
+              <div id="thumb-empty-state">
+                <span class="tp-empty-icon">📷</span>
+                <span class="tp-empty-text">Chưa có ảnh<br>Vui lòng chọn ảnh bên phải</span>
               </div>
             </div>
           </div>
           <div id="thumb-tool-panel">
-            <div class="tp-section">Chế độ vẽ</div>
-            <div class="tp-brushes">
-              <button class="tp-brush active" data-brush="round"  title="Cọ tròn">●</button>
-              <button class="tp-brush"        data-brush="eraser" title="Tẩy">⬜</button>
-              <button class="tp-brush"        data-brush="bucket" title="Đổ màu">🪣</button>
-            </div>
-            <div class="tp-section">Màu & kích cỡ</div>
-            <div class="tp-row">
-              <input type="color" id="tp-color" class="tp-color" value="#c8a96e" title="Màu">
-              <input type="range" id="tp-size" class="tp-range" min="1" max="80" value="12">
-              <span class="tp-label" id="tp-size-label">12</span>
-            </div>
-            <div class="tp-section">Độ mờ</div>
-            <div class="tp-row">
-              <input type="range" id="tp-opacity" class="tp-range" min="5" max="100" value="100">
-              <span class="tp-label" id="tp-opacity-label">100%</span>
-            </div>
-            <hr class="tp-sep">
-            <div class="tp-section">Hoạ tiết (có thể chọn nhiều)</div>
-            <label class="tp-upload-label">
-              📁 Thêm hoạ tiết
-              <input type="file" id="tp-upload-input" accept="image/*" multiple style="display:none">
+            <div class="tp-section">Ảnh thumbnail</div>
+            <label class="tp-upload-label" id="tp-upload-label">
+              📁 Chọn ảnh từ máy
+              <input type="file" id="tp-upload-input" accept="image/*" style="display:none">
             </label>
-          <div id="tp-obj-hint" style="color:#FFFFFF;font-size:8px;padding:0 12px 6px;letter-spacing:.06em;">Click hoạ tiết để chọn — kéo, co/giãn, xoay tuỳ ý</div>            <hr class="tp-sep">
-            <button class="tp-btn" id="tp-undo-btn">↩ Hoàn tác</button>
-            <button class="tp-btn" id="tp-clear-btn">🗑 Xóa nền vẽ</button>
-            <button class="tp-btn" id="tp-clear-objs-btn">🗑 Xóa tất cả hoạ tiết</button>
+            <div class="tp-crop-hint" id="tp-crop-hint" style="display:none">Kéo ảnh để chỉnh vùng hiển thị</div>
+            <div class="tp-section" id="tp-zoom-label" style="display:none">Thu phóng</div>
+            <div class="tp-row" id="tp-zoom-row" style="display:none">
+              <input type="range" id="tp-zoom" class="tp-range" min="100" max="300" value="100">
+              <span class="tp-label" id="tp-zoom-val">100%</span>
+            </div>
             <hr class="tp-sep">
             <button class="tp-save-btn" id="tp-save-btn">💾 Lưu thumbnail & đóng</button>
           </div>
@@ -3364,26 +3396,28 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     document.body.appendChild(overlay);
     this._el(overlay);
     this._thumbModal = overlay;
-    this._thumbObjects = [];
-    this._thumbObjCounter = 0;
-    this._thumbUndoStack = [];
-    this._thumbRestoring = false;
+    this._thumbUploadedImg = this._thumbUploadedImg || null;
+    this._thumbCropX = 0;
+    this._thumbCropY = 0;
+    this._thumbZoom = 1;
+    this._thumbBaseScale = 1;
 
     overlay.querySelector('#thumb-modal-close').addEventListener('click', () => overlay.classList.remove('open'));
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
 
-    this._setupCanvasEditor(overlay);
+    this._setupThumbUploader(overlay);
   }
 
-  _setupCanvasEditor(modal) {
-    const canvas   = modal.querySelector('#thumb-draw-canvas');
-    const objLayer = modal.querySelector('#thumb-obj-layer');
-    const colorEl  = modal.querySelector('#tp-color');
-    const sizeEl   = modal.querySelector('#tp-size');
-    const sizeLbl  = modal.querySelector('#tp-size-label');
-    const opacEl   = modal.querySelector('#tp-opacity');
-    const opacLbl  = modal.querySelector('#tp-opacity-label');
-    const uploadEl = modal.querySelector('#tp-upload-input');
+  _setupThumbUploader(modal) {
+    const canvas     = modal.querySelector('#thumb-preview-canvas');
+    const uploadEl   = modal.querySelector('#tp-upload-input');
+    const zoomEl     = modal.querySelector('#tp-zoom');
+    const zoomVal    = modal.querySelector('#tp-zoom-val');
+    const cropHint   = modal.querySelector('#tp-crop-hint');
+    const zoomRow    = modal.querySelector('#tp-zoom-row');
+    const zoomLbl    = modal.querySelector('#tp-zoom-label');
+    const emptyState = modal.querySelector('#thumb-empty-state');
+    const canvasArea = modal.querySelector('#thumb-canvas-area');
 
     const setupCanvas = (nw, nh) => {
       const container = modal.querySelector('#thumb-canvas-container');
@@ -3393,142 +3427,130 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       const scale = Math.min(maxW / nw, maxH / nh, 1);
       canvas.width  = Math.round(nw * scale);
       canvas.height = Math.round(nh * scale);
-      this._thumbCanvas   = canvas;
-      this._thumbObjLayer = objLayer;
-      this._restoreThumbState();
+      this._thumbCanvas = canvas;
+      if (this._thumbUploadedImg) { fitImage(); drawPreview(); showImageUI(); }
+    };
+
+    const drawPreview = () => {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!this._thumbUploadedImg) return;
+      const s = this._thumbBaseScale * this._thumbZoom;
+      ctx.drawImage(this._thumbUploadedImg,
+        this._thumbCropX, this._thumbCropY,
+        this._thumbUploadedImg.naturalWidth  * s,
+        this._thumbUploadedImg.naturalHeight * s);
+    };
+
+    const clampOffset = () => {
+      if (!this._thumbUploadedImg) return;
+      const s  = this._thumbBaseScale * this._thumbZoom;
+      const iw = this._thumbUploadedImg.naturalWidth  * s;
+      const ih = this._thumbUploadedImg.naturalHeight * s;
+      this._thumbCropX = Math.min(0, Math.max(canvas.width  - iw, this._thumbCropX));
+      this._thumbCropY = Math.min(0, Math.max(canvas.height - ih, this._thumbCropY));
+    };
+
+    const fitImage = () => {
+      if (!this._thumbUploadedImg) return;
+      const scaleX = canvas.width  / this._thumbUploadedImg.naturalWidth;
+      const scaleY = canvas.height / this._thumbUploadedImg.naturalHeight;
+      this._thumbBaseScale = Math.max(scaleX, scaleY);
+      this._thumbZoom = 1;
+      this._thumbCropX = (canvas.width  - this._thumbUploadedImg.naturalWidth  * this._thumbBaseScale) / 2;
+      this._thumbCropY = (canvas.height - this._thumbUploadedImg.naturalHeight * this._thumbBaseScale) / 2;
+      clampOffset();
+      zoomEl.value = 100;
+      zoomVal.textContent = '100%';
+    };
+
+    const showImageUI = () => {
+      emptyState.style.display   = 'none';
+      cropHint.style.display     = '';
+      zoomRow.style.display      = '';
+      zoomLbl.style.display      = '';
+      canvasArea.classList.add('has-image');
     };
 
     const imgRef = new Image();
     imgRef.onload  = () => setupCanvas(imgRef.naturalWidth, imgRef.naturalHeight);
-    imgRef.onerror = () => setupCanvas(600, 800);
+    imgRef.onerror = () => setupCanvas(486, 732);
     imgRef.src = '/studio/door-frame.png';
 
-    let lastPos     = null;
-    let isDrawing   = false;
-    let currentBrush = 'round';
-
-    const brushBtns = modal.querySelectorAll('.tp-brush');
-    brushBtns.forEach(btn => btn.addEventListener('click', () => {
-      currentBrush = btn.dataset.brush;
-      brushBtns.forEach(b => b.classList.toggle('active', b === btn));
-    }));
-
-    sizeEl.addEventListener('input', () => sizeLbl.textContent = sizeEl.value);
-    opacEl.addEventListener('input', () => opacLbl.textContent = opacEl.value + '%');
-
-    const getCanvasPos = e => {
-      const r = canvas.getBoundingClientRect();
-      return { x: (e.clientX - r.left) * (canvas.width / r.width), y: (e.clientY - r.top) * (canvas.height / r.height) };
-    };
-
-    const saveUndo = () => {
-      this._thumbUndoStack.push(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height));
-      if (this._thumbUndoStack.length > 24) this._thumbUndoStack.shift();
-    };
-
-    canvas.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      const ctx = canvas.getContext('2d');
-      const pos = getCanvasPos(e);
-      saveUndo();
-
-      if (currentBrush === 'bucket') {
-        const hex = colorEl.value;
-        this._floodFill(ctx, Math.round(pos.x), Math.round(pos.y),
-          [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16), 255]);
-        this._saveThumbState();
-        return;
-      }
-
-      isDrawing = true;
-      lastPos   = pos;
-      ctx.beginPath();
-      ctx.moveTo(pos.x, pos.y);
-    });
-
-    canvas.addEventListener('mousemove', e => {
-      if (!isDrawing) return;
-      const ctx = canvas.getContext('2d');
-      const pos = getCanvasPos(e);
-      ctx.lineWidth = +sizeEl.value;
-      ctx.lineCap   = 'round';
-      ctx.lineJoin  = 'round';
-
-      if (currentBrush === 'eraser') {
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = 'rgba(0,0,0,1)';
-      } else {
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.globalAlpha = +opacEl.value / 100;
-        ctx.strokeStyle = colorEl.value;
-      }
-
-      ctx.lineTo(pos.x, pos.y);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(pos.x, pos.y);
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = 'source-over';
-      lastPos = pos;
-    });
-
-    const stopDraw = () => {
-      if (isDrawing) {
-        isDrawing = false;
-        lastPos   = null;
-        this._saveThumbState();
-      }
-    };
-    canvas.addEventListener('mouseup', stopDraw);
-    canvas.addEventListener('mouseleave', stopDraw);
-
-    modal.querySelector('#tp-undo-btn').addEventListener('click', () => {
-      if (!this._thumbUndoStack.length) return;
-      canvas.getContext('2d').putImageData(this._thumbUndoStack.pop(), 0, 0);
-      this._saveThumbState();
-    });
-
-    modal.querySelector('#tp-clear-btn').addEventListener('click', () => {
-      saveUndo();
-      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-      this._saveThumbState();
-    });
-
-    modal.querySelector('#tp-clear-objs-btn').addEventListener('click', () => {
-      this._thumbObjects = [];
-      objLayer.innerHTML = '';
-      this._saveThumbState();
-    });
-
+    // ── Upload ──
     uploadEl.addEventListener('change', e => {
-      Array.from(e.target.files).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = ev => {
-          const img = new Image();
-          img.onload = () => {
-            const canvasW = canvas.width, canvasH = canvas.height;
-            const maxDim  = Math.min(canvasW, canvasH) * 0.5;
-            const scale   = Math.min(maxDim / img.naturalWidth, maxDim / img.naturalHeight, 1);
-            const w = Math.round(img.naturalWidth  * scale);
-            const h = Math.round(img.naturalHeight * scale);
-            const offset  = this._thumbObjects.length * 20;
-            const x = Math.min((canvasW - w) / 2 + offset, canvasW - w - 4);
-            const y = Math.min((canvasH - h) / 2 + offset, canvasH - h - 4);
-            this._addThumbObject(img, x, y, w, h, canvas, objLayer);
-          };
-          img.src = ev.target.result;
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => {
+          this._thumbUploadedImg = img;
+          fitImage();
+          drawPreview();
+          showImageUI();
+          const lbl = modal.querySelector('#tp-upload-label');
+          lbl.childNodes[0].textContent = '📁 Đổi ảnh  ';
         };
-        reader.readAsDataURL(file);
-      });
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
       e.target.value = '';
     });
 
+    // ── Zoom ──
+    zoomEl.addEventListener('input', () => {
+      if (!this._thumbUploadedImg) return;
+      const pct = +zoomEl.value;
+      zoomVal.textContent = pct + '%';
+      const cx = canvas.width  / 2;
+      const cy = canvas.height / 2;
+      const oldS = this._thumbBaseScale * this._thumbZoom;
+      this._thumbZoom = pct / 100;
+      const newS = this._thumbBaseScale * this._thumbZoom;
+      this._thumbCropX = cx - (cx - this._thumbCropX) * (newS / oldS);
+      this._thumbCropY = cy - (cy - this._thumbCropY) * (newS / oldS);
+      clampOffset();
+      drawPreview();
+    });
+
+    // ── Pan (drag) ──
+    let isDragging = false;
+    let dragStartX = 0, dragStartY = 0, dragOrigX = 0, dragOrigY = 0;
+
+    canvas.addEventListener('mousedown', e => {
+      if (!this._thumbUploadedImg || e.button !== 0) return;
+      isDragging = true;
+      dragStartX = e.clientX; dragStartY = e.clientY;
+      dragOrigX  = this._thumbCropX; dragOrigY = this._thumbCropY;
+      canvasArea.classList.add('dragging');
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      this._thumbCropX = dragOrigX + (e.clientX - dragStartX);
+      this._thumbCropY = dragOrigY + (e.clientY - dragStartY);
+      clampOffset();
+      drawPreview();
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!isDragging) return;
+      isDragging = false;
+      canvasArea.classList.remove('dragging');
+    });
+
+    // ── Save ──
     modal.querySelector('#tp-save-btn').addEventListener('click', async () => {
+      if (!this._thumbUploadedImg) {
+        this.toast('❌ Vui lòng chọn ảnh thumbnail trước', 'error');
+        return;
+      }
       const saveBtn = modal.querySelector('#tp-save-btn');
       saveBtn.disabled = true; saveBtn.textContent = '⏳ Đang lưu...';
       try {
-        const dataUrl = this._exportThumbnailDataUrl(modal);
+        const dataUrl = this._exportThumbnailDataUrl();
         const url = await this._uploadThumbnail(dataUrl);
         const room = this.manager.currentRoom;
         if (url && room) {
@@ -3562,232 +3584,19 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     });
   }
 
-  _addThumbObject(img, x, y, w, h, canvas, objLayer, initialRotation = 0) {
-    const id = ++this._thumbObjCounter;
-    const obj = { id, img, x, y, w, h, rotation: initialRotation };
-    this._thumbObjects.push(obj);
-
-    const el = document.createElement('div');
-    el.className = 'thumb-obj-item';
-    el.dataset.id = id;
-    el.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;transform:rotate(${initialRotation}deg);`;
-    el.innerHTML = `
-      <img src="${img.src}" draggable="false">
-      <div class="obj-handle tl"></div>
-      <div class="obj-handle tr"></div>
-      <div class="obj-handle bl"></div>
-      <div class="obj-handle br"></div>
-      <div class="obj-rotate-handle"></div>
-      <button class="obj-delete-btn" title="Xóa">✕</button>
-    `;
-    obj.el = el;
-
-    const selectThis = () => {
-      objLayer.querySelectorAll('.thumb-obj-item').forEach(e => e.classList.remove('selected'));
-      el.classList.add('selected');
-    };
-
-    // ── Move ──
-    el.addEventListener('mousedown', e => {
-      if (e.target.classList.contains('obj-handle') || e.target.classList.contains('obj-rotate-handle') || e.target.classList.contains('obj-delete-btn')) return;
-      e.preventDefault(); e.stopPropagation();
-      selectThis();
-      const startX = e.clientX, startY = e.clientY;
-      const origX = obj.x, origY = obj.y;
-      const onMove = mv => {
-        obj.x = origX + (mv.clientX - startX);
-        obj.y = origY + (mv.clientY - startY);
-        el.style.left = obj.x + 'px';
-        el.style.top  = obj.y + 'px';
-      };
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        this._saveThumbState();
-      };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-
-    // ── Scale (corner handles) ──
-    el.querySelectorAll('.obj-handle').forEach(handle => {
-      handle.addEventListener('mousedown', e => {
-        e.preventDefault(); e.stopPropagation();
-        const corner = handle.classList[1];
-        const startX = e.clientX, startY = e.clientY;
-        const origW = obj.w, origH = obj.h, origX = obj.x, origY = obj.y;
-        const aspect = origW / origH;
-        const onMove = mv => {
-          const dx = mv.clientX - startX, dy = mv.clientY - startY;
-          let newW, newH, newX, newY;
-          if (corner === 'br') { newW = Math.max(30, origW + dx); newH = newW / aspect; newX = origX; newY = origY; }
-          else if (corner === 'bl') { newW = Math.max(30, origW - dx); newH = newW / aspect; newX = origX + (origW - newW); newY = origY; }
-          else if (corner === 'tr') { newW = Math.max(30, origW + dx); newH = newW / aspect; newX = origX; newY = origY + (origH - newH); }
-          else { newW = Math.max(30, origW - dx); newH = newW / aspect; newX = origX + (origW - newW); newY = origY + (origH - newH); }
-          obj.w = newW; obj.h = newH; obj.x = newX; obj.y = newY;
-          el.style.width = newW + 'px'; el.style.height = newH + 'px';
-          el.style.left  = newX + 'px'; el.style.top    = newY + 'px';
-        };
-        const onUp = () => {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-          this._saveThumbState();
-        };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      });
-    });
-
-    // ── Rotate ──
-    el.querySelector('.obj-rotate-handle').addEventListener('mousedown', e => {
-      e.preventDefault(); e.stopPropagation();
-      const onMove = mv => {
-        const rect = el.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
-        const angle = Math.atan2(mv.clientY - cy, mv.clientX - cx) * 180 / Math.PI + 90;
-        obj.rotation = angle;
-        el.style.transform = `rotate(${angle}deg)`;
-      };
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        this._saveThumbState();
-      };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-
-    // ── Delete ──
-    el.querySelector('.obj-delete-btn').addEventListener('click', e => {
-      e.stopPropagation();
-      this._thumbObjects = this._thumbObjects.filter(o => o.id !== id);
-      el.remove();
-      this._saveThumbState();
-    });
-
-    // Deselect on click outside
-    objLayer.addEventListener('mousedown', e => {
-      if (!el.contains(e.target)) el.classList.remove('selected');
-    }, true);
-
-    objLayer.appendChild(el);
-    selectThis();
-    if (!this._thumbRestoring) this._saveThumbState();
-    return obj;
-  }
-
-  _deselectAllObjs() {
-    if (!this._thumbModal) return;
-    this._thumbModal.querySelectorAll('.thumb-obj-item').forEach(e => e.classList.remove('selected'));
-  }
-
-  _saveThumbState() {
-    if (!this._thumbCanvas || this._thumbRestoring) return;
-    try {
-      const roomId = this.manager.currentRoom?.id;
-      if (!roomId) return;
-      const objsData = (this._thumbObjects || []).map(obj => ({
-        imgSrc: obj.img.src,
-        x: obj.x, y: obj.y, w: obj.w, h: obj.h, rotation: obj.rotation,
-      }));
-      localStorage.setItem(`thumb_editor_${roomId}`, JSON.stringify({
-        canvasDataUrl: this._thumbCanvas.toDataURL('image/png'),
-        objects: objsData,
-      }));
-    } catch (_e) {}
-  }
-
-  _restoreThumbState() {
-    if (!this._thumbCanvas || !this._thumbObjLayer) return;
-    try {
-      const roomId = this.manager.currentRoom?.id;
-      if (!roomId) return;
-      const raw = localStorage.getItem(`thumb_editor_${roomId}`);
-      if (!raw) return;
-      const { canvasDataUrl, objects } = JSON.parse(raw);
-      const promises = [];
-      if (canvasDataUrl) {
-        promises.push(new Promise(resolve => {
-          const img = new Image();
-          img.onload = () => { this._thumbCanvas.getContext('2d').drawImage(img, 0, 0); resolve(); };
-          img.onerror = resolve;
-          img.src = canvasDataUrl;
-        }));
-      }
-      if (objects?.length) {
-        this._thumbRestoring = true;
-        objects.forEach(od => {
-          promises.push(new Promise(resolve => {
-            const img = new Image();
-            img.onload = () => {
-              this._addThumbObject(img, od.x, od.y, od.w, od.h, this._thumbCanvas, this._thumbObjLayer, od.rotation);
-              resolve();
-            };
-            img.onerror = resolve;
-            img.src = od.imgSrc;
-          }));
-        });
-      }
-      Promise.all(promises).then(() => { this._thumbRestoring = false; });
-    } catch (_e) { this._thumbRestoring = false; }
-  }
-
-  _floodFill(ctx, startX, startY, fillColor) {
-    const { width, height } = ctx.canvas;
-    if (startX < 0 || startX >= width || startY < 0 || startY >= height) return;
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const data = imageData.data;
-    const idx = (x, y) => (y * width + x) * 4;
-    const getCol = i => [data[i], data[i + 1], data[i + 2], data[i + 3]];
-    const colMatch = (a, b) => Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]) + Math.abs(a[2]-b[2]) + Math.abs(a[3]-b[3]) <= 40;
-    const setCol = i => { data[i] = fillColor[0]; data[i+1] = fillColor[1]; data[i+2] = fillColor[2]; data[i+3] = fillColor[3]; };
-    const target = getCol(idx(startX, startY));
-    if (colMatch(target, fillColor)) return;
-    const queue = [[startX, startY]];
-    const visited = new Uint8Array(width * height);
-    while (queue.length) {
-      const [x, y] = queue.pop();
-      if (x < 0 || x >= width || y < 0 || y >= height) continue;
-      if (visited[y * width + x]) continue;
-      visited[y * width + x] = 1;
-      if (!colMatch(getCol(idx(x, y)), target)) continue;
-      setCol(idx(x, y));
-      queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
-    }
-    ctx.putImageData(imageData, 0, 0);
-  }
-
-  _exportThumbnailDataUrl(modal) {
-    const drawCanvas = modal.querySelector('#thumb-draw-canvas');
-    const doorOverlay = modal.querySelector('#thumb-door-overlay');
+  _exportThumbnailDataUrl() {
+    const canvas = this._thumbCanvas;
     const exp = document.createElement('canvas');
-    exp.width  = drawCanvas.width;
-    exp.height = drawCanvas.height;
-    const ctx = exp.getContext('2d');
-
-    // 1. Door frame as background layer
-    if (doorOverlay?.complete && doorOverlay.naturalWidth) {
-      ctx.drawImage(doorOverlay, 0, 0, exp.width, exp.height);
+    exp.width  = canvas.width;
+    exp.height = canvas.height;
+    const ctx  = exp.getContext('2d');
+    if (this._thumbUploadedImg) {
+      const s = this._thumbBaseScale * this._thumbZoom;
+      ctx.drawImage(this._thumbUploadedImg,
+        this._thumbCropX, this._thumbCropY,
+        this._thumbUploadedImg.naturalWidth  * s,
+        this._thumbUploadedImg.naturalHeight * s);
     }
-
-    // 3. Paint layer on top of door frame
-    ctx.drawImage(drawCanvas, 0, 0);
-
-    // 4. Image objects on top
-    const dispW = drawCanvas.offsetWidth  || drawCanvas.width;
-    const dispH = drawCanvas.offsetHeight || drawCanvas.height;
-    const sx = drawCanvas.width  / dispW;
-    const sy = drawCanvas.height / dispH;
-    (this._thumbObjects || []).forEach(obj => {
-      ctx.save();
-      const cx = (obj.x + obj.w / 2) * sx;
-      const cy = (obj.y + obj.h / 2) * sy;
-      ctx.translate(cx, cy);
-      ctx.rotate(obj.rotation * Math.PI / 180);
-      ctx.drawImage(obj.img, -obj.w / 2 * sx, -obj.h / 2 * sy, obj.w * sx, obj.h * sy);
-      ctx.restore();
-    });
-
     return exp.toDataURL('image/png');
   }
 

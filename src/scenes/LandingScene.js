@@ -98,16 +98,25 @@ export class LandingScene extends BaseScene {
       .lp-strip-item { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; cursor:pointer; transition:opacity .2s; }
       .lp-strip-item:hover { opacity:.82; }
       .lp-strip-label {
-        color:#FFFFFF;
         font-family:'Montserrat',sans-serif;
         font-weight:700;
-        font-size:12px;
         padding:0 4px 6px;
+        max-width:280px;
+        text-align:center;
+      }
+      .lp-strip-label-room {
+        color:#FFE033;
+        font-size:14px;
+        white-space:normal;
+        word-break:break-word;
+        line-height:1.35;
+      }
+      .lp-strip-label-artist {
+        color:#FFFFFF;
+        font-size:10px;
         white-space:nowrap;
         overflow:hidden;
         text-overflow:ellipsis;
-        max-width:600px;
-        text-align:center;
       }
       .lp-strip-thumb { height:356px; width:auto; display:block; object-fit:contain; }
       .lp-strip-placeholder {
@@ -152,14 +161,14 @@ export class LandingScene extends BaseScene {
           item.className = 'lp-strip-item';
 
           const lbl = document.createElement('div');
-          lbl.className = 'lp-strip-label';
+          lbl.className = 'lp-strip-label lp-strip-label-room';
           lbl.textContent = roomName;
           item.appendChild(lbl);
 
           if (artistName) {
             const artist = document.createElement('div');
-            artist.className = 'lp-strip-label';
-            artist.textContent = artistName;
+            artist.className = 'lp-strip-label lp-strip-label-artist';
+            artist.textContent = `Tác giả: ${artistName}`;
             item.appendChild(artist);
           }
 
