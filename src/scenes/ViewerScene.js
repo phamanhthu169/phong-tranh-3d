@@ -1077,6 +1077,7 @@ export class ViewerScene extends BaseScene {
       <div class="icon-btn" id="btn-settings" title="Cài đặt"><img src="/icons/settings.svg" style="width:18px;height:18px"></div>
       <div class="icon-btn" id="btn-help" title="Hướng dẫn sử dụng"><img src="/icons/help.svg" style="width:18px;height:18px"></div>
       <div class="icon-btn" id="btn-share" title="Chia sẻ phòng tranh"><img src="/icons/link.svg" style="width:18px;height:18px"></div>
+      <div class="icon-btn" id="btn-capture" title="Chụp ảnh phòng"><img src="/icons/camera.svg" style="width:18px;height:18px"></div>
 
       <div id="chat-wrap">
         <div id="chat-box">
@@ -1265,6 +1266,10 @@ export class ViewerScene extends BaseScene {
 
     document.getElementById('btn-help').addEventListener('click', () => {
       this._showTutorialSlides();
+    });
+
+    document.getElementById('btn-capture').addEventListener('click', () => {
+      this._captureRoomPhoto();
     });
 
     document.getElementById('minimap-expand-btn').addEventListener('click', () => {
@@ -3043,6 +3048,123 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     if (!el) return false;
     const tag = el.tagName;
     return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+  }
+
+  _captureRoomPhoto() {
+    // Hide all UI elements
+    const uiIds = [
+      'topbar', 'left-column', 'controls-bar', 'right-panel',
+      'settings-panel', 'route-panel', 'vw-nav', 'vw-toast',
+      'artwork-popup', 'expand-overlay', 'yt-overlay',
+      'vw-chest-hint', 'vw-chest-popup'
+    ];
+    const hiddenEls = uiIds.flatMap(id => {
+      const el = document.getElementById(id);
+      if (!el) return [];
+      const prev = el.style.display;
+      el.style.display = 'none';
+      return [{ el, prev }];
+    });
+
+    // Hide 3D helper objects (3D models, chests, waypoint markers)
+    const toggleVis = (obj, vis) => { if (obj) obj.visible = vis; };
+    this.models3d.forEach(md => toggleVis(md.object, false));
+    this.chests.forEach(c => toggleVis(c.mesh, false));
+    this.pathMarkers.forEach(m => { toggleVis(m.mesh, false); toggleVis(m.line, false); });
+
+    // Render to offscreen canvas at 2× resolution for sharpness
+    const W = window.innerWidth;
+    const H = this.manager.canvasH;
+    const offR = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    offR.outputColorSpace = THREE.SRGBColorSpace;
+    offR.toneMapping = THREE.NoToneMapping;
+    offR.shadowMap.enabled = true;
+    offR.setSize(W * 2, H * 2);
+    offR.render(this.threeScene, this.camera);
+    const dataUrl = offR.domElement.toDataURL('image/png');
+    offR.dispose();
+
+    // Restore UI and 3D objects
+    hiddenEls.forEach(({ el, prev }) => { el.style.display = prev; });
+    this.models3d.forEach(md => toggleVis(md.object, true));
+    this.chests.forEach(c => toggleVis(c.mesh, true));
+    this.pathMarkers.forEach(m => { toggleVis(m.mesh, true); toggleVis(m.line, true); });
+
+    // Show preview modal
+    this._showCapturePreview(dataUrl);
+  }
+
+  _showCapturePreview(dataUrl) {
+    const overlay = document.createElement('div');
+    overlay.id = 'capture-preview-overlay';
+    overlay.style.cssText = [
+      'position:fixed;inset:0;z-index:9999',
+      'background:rgba(0,0,0,0.82)',
+      'display:flex;align-items:center;justify-content:center',
+    ].join(';');
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;display:inline-flex;';
+
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.style.cssText = [
+      'display:block',
+      'max-width:88vw;max-height:82vh',
+      'object-fit:contain',
+      'border-radius:4px',
+      'box-shadow:0 8px 48px rgba(0,0,0,0.7)',
+    ].join(';');
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = [
+      'position:absolute;bottom:12px;right:12px',
+      'display:flex;gap:8px;align-items:center',
+    ].join(';');
+
+    const btnSave = document.createElement('button');
+    btnSave.textContent = 'Lưu về máy';
+    btnSave.style.cssText = [
+      'padding:6px 14px;border:none;border-radius:4px;cursor:pointer',
+      'background:rgba(255,255,255,0.92);color:#1a1a2e',
+      "font-family:'Nunito',sans-serif;font-size:12px;font-weight:700",
+      'letter-spacing:.03em;transition:opacity .15s',
+    ].join(';');
+    btnSave.onmouseenter = () => { btnSave.style.opacity = '0.8'; };
+    btnSave.onmouseleave = () => { btnSave.style.opacity = '1'; };
+
+    const btnClose = document.createElement('button');
+    btnClose.textContent = 'Đóng';
+    btnClose.style.cssText = [
+      'padding:6px 14px;border:.5px solid rgba(255,255,255,0.35);border-radius:4px;cursor:pointer',
+      'background:rgba(0,0,0,0.45);color:rgba(255,255,255,0.8)',
+      "font-family:'Nunito',sans-serif;font-size:12px;font-weight:600",
+      'letter-spacing:.03em;transition:opacity .15s',
+    ].join(';');
+    btnClose.onmouseenter = () => { btnClose.style.opacity = '0.7'; };
+    btnClose.onmouseleave = () => { btnClose.style.opacity = '1'; };
+
+    const close = () => { overlay.remove(); };
+
+    btnSave.addEventListener('click', () => {
+      const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `phong-tranh-${ts}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      close();
+      this._toast('📸 Đã tải ảnh về máy', 'success', 2500);
+    });
+
+    btnClose.addEventListener('click', close);
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+    btnRow.append(btnSave, btnClose);
+    wrap.append(img, btnRow);
+    overlay.appendChild(wrap);
+    document.body.appendChild(overlay);
   }
 
   dispose() {
