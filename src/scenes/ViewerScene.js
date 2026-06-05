@@ -449,6 +449,7 @@ export class ViewerScene extends BaseScene {
       <span id="gallery-name">[Phòng Tranh 3D]</span>
       <span id="gallery-separator">—</span>
       <span id="artist-name">Artist Name</span>
+      <button id="gallery-info-btn" class="icon-btn" type="button" title="Thông tin phòng tranh" aria-label="Thông tin phòng tranh" style="pointer-events:auto;">i</button>
     </div>
     <div id="topbar-right"></div>
   `;
@@ -470,6 +471,81 @@ export class ViewerScene extends BaseScene {
     if (anEl) anEl.textContent = artistName;
     if (sepEl) sepEl.style.display = artistName ? '' : 'none';
     if (anEl)  anEl.style.display  = artistName ? '' : 'none';
+
+    const infoBtn = document.getElementById('gallery-info-btn');
+    if (infoBtn) {
+      infoBtn.style.display = 'flex';
+      if (!infoBtn._wired) {
+        infoBtn._wired = true;
+        infoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this._openRoomInfoModal();
+        });
+      }
+    }
+  }
+
+  /* ================================================================
+     POPUP: THÔNG TIN PHÒNG TRANH (đồng bộ với modal "Xem thêm" ở explore)
+  ================================================================ */
+  _openRoomInfoModal() {
+    if (this._roomInfoModalEl) { this._roomInfoModalEl.remove(); this._roomInfoModalEl = null; }
+
+    const roomName   = this._galleryName || this.manager.currentRoom?.name || 'Phòng Tranh 3D';
+    const artistName = this._artistName || this._roomMeta?.artistName || '';
+    const artistId   = this._roomArtistId || '';
+    const date       = this._roomCreatedAt
+      ? new Date(this._roomCreatedAt).toLocaleDateString('vi-VN') : '';
+    const artCount   = this._roomArtCount || 0;
+    const desc       = this._galleryDesc || '';
+    const thumbUrl   = this._roomThumbUrl || null;
+    const likes      = this._likeCount ?? 0;
+    const views      = this._viewCount ?? 0;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'ex-modal-overlay';
+    overlay.innerHTML = `
+      <div class="ex-modal">
+        <div class="ex-modal-close">✕</div>
+        <div class="ex-modal-img">
+          ${thumbUrl
+            ? `<img src="${thumbUrl}" alt="${roomName}">`
+            : `<div class="ex-modal-img-placeholder">🖼</div>`}
+        </div>
+        <div class="ex-modal-info">
+          <div class="ex-modal-name">${roomName}</div>
+          <div class="ex-modal-artist">${artistId && artistName ? `<span class="ex-modal-artist-link" data-artist-id="${artistId}">${artistName}</span>` : (artistName || '')}</div>
+          ${date || artCount ? `<div class="ex-modal-date">${date}${artCount ? (date ? ' · ' : '') + artCount + ' tác phẩm' : ''}</div>` : ''}
+          <div class="ex-modal-stats">
+            <span class="ex-modal-stat"><span class="ex-stat-icon">♥</span> ${likes.toLocaleString('vi-VN')}</span>
+            <span class="ex-modal-stat"><span class="ex-stat-icon">👁</span> ${views.toLocaleString('vi-VN')}</span>
+          </div>
+          ${desc ? `<div class="ex-modal-desc">${desc}</div>` : ''}
+        </div>
+      </div>
+    `;
+
+    const close = () => {
+      overlay.remove();
+      if (this._roomInfoModalEl === overlay) this._roomInfoModalEl = null;
+    };
+
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    overlay.querySelector('.ex-modal-close').addEventListener('click', close);
+
+    const artistLink = overlay.querySelector('.ex-modal-artist-link');
+    if (artistLink) {
+      artistLink.addEventListener('click', e => {
+        e.stopPropagation();
+        close();
+        this.manager.profileTarget = { id: artistId, name: artistName, role: 'artist' };
+        this.manager.navigateTo('profile');
+      });
+    }
+
+    document.body.appendChild(overlay);
+    this._el(overlay);
+    this._roomInfoModalEl = overlay;
   }
 
   /* ================================================================
@@ -526,7 +602,7 @@ export class ViewerScene extends BaseScene {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   pointer-events: none;
 }
@@ -554,6 +630,40 @@ export class ViewerScene extends BaseScene {
   letter-spacing: .05em;
 }
       }
+      /* ---- Icon "i" thông tin phòng: dùng chung .icon-btn (giống nút thanh trái) ---- */
+      #gallery-info-btn {
+        pointer-events: auto;
+        display: none;            /* hiện sau khi load xong phòng */
+        font-family: var(--font-head);
+        font-style: italic;
+        font-weight: 600;
+        font-size: 20px;
+        line-height: 1;
+        padding: 0;
+      }
+      #gallery-info-btn.icon-btn { width:32px; height:32px; }
+
+      /* ---- Popup thông tin phòng (đồng bộ với modal explore) ---- */
+      .ex-modal-overlay{position:fixed;inset:0;z-index:20000;background:rgba(10,20,45,.65);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}
+      .ex-modal{background:#182D58;border:1px solid rgba(255,255,255,.15);border-radius:10px;box-shadow:0 12px 48px rgba(0,0,0,.5);max-width:760px;width:100%;max-height:88vh;display:flex;overflow:hidden;font-family:'Montserrat',sans-serif;position:relative}
+      .ex-modal-close{position:absolute;top:10px;right:14px;color:#F1FAFF;font-size:20px;line-height:1;cursor:pointer;opacity:.7;transition:opacity .2s;z-index:2}
+      .ex-modal-close:hover{opacity:1}
+      .ex-modal-img{flex:0 0 42%;background:#0d1c3d;position:relative;overflow:hidden;aspect-ratio:486/732;display:flex;align-items:center;justify-content:center}
+      .ex-modal-img img{width:100%;height:100%;object-fit:cover}
+      .ex-modal-img-placeholder{font-size:56px;color:#3a4d7a}
+      .ex-modal-info{flex:1;padding:30px 26px 26px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+      .ex-modal-name{color:#F1FAFF;font-size:18px;font-weight:700;line-height:1.25}
+      .ex-modal-artist{color:#F1FAFF;font-size:11px;letter-spacing:.08em;opacity:.85}
+      .ex-modal-artist-link{cursor:pointer;border-bottom:1px solid rgba(241,250,255,.35);transition:border-color .15s,color .15s}
+      .ex-modal-artist-link:hover{color:#76AAAB;border-color:#76AAAB}
+      .ex-modal-date{color:#F1FAFF;font-size:10px;opacity:.7}
+      .ex-modal-stats{display:flex;gap:16px;margin-top:2px}
+      .ex-modal-stat{color:#F1FAFF;font-size:11px;display:flex;align-items:center;gap:5px}
+      .ex-modal-desc{color:rgba(241,250,255,.9);font-size:12px;line-height:1.6;white-space:pre-wrap;margin-top:4px}
+      .ex-modal-enter{margin-top:auto;align-self:flex-start;padding:9px 20px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;background:#FFFFFF;border:none;box-shadow:0 4px 12px rgba(118,170,171,.55);color:#182D58;border-radius:26px;cursor:pointer;transition:all .2s;font-weight:700}
+      .ex-modal-enter:hover{box-shadow:0 6px 18px rgba(118,170,171,.75);transform:translateY(-1px)}
+      @media(max-width:560px){.ex-modal{flex-direction:column;max-height:90vh}.ex-modal-img{flex:0 0 auto;aspect-ratio:16/9;width:100%}}
+
       #topbar-right {
         display:flex; align-items:center; gap:8px; pointer-events:auto;
       }
@@ -2020,15 +2130,22 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
 
   async _loadRoom() {
     this._setLoadingProgress(5, 'Đang kết nối...');
-    const { data, error } = await supabase.from('gallery').select('scene_data').eq('name', this.manager.currentRoom.id).limit(1);
+    const { data, error } = await supabase.from('gallery').select('scene_data, created_at').eq('name', this.manager.currentRoom.id).limit(1);
     if (error || !data?.length) {
       this._setLoadingProgress(20, 'Đang tải phòng...');
       await this._loadRoomGLB(0, 'scene.glb');
       this._galleryName = 'Phòng Tranh 3D';
       this._artistName  = 'Artist Name';
+      this._roomMeta      = {};
+      this._galleryDesc   = '';
+      this._roomThumbUrl  = null;
+      this._roomArtCount  = 0;
+      this._roomCreatedAt = null;
+      this._roomArtistId  = this.manager.currentRoom.artistId || '';
       return;
     }
     const sd = data[0].scene_data;
+    this._roomCreatedAt = data[0].created_at || null;
 
     // Load GLB phòng với đúng template
     const templateFile = sd._meta?.selectedTemplate || 'scene.glb';
@@ -2063,6 +2180,16 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     this._galleryName = sd.gallery_name || this.manager.currentRoom.name || 'Phòng Tranh 3D';
     this._artistName = (sd.artist_name && sd.artist_name !== 'Artist' && sd.artist_name !== 'Artist Name')
       ? sd.artist_name : '';
+
+    // ---- Lưu meta phòng để dựng popup "thông tin phòng tranh" (giống explore) ----
+    this._roomMeta     = sd._meta || {};
+    this._galleryDesc  = this._roomMeta.description || '';
+    this._roomThumbUrl = this._roomMeta.thumbnailUrl || null;
+    this._roomArtCount = sd.artworks?.length || 0;
+    this._roomArtistId = this._roomMeta.artistId
+      || this.manager.currentRoom.artistId
+      || (this.manager.currentRoom.id || '').split(':::')[0]
+      || '';
 
     this._trackView();
 
@@ -2455,9 +2582,11 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       await supabase.from('gallery_stats')
         .update({ views: (data.views || 0) + 1 })
         .eq('gallery_name', this._galleryDbKey);
+      this._viewCount = (data.views || 0) + 1;
     } else {
       await supabase.from('gallery_stats')
         .insert({ gallery_name: this._galleryDbKey, views: 1 });
+      this._viewCount = 1;
     }
   }
 
