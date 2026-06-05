@@ -3066,12 +3066,6 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       return [{ el, prev }];
     });
 
-    // Hide 3D helper objects (3D models, chests, waypoint markers)
-    const toggleVis = (obj, vis) => { if (obj) obj.visible = vis; };
-    this.models3d.forEach(md => toggleVis(md.object, false));
-    this.chests.forEach(c => toggleVis(c.mesh, false));
-    this.pathMarkers.forEach(m => { toggleVis(m.mesh, false); toggleVis(m.line, false); });
-
     // Render to offscreen canvas at 2× resolution for sharpness
     const W = window.innerWidth;
     const H = this.manager.canvasH;
@@ -3084,11 +3078,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     const dataUrl = offR.domElement.toDataURL('image/png');
     offR.dispose();
 
-    // Restore UI and 3D objects
+    // Restore UI
     hiddenEls.forEach(({ el, prev }) => { el.style.display = prev; });
-    this.models3d.forEach(md => toggleVis(md.object, true));
-    this.chests.forEach(c => toggleVis(c.mesh, true));
-    this.pathMarkers.forEach(m => { toggleVis(m.mesh, true); toggleVis(m.line, true); });
 
     // Show preview modal
     this._showCapturePreview(dataUrl);

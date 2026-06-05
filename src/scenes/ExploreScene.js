@@ -9,7 +9,7 @@ export class ExploreScene extends BaseScene {
     this.camera.position.set(0, 0, 5);
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.2));
     this._createParticles();
-    this._sortMode = 'date';
+    this._sortMode = 'views';
     this._rooms = [];
     this._buildOverlay();
     await this._loadPublished();
@@ -64,9 +64,9 @@ export class ExploreScene extends BaseScene {
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <span style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:9px;letter-spacing:.08em;margin-right:2px">Sắp xếp:</span>
-          <button class="ex-sort-btn active" data-sort="date">Mới nhất</button>
+          <button class="ex-sort-btn" data-sort="date">Mới nhất</button>
           <button class="ex-sort-btn" data-sort="likes">Thích nhiều nhất</button>
-          <button class="ex-sort-btn" data-sort="views">Xem nhiều nhất</button>
+          <button class="ex-sort-btn active" data-sort="views">Xem nhiều nhất</button>
         </div>
       </div>
 

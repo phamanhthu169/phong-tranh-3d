@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BaseScene } from './BaseScene.js';
 import { HEADER_H } from '../core/SceneManager.js';
-import { supabase, STORAGE_BUCKET, compressImage } from '../utils/supabase.js';
+import { supabase, STORAGE_BUCKET, compressImage, toCDN } from '../utils/supabase.js';
 
 /*
   ProfileScene — /profile
@@ -819,14 +819,135 @@ export class ProfileScene extends BaseScene {
       coverEditBtn.addEventListener('click', (e) => {
         if (e.target !== coverInp) coverInp.click();
       });
-      coverInp.addEventListener('change', async () => {
-        let file = coverInp.files?.[0];
+      coverInp.addEventListener('change', () => {
+        const file = coverInp.files?.[0];
+        coverInp.value = '';
         if (!file) return;
         if (file.size > 10 * 1024 * 1024) { this._showToast('Ảnh quá lớn (tối đa 10 MB)'); return; }
-        file = await compressImage(file);
-        const ext  = file.name.split('.').pop().toLowerCase();
-        const path = `covers/${this._target.id || this._target.name}_${Date.now()}.${ext}`;
-        const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { upsert: true });
+        this._openCoverCropper(file);
+      });
+    }
+  }
+// ─── Mở cửa sổ crop ảnh bìa (kéo để di chuyển, trượt để zoom) ────────────────
+  _openCoverCropper(file) {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); this._showToast('Không đọc được ảnh'); };
+    img.onload = () => {
+      if (this._disposed) { URL.revokeObjectURL(objectUrl); return; }
+
+      // Tỉ lệ khung ảnh bìa thật → crop khớp 100%, object-fit:cover không cắt thêm
+      const coverEl = document.getElementById('pf-cover');
+      const ratio = coverEl && coverEl.clientHeight
+        ? coverEl.clientWidth / coverEl.clientHeight
+        : 1200 / 180;
+      const Vw = Math.min(720, window.innerWidth * 0.86);
+      const Vh = Math.round(Vw / ratio);
+
+      const back = document.createElement('div');
+      back.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:4000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;font-family:Montserrat,sans-serif;';
+      const panel = document.createElement('div');
+      panel.style.cssText = 'background:#fff;border-radius:10px;padding:22px;box-shadow:0 16px 60px rgba(0,0,0,.25);max-width:96vw;box-sizing:border-box;';
+      const title = document.createElement('div');
+      title.textContent = 'Điều chỉnh ảnh bìa';
+      title.style.cssText = 'color:#182D58;font-weight:700;font-size:15px;letter-spacing:.06em;margin-bottom:4px;';
+      const hint = document.createElement('div');
+      hint.textContent = 'Kéo để di chuyển · dùng thanh trượt để phóng to';
+      hint.style.cssText = 'color:#888;font-size:12px;margin-bottom:14px;';
+
+      const vp = document.createElement('div');
+      vp.style.cssText = `position:relative;width:${Vw}px;height:${Vh}px;overflow:hidden;border-radius:6px;background:#000;cursor:grab;touch-action:none;user-select:none;`;
+      const imgEl = document.createElement('img');
+      imgEl.src = objectUrl; imgEl.draggable = false;
+      imgEl.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;';
+      vp.appendChild(imgEl);
+
+      const zoomWrap = document.createElement('div');
+      zoomWrap.style.cssText = 'display:flex;align-items:center;gap:10px;margin-top:14px;';
+      const zoomLabel = document.createElement('span');
+      zoomLabel.textContent = 'Zoom';
+      zoomLabel.style.cssText = 'color:#888;font-size:11px;letter-spacing:.12em;text-transform:uppercase;';
+      const zoom = document.createElement('input');
+      zoom.type = 'range'; zoom.min = '1'; zoom.max = '3'; zoom.step = '0.01'; zoom.value = '1';
+      zoom.style.cssText = 'flex:1;accent-color:#76AAAB;';
+      zoomWrap.appendChild(zoomLabel); zoomWrap.appendChild(zoom);
+
+      const btns = document.createElement('div');
+      btns.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin-top:18px;';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'Huỷ'; cancelBtn.className = 'pf-btn ghost';
+      const saveBtn = document.createElement('button');
+      saveBtn.textContent = '✓ Lưu ảnh bìa'; saveBtn.className = 'pf-btn gold';
+      btns.appendChild(cancelBtn); btns.appendChild(saveBtn);
+
+      panel.appendChild(title); panel.appendChild(hint);
+      panel.appendChild(vp); panel.appendChild(zoomWrap); panel.appendChild(btns);
+      back.appendChild(panel);
+      document.body.appendChild(back);
+
+      const Nw = img.naturalWidth, Nh = img.naturalHeight;
+      const baseScale = Math.max(Vw / Nw, Vh / Nh);
+      let scale = baseScale, tx = 0, ty = 0;
+
+      const clamp = () => {
+        const dw = Nw * scale, dh = Nh * scale;
+        tx = Math.min(0, Math.max(Vw - dw, tx));
+        ty = Math.min(0, Math.max(Vh - dh, ty));
+      };
+      const render = () => {
+        imgEl.style.width  = (Nw * scale) + 'px';
+        imgEl.style.height = (Nh * scale) + 'px';
+        imgEl.style.transform = `translate(${tx}px,${ty}px)`;
+      };
+      tx = (Vw - Nw * scale) / 2; ty = (Vh - Nh * scale) / 2;
+      clamp(); render();
+
+      zoom.addEventListener('input', () => {
+        const old = scale;
+        scale = baseScale * parseFloat(zoom.value);
+        const cx = (Vw / 2 - tx) / old, cy = (Vh / 2 - ty) / old;
+        tx = Vw / 2 - cx * scale; ty = Vh / 2 - cy * scale;
+        clamp(); render();
+      });
+
+      let dragging = false, lastX = 0, lastY = 0;
+      vp.addEventListener('pointerdown', e => {
+        dragging = true; lastX = e.clientX; lastY = e.clientY;
+        vp.style.cursor = 'grabbing'; vp.setPointerCapture(e.pointerId);
+      });
+      vp.addEventListener('pointermove', e => {
+        if (!dragging) return;
+        tx += e.clientX - lastX; ty += e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
+        clamp(); render();
+      });
+      const endDrag = () => { dragging = false; vp.style.cursor = 'grab'; };
+      vp.addEventListener('pointerup', endDrag);
+      vp.addEventListener('pointercancel', endDrag);
+
+      const close = () => { back.remove(); URL.revokeObjectURL(objectUrl); };
+      cancelBtn.addEventListener('click', close);
+      back.addEventListener('click', e => { if (e.target === back) close(); });
+
+      saveBtn.addEventListener('click', async () => {
+        saveBtn.disabled = true; saveBtn.textContent = 'Đang lưu…';
+        const srcX = -tx / scale, srcY = -ty / scale;
+        const srcW = Vw / scale,  srcH = Vh / scale;
+        const outW = Math.min(Math.round(srcW), 1600);
+        const outH = Math.round(outW * (Vh / Vw));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = outW; canvas.height = outH;
+        canvas.getContext('2d').drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.9));
+        close();
+        if (this._disposed) return;
+        if (!blob) { this._showToast('Lỗi xử lý ảnh'); return; }
+
+        let cropped = new File([blob], `cover_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        cropped = await compressImage(cropped);
+        const path = `covers/${this._target.id || this._target.name}_${Date.now()}.jpg`;
+        const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, cropped, { upsert: true });
         if (error) { this._showToast('Lỗi tải ảnh: ' + error.message); return; }
         const { data: { publicUrl: _coverUrl } } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
         const publicUrl = toCDN(_coverUrl);
@@ -834,11 +955,10 @@ export class ProfileScene extends BaseScene {
         if (coverImg) { coverImg.src = publicUrl; coverImg.style.display = 'block'; }
         this.manager.auth.updateProfile({ coverUrl: publicUrl });
         this._showToast('✓ Đã cập nhật ảnh bìa');
-        coverInp.value = '';
       });
-    }
+    };
+    img.src = objectUrl;
   }
-
   // ─── Vào chế độ edit ─────────────────────────────────────────────────────────
   _enterEdit() {
     this._isEditing = true;
