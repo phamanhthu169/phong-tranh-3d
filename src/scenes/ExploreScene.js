@@ -9,7 +9,7 @@ export class ExploreScene extends BaseScene {
     this.camera.position.set(0, 0, 5);
     this.threeScene.add(new THREE.AmbientLight(0xffffff, 0.2));
     this._createParticles();
-    this._sortMode = 'views';
+    this._sortMode = 'likes';
     this._rooms = [];
     this._buildOverlay();
     await this._loadPublished();
@@ -34,7 +34,7 @@ export class ExploreScene extends BaseScene {
       <style>
         .ex-card{background:transparent;border:none;box-shadow:none;cursor:pointer;display:flex;flex-direction:column;}
         .ex-card:hover{transform:none;box-shadow:none;border:none;}
-        .ex-thumb-wrap{background:transparent;transition:transform .25s;}
+        .ex-thumb-wrap{background:transparent;transition:transform .25s;position:relative;}
         .ex-card:hover .ex-thumb-wrap{transform:translateY(-2px);}
         .ex-info-wrap{background:#182D58;border:1px solid rgba(255,255,255,.1);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.15);transition:all .25s;}
         .ex-card:hover .ex-info-wrap{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.25);border-color:rgba(255,255,255,.25);}
@@ -52,10 +52,15 @@ export class ExploreScene extends BaseScene {
         .ex-stat-icon{font-size:10px;line-height:1}
         .ex-enter{display:inline-block;margin-top:6px;padding:5px 12px;font-size:9px;letter-spacing:.1em;text-transform:uppercase;background:#FFFFFF;border:none;box-shadow:0 4px 12px rgba(118,170,171,.55);color:#182D58;border-radius:26px;transition:all .2s;font-family:'Montserrat',sans-serif;font-weight:700}
         .ex-card:hover .ex-enter{box-shadow:0 6px 18px rgba(118,170,171,.75);transform:translateY(-1px);}
+        .ex-medal{position:absolute;top:-14px;left:-14px;z-index:3;pointer-events:none;filter:drop-shadow(0 3px 7px rgba(0,0,0,.35))}
+        .ex-medal-1{width:60px}
+        .ex-medal-2{width:48px}
+        .ex-medal-3{width:38px}
         .ex-sort-btn{padding:5px 14px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:#122F6A;border:2px solid rgba(255,255,255,.25);box-shadow:0 4px 12px rgba(118,170,171,.55);color:#FFFFFF;border-radius:26px;cursor:pointer;transition:all .2s;font-family:'Montserrat',sans-serif;font-weight:700;text-align:center}
-        .ex-sort-btn:hover{box-shadow:0 6px 18px rgba(118,170,171,.75);transform:translateY(-1px)}
-        .ex-sort-btn.active{background:#122F6A;border-color:rgba(255,255,255,.55);box-shadow:0 6px 18px rgba(118,170,171,.75)}
-      </style>
+        .ex-sort-btn:hover{background:#76AAAB;border-color:#FFFFFF;box-shadow:0 6px 18px rgba(118,170,171,.75);transform:translateY(-1px)}
+        .ex-sort-btn.active{background:#76AAAB;border-color:#FFFFFF;box-shadow:0 6px 18px rgba(118,170,171,.75)}
+        .ex-sort-btn.active:hover{background:#76AAAB;border-color:#FFFFFF}      
+    </style>
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px">
         <div>
@@ -65,8 +70,8 @@ export class ExploreScene extends BaseScene {
         <div style="display:flex;gap:8px;align-items:center">
           <span style="color:#182D58;font-family:'Montserrat',sans-serif;font-size:9px;letter-spacing:.08em;margin-right:2px">Sắp xếp:</span>
           <button class="ex-sort-btn" data-sort="date">Mới nhất</button>
-          <button class="ex-sort-btn" data-sort="likes">Thích nhiều nhất</button>
-          <button class="ex-sort-btn active" data-sort="views">Xem nhiều nhất</button>
+          <button class="ex-sort-btn active" data-sort="likes">Thích nhiều nhất</button>
+          <button class="ex-sort-btn" data-sort="views">Xem nhiều nhất</button>
         </div>
       </div>
 
@@ -149,15 +154,15 @@ export class ExploreScene extends BaseScene {
     grid.innerHTML = '';
 
     const sorted = [...this._rooms].sort((a, b) => {
-      if (this._sortMode === 'likes') return b.likes - a.likes;
+      if (this._sortMode === 'likes') return (b.likes - a.likes) || (b.views - a.views);
       if (this._sortMode === 'views') return b.views - a.views;
       return b.date - a.date;
     });
 
-    sorted.forEach(({ row, likes, views }) => this._addCard(grid, row, likes, views));
-  }
+sorted.forEach(({ row, likes, views }, i) =>
+      this._addCard(grid, row, likes, views, this._sortMode === 'likes' ? i : -1));  }
 
-  _addCard(grid, row, likes = 0, views = 0) {
+  _addCard(grid, row, likes = 0, views = 0, rank = -1) {
     const meta     = row.scene_data?._meta || {};
     const roomName = meta.roomName || 'Phòng chưa đặt tên';
     const artistId   = meta.artistId || row.name.split(':::')[0] || '';
@@ -173,12 +178,13 @@ export class ExploreScene extends BaseScene {
     card.className = 'ex-card';
     card.innerHTML = `
     <div class="ex-thumb-wrap">
-      <div class="ex-thumb">
-        ${thumbUrl
-          ? `<img src="${thumbUrl}" alt="${roomName}" loading="lazy">`
-          : `<div class="ex-thumb-placeholder">🖼</div>`}
+        ${rank >= 0 && rank < 3 ? `<img class="ex-medal ex-medal-${rank + 1}" src="/medals/medal-${rank + 1}.svg" alt="Top ${rank + 1}">` : ''}
+        <div class="ex-thumb">
+          ${thumbUrl
+            ? `<img src="${thumbUrl}" alt="${roomName}" loading="lazy">`
+            : `<div class="ex-thumb-placeholder">🖼</div>`}
+        </div>
       </div>
-    </div>
     <div class="ex-info-wrap">
       <div class="ex-body">
         <div class="ex-name">${roomName}</div>

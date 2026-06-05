@@ -2588,16 +2588,14 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       if (this.wpTravelT >= 1) this.wpTravelTarget = null;
     } else {
       const speed = this._walkSpeed;
-      const posY = this.camera.position.y;
-      if (this.keys['ArrowLeft'])  { this.yaw += 1.5 * dt; this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ')); }
-      if (this.keys['ArrowRight']) { this.yaw -= 1.5 * dt; this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ')); }
+      const posY  = this.camera.position.y;
       this.moveDir.set(0,0,0);
       this.camera.getWorldDirection(this.fwd); this.fwd.y = 0; this.fwd.normalize();
       this.rgt.crossVectors(this.fwd, new THREE.Vector3(0,1,0)).normalize();
-      if (this.keys['KeyW'] || this.keys['ArrowUp'])   this.moveDir.addScaledVector(this.fwd,  speed*dt);
-      if (this.keys['KeyS'] || this.keys['ArrowDown']) this.moveDir.addScaledVector(this.fwd, -speed*dt);
-      if (this.keys['KeyA']) this.moveDir.addScaledVector(this.rgt, -speed*dt);
-      if (this.keys['KeyD']) this.moveDir.addScaledVector(this.rgt,  speed*dt);
+      if (this.keys['KeyW'] || this.keys['ArrowUp'])    this.moveDir.addScaledVector(this.fwd,  speed*dt);
+      if (this.keys['KeyS'] || this.keys['ArrowDown'])  this.moveDir.addScaledVector(this.fwd, -speed*dt);
+      if (this.keys['KeyA'] || this.keys['ArrowLeft'])  this.moveDir.addScaledVector(this.rgt, -speed*dt);
+      if (this.keys['KeyD'] || this.keys['ArrowRight']) this.moveDir.addScaledVector(this.rgt,  speed*dt);
       if (this.moveDir.lengthSq() > 0 && this.modelMeshes.length) {
         const MARGIN = 0.5;
         const nearDoor = this._isNearRoomDoor(this.camera.position);
