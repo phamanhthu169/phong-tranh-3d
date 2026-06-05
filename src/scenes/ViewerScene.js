@@ -3049,38 +3049,153 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
   }
 
   _captureRoomPhoto() {
-    // Hide all UI elements
-    const uiIds = [
-      'topbar', 'left-column', 'controls-bar', 'right-panel',
-      'settings-panel', 'route-panel', 'vw-nav', 'vw-toast',
-      'artwork-popup', 'expand-overlay', 'yt-overlay',
-      'vw-chest-hint', 'vw-chest-popup'
-    ];
-    const hiddenEls = uiIds.flatMap(id => {
-      const el = document.getElementById(id);
-      if (!el) return [];
-      const prev = el.style.display;
-      el.style.display = 'none';
-      return [{ el, prev }];
+    // Chụp bằng CHÍNH renderer đang chạy (this.renderer), KHÔNG tạo renderer riêng.
+    // Lý do: nền HDR / cảnh vật bên ngoài (scene.background) được tạo bằng
+    // PMREMGenerator gắn liền với GL context của renderer này. Một WebGLRenderer
+    // offscreen có context riêng nên không dùng được texture đó -> cửa sổ bị đen,
+    // mất cảnh vật bên ngoài. Dùng lại renderer chính sẽ render đầy đủ y hệt màn
+    // hình: tranh, 3D, màu đèn, bóng đổ và cả cảnh vật ngoài cửa sổ.
+
+    // Ẩn tạm model nhân vật (và người chơi khác) để chỉ chụp căn phòng.
+    const hiddenModels = [];
+    const _hide = (obj) => {
+      if (!obj) return;
+      hiddenModels.push({ obj, prev: obj.visible });
+      obj.visible = false;
+    };
+    _hide(this._character);
+    for (const rp of Object.values(this._remotePlayers)) {
+      _hide(rp.mesh);
+      _hide(rp.nameSprite);
+    }
+
+    const renderer = this.renderer;
+    const oldPR = renderer.getPixelRatio();
+    const scale = Math.max(oldPR, 2); // 2× cho ảnh nét
+
+    // Render ở độ phân giải cao rồi đọc pixel NGAY trong cùng tick (an toàn kể cả
+    // khi renderer không bật preserveDrawingBuffer).
+    renderer.setPixelRatio(scale);
+    renderer.render(this.threeScene, this.camera);
+    const dataUrl = renderer.domElement.toDataURL('image/png');
+
+    // Khôi phục độ phân giải + hiện lại model như cũ.
+    renderer.setPixelRatio(oldPR);
+    hiddenModels.forEach(({ obj, prev }) => { obj.visible = prev; });
+    renderer.render(this.threeScene, this.camera);
+
+    // Ghép header (logo + gradient xanh + tên phòng + tên tác giả) lên ảnh, rồi
+    // mới hiện preview. KHÔNG vẽ số token. Nếu lỗi thì dùng ảnh gốc.
+    this._composeRoomPhoto(dataUrl)
+      .then(finalUrl => this._showCapturePreview(finalUrl))
+      .catch(() => this._showCapturePreview(dataUrl));
+  }
+
+  // Vẽ thanh header lên trên ảnh 3D bằng canvas 2D. Đọc vị trí thật của các phần
+  // tử DOM (getBoundingClientRect) để ghép đúng chỗ ở mọi kích thước màn hình.
+  async _composeRoomPhoto(sceneDataUrl) {
+    const loadImg = (src) => new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = rej;
+      im.src = src;
     });
 
-    // Render to offscreen canvas at 2× resolution for sharpness
-    const W = window.innerWidth;
-    const H = this.manager.canvasH;
-    const offR = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-    offR.outputColorSpace = THREE.SRGBColorSpace;
-    offR.toneMapping = THREE.NoToneMapping;
-    offR.shadowMap.enabled = true;
-    offR.setSize(W * 2, H * 2);
-    offR.render(this.threeScene, this.camera);
-    const dataUrl = offR.domElement.toDataURL('image/png');
-    offR.dispose();
+    // Đảm bảo web-font đã sẵn sàng để vẽ chữ đúng kiểu.
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (_) {}
 
-    // Restore UI
-    hiddenEls.forEach(({ el, prev }) => { el.style.display = prev; });
+    const sceneImg = await loadImg(sceneDataUrl);
+    const cw = sceneImg.naturalWidth;
+    const ch = sceneImg.naturalHeight;
 
-    // Show preview modal
-    this._showCapturePreview(dataUrl);
+    const out = document.createElement('canvas');
+    out.width = cw;
+    out.height = ch;
+    const ctx = out.getContext('2d');
+    ctx.drawImage(sceneImg, 0, 0, cw, ch);
+
+    // Quy đổi toạ độ CSS (viewport) -> pixel của ảnh.
+    const canvasRect = this.renderer.domElement.getBoundingClientRect();
+    const fx = cw / canvasRect.width;
+    const fy = ch / canvasRect.height;
+    const toX = (clientX) => (clientX - canvasRect.left) * fx;
+    const toY = (clientY) => (clientY - canvasRect.top) * fy;
+
+    // 1) Gradient màu xanh (nền của #topbar). background-size: auto 120px; repeat-x
+    //    -> scale theo chiều cao thanh, lặp ngang.
+    const bar = document.getElementById('topbar');
+    if (bar) {
+      const br = bar.getBoundingClientRect();
+      const x0 = toX(br.left), y0 = toY(br.top);
+      const bw = br.width * fx, bh = br.height * fy;
+      try {
+        const grad = await loadImg('/icons/gradient.svg');
+        let tileW = grad.naturalHeight ? grad.naturalWidth * (bh / grad.naturalHeight) : bw;
+        if (!tileW || tileW < 1) tileW = bw;
+        for (let x = x0; x < x0 + bw; x += tileW) {
+          ctx.drawImage(grad, x, y0, tileW, bh);
+        }
+      } catch (_) {}
+    }
+
+    // 2) Logo — vẽ vào ảnh.
+    // ====== BẠN CÓ THỂ TỰ ĐỔI LOGO Ở ĐÂY ======
+    //   LOGO_SRC     : đường dẫn ảnh logo (PNG hoặc SVG đều được)
+    //   LOGO_LEFT    : vị trí px tính từ mép trái màn hình
+    //   LOGO_TOP     : vị trí px tính từ mép trên màn hình
+    //   LOGO_HEIGHT  : chiều cao logo (px)
+    //   LOGO_OPACITY : độ mờ 0..1
+    // (Mặc định khớp với logo đang hiển thị trên header.)
+    const LOGO_SRC     = '/icons/logo.svg';
+    const LOGO_LEFT    = 20;
+    const LOGO_TOP     = 16;
+    const LOGO_HEIGHT  = 32;
+    const LOGO_OPACITY = 0.85;
+    // ===========================================
+    try {
+      const logo = await loadImg(LOGO_SRC);
+      // Tỉ lệ ngang/dọc: ưu tiên kích thước thật của ảnh; nếu SVG không có kích
+      // thước nội tại thì lấy theo logo đang hiển thị trên trang; cuối cùng dùng
+      // tỉ lệ mặc định cho logo chữ.
+      let ratio = (logo.naturalWidth && logo.naturalHeight)
+        ? logo.naturalWidth / logo.naturalHeight : 0;
+      if (!ratio) {
+        const domLogo = Array.from(document.querySelectorAll('img'))
+          .find(im => (im.getAttribute('src') || '').includes('logo'));
+        const dr = domLogo && domLogo.getBoundingClientRect();
+        if (dr && dr.width > 0 && dr.height > 0) ratio = dr.width / dr.height;
+      }
+      if (!ratio) ratio = 3.4;
+      const drawH = LOGO_HEIGHT * fy;
+      const drawW = drawH * ratio;
+      ctx.save();
+      ctx.globalAlpha = LOGO_OPACITY;
+      ctx.drawImage(logo, toX(LOGO_LEFT), toY(LOGO_TOP), drawW, drawH);
+      ctx.restore();
+    } catch (err) {
+      console.warn('[capture] Không vẽ được logo:', LOGO_SRC, err);
+    }
+
+    // 3) Tên phòng + dấu phân cách + tên tác giả (KHÔNG vẽ token).
+    ['gallery-name', 'gallery-separator', 'artist-name'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') return;
+      const txt = (el.textContent || '').trim();
+      if (!txt) return;
+      const r = el.getBoundingClientRect();
+      const sizePx = (parseFloat(cs.fontSize) || 17) * fy;
+      ctx.save();
+      ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${sizePx}px ${cs.fontFamily}`;
+      ctx.fillStyle = cs.color || '#fff';
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'left';
+      ctx.fillText(txt, toX(r.left), toY(r.top));
+      ctx.restore();
+    });
+
+    return out.toDataURL('image/png');
   }
 
   _showCapturePreview(dataUrl) {

@@ -43,6 +43,9 @@ export class ExploreScene extends BaseScene {
         .ex-thumb-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:36px;color:#bbb}
         .ex-body{padding:14px;display:flex;flex-direction:column;gap:6px}
         .ex-name{color:#F1FAFF;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .ex-desc{color:rgba(241,250,255,.8);font-size:9px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px;position:relative;min-height:25px}
+        .ex-more{position:absolute;right:0;bottom:0;padding:0 2px 0 20px;font-size:9px;font-weight:700;letter-spacing:.03em;color:#76AAAB;cursor:pointer;background:linear-gradient(90deg,rgba(24,45,88,0),#182D58 45%);font-family:'Montserrat',sans-serif}
+        .ex-more:hover{color:#A7D3D4}
         .ex-artist{color:#F1FAFF;font-size:9px;letter-spacing:.1em}
         .ex-artist-link{cursor:pointer;border-bottom:1px solid rgba(241,250,255,.35);transition:border-color .15s,color .15s}
         .ex-artist-link:hover{color:#76AAAB;border-color:#76AAAB}
@@ -59,7 +62,26 @@ export class ExploreScene extends BaseScene {
         .ex-sort-btn{padding:5px 14px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:#122F6A;border:2px solid rgba(255,255,255,.25);box-shadow:0 4px 12px rgba(118,170,171,.55);color:#FFFFFF;border-radius:26px;cursor:pointer;transition:all .2s;font-family:'Montserrat',sans-serif;font-weight:700;text-align:center}
         .ex-sort-btn:hover{background:#76AAAB;border-color:#FFFFFF;box-shadow:0 6px 18px rgba(118,170,171,.75);transform:translateY(-1px)}
         .ex-sort-btn.active{background:#76AAAB;border-color:#FFFFFF;box-shadow:0 6px 18px rgba(118,170,171,.75)}
-        .ex-sort-btn.active:hover{background:#76AAAB;border-color:#FFFFFF}      
+        .ex-sort-btn.active:hover{background:#76AAAB;border-color:#FFFFFF}
+        .ex-modal-overlay{position:fixed;inset:0;z-index:20000;background:rgba(10,20,45,.65);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}
+        .ex-modal{background:#182D58;border:1px solid rgba(255,255,255,.15);border-radius:10px;box-shadow:0 12px 48px rgba(0,0,0,.5);max-width:760px;width:100%;max-height:88vh;display:flex;overflow:hidden;font-family:'Montserrat',sans-serif;position:relative}
+        .ex-modal-close{position:absolute;top:10px;right:14px;color:#F1FAFF;font-size:20px;line-height:1;cursor:pointer;opacity:.7;transition:opacity .2s;z-index:2}
+        .ex-modal-close:hover{opacity:1}
+        .ex-modal-img{flex:0 0 42%;background:#0d1c3d;position:relative;overflow:hidden;aspect-ratio:486/732;display:flex;align-items:center;justify-content:center}
+        .ex-modal-img img{width:100%;height:100%;object-fit:cover}
+        .ex-modal-img-placeholder{font-size:56px;color:#3a4d7a}
+        .ex-modal-info{flex:1;padding:30px 26px 26px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+        .ex-modal-name{color:#F1FAFF;font-size:18px;font-weight:700;line-height:1.25}
+        .ex-modal-artist{color:#F1FAFF;font-size:11px;letter-spacing:.08em;opacity:.85}
+        .ex-modal-artist-link{cursor:pointer;border-bottom:1px solid rgba(241,250,255,.35);transition:border-color .15s,color .15s}
+        .ex-modal-artist-link:hover{color:#76AAAB;border-color:#76AAAB}
+        .ex-modal-date{color:#F1FAFF;font-size:10px;opacity:.7}
+        .ex-modal-stats{display:flex;gap:16px;margin-top:2px}
+        .ex-modal-stat{color:#F1FAFF;font-size:11px;display:flex;align-items:center;gap:5px}
+        .ex-modal-desc{color:rgba(241,250,255,.9);font-size:12px;line-height:1.6;white-space:pre-wrap;margin-top:4px}
+        .ex-modal-enter{margin-top:auto;align-self:flex-start;padding:9px 20px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;background:#FFFFFF;border:none;box-shadow:0 4px 12px rgba(118,170,171,.55);color:#182D58;border-radius:26px;cursor:pointer;transition:all .2s;font-weight:700}
+        .ex-modal-enter:hover{box-shadow:0 6px 18px rgba(118,170,171,.75);transform:translateY(-1px)}
+        @media(max-width:560px){.ex-modal{flex-direction:column;max-height:90vh}.ex-modal-img{flex:0 0 auto;aspect-ratio:16/9;width:100%}}
     </style>
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px">
@@ -171,7 +193,7 @@ sorted.forEach(({ row, likes, views }, i) =>
       || artistId || '—';
     const date     = new Date(row.created_at).toLocaleDateString('vi-VN');
     const artCount = row.scene_data?.artworks?.length || 0;
-
+    const desc     = meta.description || '';
     const thumbUrl = meta.thumbnailUrl || null;
 
     const card = document.createElement('div');
@@ -188,6 +210,7 @@ sorted.forEach(({ row, likes, views }, i) =>
     <div class="ex-info-wrap">
       <div class="ex-body">
         <div class="ex-name">${roomName}</div>
+        <div class="ex-desc">${desc}</div>
         <div class="ex-artist">${artistId ? `<span class="ex-artist-link" data-artist-id="${artistId}">${artistName}</span>` : artistName}</div>
         <div class="ex-date">${date}${artCount ? ' · ' + artCount + ' tác phẩm' : ''}</div>
         <div class="ex-stats">
@@ -219,6 +242,86 @@ sorted.forEach(({ row, likes, views }, i) =>
     });
 
     grid.appendChild(card);
+
+    // Mô tả dài hơn 2 dòng -> thêm nút "Xem thêm" mở popup chi tiết
+    if (desc) {
+      const descEl = card.querySelector('.ex-desc');
+      if (descEl && descEl.scrollHeight > descEl.clientHeight + 1) {
+        const more = document.createElement('span');
+        more.className = 'ex-more';
+        more.textContent = 'Xem thêm';
+        more.addEventListener('click', e => {
+          e.stopPropagation();
+          this._openModal(row, {
+            roomName, artistId, artistName, date, artCount, desc, thumbUrl, likes, views,
+          });
+        });
+        descEl.appendChild(more);
+      }
+    }
+  }
+
+  _openModal(row, info) {
+    const { roomName, artistId, artistName, date, artCount, desc, thumbUrl, likes, views } = info;
+
+    if (this._modalEl) this._modalEl.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'ex-modal-overlay';
+    overlay.innerHTML = `
+      <div class="ex-modal">
+        <div class="ex-modal-close">✕</div>
+        <div class="ex-modal-img">
+          ${thumbUrl
+            ? `<img src="${thumbUrl}" alt="${roomName}">`
+            : `<div class="ex-modal-img-placeholder">🖼</div>`}
+        </div>
+        <div class="ex-modal-info">
+          <div class="ex-modal-name">${roomName}</div>
+          <div class="ex-modal-artist">${artistId ? `<span class="ex-modal-artist-link" data-artist-id="${artistId}">${artistName}</span>` : artistName}</div>
+          <div class="ex-modal-date">${date}${artCount ? ' · ' + artCount + ' tác phẩm' : ''}</div>
+          <div class="ex-modal-stats">
+            <span class="ex-modal-stat"><span class="ex-stat-icon">♥</span> ${likes.toLocaleString('vi-VN')}</span>
+            <span class="ex-modal-stat"><span class="ex-stat-icon">👁</span> ${views.toLocaleString('vi-VN')}</span>
+          </div>
+          ${desc ? `<div class="ex-modal-desc">${desc}</div>` : ''}
+          <span class="ex-modal-enter">Vào xem phòng →</span>
+        </div>
+      </div>
+    `;
+
+    const close = () => {
+      overlay.remove();
+      if (this._modalEl === overlay) this._modalEl = null;
+    };
+
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    overlay.querySelector('.ex-modal-close').addEventListener('click', close);
+
+    const artistLink = overlay.querySelector('.ex-modal-artist-link');
+    if (artistLink) {
+      artistLink.addEventListener('click', e => {
+        e.stopPropagation();
+        close();
+        this.manager.profileTarget = { id: artistId, name: artistName, role: 'artist' };
+        this.manager.navigateTo('profile');
+      });
+    }
+
+    overlay.querySelector('.ex-modal-enter').addEventListener('click', () => {
+      close();
+      this.manager.currentRoom = {
+        id:          row.name,
+        name:        roomName,
+        artistId:    artistId,
+        isPublished: true,
+      };
+      this.manager.navigateTo('viewer');
+    });
+
+    document.body.appendChild(overlay);
+    this._el(overlay);
+    this._modalEl = overlay;
   }
 
   update(_dt) {
