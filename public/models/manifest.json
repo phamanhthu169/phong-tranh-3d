@@ -3,5 +3,7 @@
   { "file": "backrooms_vr_room_baked.glb", "name": "Backroom" },
   { "file": "vr_art_gallery_-_vr_room_light.glb", "name": "Room light" },
   { "file": "vr_exhibition_gallery_baked.glb", "name": "Black Gallery" },
+  { "file": "vr_gallery_showcase_presentation_building.glb", "name": "Minigame" },
+  { "file": "neo-eden_1.0_art_gallery.glb", "name": "Minigame 2" },
   { "file": "Lafayette_Street_New_York.glb", "name": "Lafayette Street New York" }
 ]

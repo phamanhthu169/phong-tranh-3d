@@ -214,7 +214,8 @@ export class StudioScene extends BaseScene {
       if (aw?.isYouTube && aw.youtubeId) this._showYouTubeOverlay(aw.youtubeId);
     });
     this._on(this.renderer.domElement, 'mousedown', (e) => { if (e.button === 0) { this.isLeftDown = true; this.didDrag = false; this.lastX = e.clientX; this.lastY = e.clientY; if (this.selectedItem && ['translate', 'rotate', 'scale'].includes(this.mode)) this._saveUndoState(); } });
-    this._on(window, 'mouseup', (e) => { if (e.button === 0) { this.isLeftDown = false; if (this.didDrag && this.selectedItem && ['translate', 'rotate', 'scale'].includes(this.mode)) { this._triggerAutosave(); if (this.selectedItem.type === 'egg') { this._syncEggTransform(); this.missionBuilder.saveMissionsSilent(); } } } });
+    this._on(window, 'mouseup', (e) => { if (e.button === 0) { this.isLeftDown = false; if (this.didDrag && this.selectedItem && ['translate', 'rotate', 'scale'].includes(this.mode)) { this._triggerAutosave(); if (this.selectedItem.type === 'egg') { this._syncEggTransform(); this.missionBuilder.saveMissionsSilent(); }
+if (this.selectedItem.type === 'chest') { this._saveChestTransform(this.selectedItem.data); } } } });
     this._on(this.renderer.domElement, 'mousemove', (e) => this._onMouseMove(e));
     this._on(document, 'keydown', (e) => {
       if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') return;
@@ -250,6 +251,15 @@ export class StudioScene extends BaseScene {
     this._setupWaypointHover();
 
     await this.loadGallery();
+
+    // Áp dụng vị trí ban đầu của viewer (nếu đã lưu) lên camera ngay sau khi load xong
+    const _spawn = this.viewerSpawn?._data;
+    if (_spawn) {
+      this.camera.position.set(_spawn.x, _spawn.y, _spawn.z);
+      this.yaw   = _spawn.yaw   ?? this.yaw;
+      this.pitch = _spawn.pitch ?? this.pitch;
+    }
+
     this._hideLoadingScreen();
     const _pendingRooms = JSON.parse(localStorage.getItem('creatory_feedback_pending') || '[]');
     const _roomId = this.manager.currentRoom?.id;
@@ -883,7 +893,8 @@ bar.appendChild(makeSimpleBtn('stb2-flipfb', 'mirror.svg', 'Lật trước/sau')
     const egg = this._missionData[missionIdx]?.easter_eggs?.[eggIdx];
     if (!egg) return;
     egg.pos_x = object.position.x;
-    egg.pos_y = object.position.y;
+    const _cb1 = object.userData._chestBase;
+    if (_cb1 !== undefined) { const _b1 = new THREE.Box3().setFromObject(object); egg.pos_y = object.position.y + _b1.min.y; } else { egg.pos_y = object.position.y; }
     egg.pos_z = object.position.z;
     egg.rot_y = object.rotation.y;
     // For chest GLBs, scale is stored as a multiplier relative to the base factor
@@ -917,7 +928,7 @@ bar.appendChild(makeSimpleBtn('stb2-flipfb', 'mirror.svg', 'Lật trước/sau')
     if (state.type === 'egg') {
       const [mIdx, eIdx] = state.index.split('_').map(Number);
       const egg = this._missionData[mIdx]?.easter_eggs?.[eIdx];
-      if (egg) { egg.pos_x = obj.position.x; egg.pos_y = obj.position.y; egg.pos_z = obj.position.z; egg.rot_y = obj.rotation.y; egg.scale = obj.scale.x; }
+      if (egg) { egg.pos_x = obj.position.x; const _cb2 = obj.userData._chestBase; egg.pos_y = (_cb2 !== undefined) ? obj.position.y + new THREE.Box3().setFromObject(obj).min.y : obj.position.y; egg.pos_z = obj.position.z; egg.rot_y = obj.rotation.y; egg.scale = obj.scale.x; }
     }
     this.toast('Hoàn tác ✓', 'success');
   }
@@ -948,7 +959,7 @@ bar.appendChild(makeSimpleBtn('stb2-flipfb', 'mirror.svg', 'Lật trước/sau')
     if (state.type === 'egg') {
       const [mIdx, eIdx] = state.index.split('_').map(Number);
       const egg = this._missionData[mIdx]?.easter_eggs?.[eIdx];
-      if (egg) { egg.pos_x = obj.position.x; egg.pos_y = obj.position.y; egg.pos_z = obj.position.z; egg.rot_y = obj.rotation.y; egg.scale = obj.scale.x; }
+      if (egg) { egg.pos_x = obj.position.x; const _cb3 = obj.userData._chestBase; egg.pos_y = (_cb3 !== undefined) ? obj.position.y + new THREE.Box3().setFromObject(obj).min.y : obj.position.y; egg.pos_z = obj.position.z; egg.rot_y = obj.rotation.y; egg.scale = obj.scale.x; }
     }
     this.toast('Làm lại ✓', 'success');
   }
@@ -4832,7 +4843,11 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         const isInteriorWall = this.selectedItem.type === 'wall';
         if (this.mode === 'rotate') {
           if (isWall) {
-            obj.rotation.z -= dx * 0.012; // spin on wall plane
+            if (e.shiftKey) {
+              obj.rotation.y -= dx * 0.012;
+            } else {
+              obj.rotation.z -= dx * 0.012;
+            }
           } else {
             obj.rotation.y -= dx * 0.012;
           }
@@ -4858,10 +4873,15 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
           }
         } else { // translate
           if (isWall) {
-            // Dùng trục ngang của tường (chỉ Y-rotation, bỏ qua Z-rotation của user) để movement luôn nằm trong mặt phẳng tường
             const wallH = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, obj.rotation.y, 0, 'YXZ'));
-            obj.position.addScaledVector(wallH, dx * 0.012);
-            obj.position.y -= dy * 0.012;
+            if (e.shiftKey) {
+              const wallN = new THREE.Vector3(0, 0, 1).applyEuler(new THREE.Euler(0, obj.rotation.y, 0, 'YXZ'));
+              obj.position.addScaledVector(wallN, dx * 0.012);
+              obj.position.y -= dy * 0.012;
+            } else {
+              obj.position.addScaledVector(wallH, dx * 0.012);
+              obj.position.y -= dy * 0.012;
+            }
           } else if (isInteriorWall) {
             // Move along floor
             this.camera.getWorldDirection(this.fwd); this.fwd.y = 0; this.fwd.normalize();
@@ -4932,7 +4952,8 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
       if (this.wpTravelT >= 1) this.wpTravelTarget = null;
     } else {
-      const speed = 8, posY = this.camera.position.y;
+      const speed = 8;
+      const flySpeed = 5;      
       this.moveDir.set(0, 0, 0);
       this.camera.getWorldDirection(this.fwd); this.fwd.y = 0; this.fwd.normalize();
       this.rgt.crossVectors(this.fwd, new THREE.Vector3(0, 1, 0)).normalize();
@@ -4940,6 +4961,8 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       if (this.keys['KeyS'] || this.keys['ArrowDown'])  this.moveDir.addScaledVector(this.fwd, -speed * dt);
       if (this.keys['KeyA'] || this.keys['ArrowLeft'])  this.moveDir.addScaledVector(this.rgt, -speed * dt);
       if (this.keys['KeyD'] || this.keys['ArrowRight']) this.moveDir.addScaledVector(this.rgt,  speed * dt);
+      if (this.keys['KeyE']) this.camera.position.y += flySpeed * dt;
+      if (this.keys['KeyQ']) this.camera.position.y -= flySpeed * dt;
       if (this.moveDir.lengthSq() > 0 && this.modelMeshes.length) {
         const MARGIN = 0.5;
         if (Math.abs(this.moveDir.x) > 1e-6) {
@@ -4955,7 +4978,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
           if (hz.length && hz[0].distance < MARGIN) this.moveDir.z = 0;
         }
       }
-      this.camera.position.add(this.moveDir); this.camera.position.y = posY;
+      this.camera.position.add(this.moveDir);
     }
     this.artworks.forEach(a => { if (a.isVideo && a.videoTex) a.videoTex.needsUpdate = true; });
     this._drawMinimap();  }
@@ -5220,10 +5243,13 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         const pos = new THREE.Vector3(m.x, m.y, m.z);
         const sv  = m.sx ? new THREE.Vector3(m.sx, m.sy, m.sz) : null;
         const onLoad = obj => {
-          const placed = this.place3DModel(obj, pos, m.storageUrl, m.name || null, m.meta || {}, sv, m.hasPedestal !== false);
-          if (placed && m.ry) placed.object.rotation.y = m.ry;
-          resolve();
-        };
+        const placed = this.place3DModel(obj, pos, m.storageUrl, m.name || null, m.meta || {}, sv, m.hasPedestal !== false);
+        if (placed) {
+          placed.object.position.set(m.x, m.y, m.z); // ghi đè Y đã lưu
+          if (m.ry) placed.object.rotation.y = m.ry;
+        }
+        resolve();
+      };
         const onErr = () => resolve();
         if (ext === 'glb' || ext === 'gltf') this.gltfLoader.load(m.storageUrl, g => onLoad(g.scene), null, onErr);
         else if (ext === 'obj') this.objLoader.load(m.storageUrl, obj => { obj.traverse(c => { if (c.isMesh) c.material = new THREE.MeshLambertMaterial({ color: 0xccbbaa }); }); onLoad(obj); }, null, onErr);
@@ -5444,8 +5470,10 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       const baseScale = 0.6 / Math.max(sz.x, sz.y, sz.z);
       mesh.scale.setScalar(baseScale * (chest.chest_scale > 0 ? chest.chest_scale : 1.0));
       const scaledBox = new THREE.Box3().setFromObject(mesh);
-      const chestFloorY = (this.floorY ?? 0) - scaledBox.min.y;
-      mesh.position.set(chest.pos_x, chestFloorY, chest.pos_z);
+      // Giống place3DModel: đặt đáy model chạm đúng điểm click (pos_y),
+      // thay vì dùng this.floorY cố định.
+      const surfaceY = (chest.pos_y !== undefined && chest.pos_y !== null) ? chest.pos_y : (this.floorY ?? 0);
+      mesh.position.set(chest.pos_x, surfaceY - scaledBox.min.y, chest.pos_z);
       mesh.rotation.y = chest.rot_y || 0;
       chest.mesh = mesh;
       chest._baseScale = baseScale;

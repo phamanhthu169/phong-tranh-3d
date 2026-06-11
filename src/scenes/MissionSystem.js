@@ -88,9 +88,59 @@ export class MissionSystem {
 
   // ─── Render loop ──────────────────────────────────────────────────────────────
   update() {
-    // Reserved for future per-frame animations (particle effects, glow, etc.)
+    this._checkRiddleProximity();
+  }
+// ─── Gamepad proximity check cho chest riddle ─────────────────────────────
+  _checkRiddleProximity() {
+    if (this._riddlePopupOpen) return;
+    const cam = this._s.camera.position;
+    let near = null;
+    for (const det of this._eggSpheres) {
+      if (!det.isChestRiddle) continue;
+      if (this._completed.has(det.missionIndex)) continue;
+      const sp = det.sphere.position;
+      const dx = cam.x - sp.x, dz = cam.z - sp.z;
+      if (dx * dx + dz * dz < 36) { near = det.mission; break; }
+    }
+    this._nearRiddleMission = near;
+    // Hiện/ẩn hint popup "Bấm Y để mở rương"
+    const hintEl = document.getElementById('ms-riddle-hint');
+    if (hintEl) hintEl.style.display = near ? 'flex' : 'none';
   }
 
+  // ─── Gamepad: di chuyển highlight đáp án (bao gồm nút Đóng ở cuối) ─────────
+  _riddleMoveGamepad(dir) {
+    if (!this._riddlePopupOpen) return;
+    const btns = document.querySelectorAll('#ms-chest-riddle-popup .riddle-choice-btn');
+    const closeBtn = document.querySelector('#ms-chest-riddle-popup .riddle-close-btn');
+    if (!btns.length) return;
+    // total = số đáp án + 1 (nút Đóng)
+    const total = btns.length + (closeBtn ? 1 : 0);
+    this._riddleSelectedIdx = ((this._riddleSelectedIdx ?? -1) + dir + total) % total;
+    const isClose = this._riddleSelectedIdx === btns.length;
+    btns.forEach((b, i) => {
+      b.style.background  = i === this._riddleSelectedIdx ? 'rgba(200,169,110,0.25)' : 'rgba(255,255,255,0.05)';
+      b.style.borderColor = i === this._riddleSelectedIdx ? 'rgba(200,169,110,0.7)'  : 'rgba(255,255,255,0.15)';
+    });
+    if (closeBtn) {
+      closeBtn.style.background  = isClose ? 'rgba(200,169,110,0.18)' : 'transparent';
+      closeBtn.style.borderColor = isClose ? 'rgba(200,169,110,0.6)'  : 'rgba(255,255,255,0.2)';
+      closeBtn.style.color       = isClose ? '#FFE066'                 : 'rgba(255,255,255,0.45)';
+    }
+  }
+
+  // ─── Gamepad: xác nhận item đang highlight (đáp án hoặc nút Đóng) ─────────
+  _riddleConfirmGamepad() {
+    if (!this._riddlePopupOpen) return;
+    const btns = document.querySelectorAll('#ms-chest-riddle-popup .riddle-choice-btn');
+    if (this._riddleSelectedIdx == null) return;
+    if (this._riddleSelectedIdx === btns.length) {
+      // Đang highlight nút Đóng
+      document.querySelector('#ms-chest-riddle-popup .riddle-close-btn')?.click();
+    } else {
+      btns[this._riddleSelectedIdx]?.click();
+    }
+  }
   // ─── Place egg objects in scene ───────────────────────────────────────────────
   async _placeEggObjects() {
     for (const m of this._missions) {
@@ -107,8 +157,8 @@ export class MissionSystem {
             const base = 0.6 / Math.max(sz.x, sz.y, sz.z);
             mesh.scale.setScalar(base * (cp.scale ?? 1.0));
             const scaledBox = new THREE.Box3().setFromObject(mesh);
-            const chestFloorY = (this._s.floorY ?? 0) - scaledBox.min.y;
-            mesh.position.set(cp.pos_x, chestFloorY, cp.pos_z);
+            const surfaceY = (cp.pos_y !== undefined && cp.pos_y !== null) ? cp.pos_y : (this._s.floorY ?? 0);
+            mesh.position.set(cp.pos_x, surfaceY - scaledBox.min.y, cp.pos_z);
             mesh.rotation.y = cp.rot_y ?? 0;
             this._s.threeScene.add(mesh);
             this._eggObjects.push(mesh);
@@ -120,7 +170,7 @@ export class MissionSystem {
             new THREE.SphereGeometry(0.7, 10, 10),
             new THREE.MeshBasicMaterial({ visible: false })
           );
-          sphere.position.set(cp.pos_x, this._s.floorY ?? 0, cp.pos_z);
+          sphere.position.set(cp.pos_x, (cp.pos_y ?? this._s.floorY ?? 0), cp.pos_z);
           this._s.threeScene.add(sphere);
           this._eggSpheres.push({ sphere, missionIndex: m.mission_index, eggIndex: -1, isChestRiddle: true, mission: m });
         }
@@ -401,6 +451,8 @@ export class MissionSystem {
   // ─── Chest riddle popup ───────────────────────────────────────────────────────
   _openChestRiddlePopup(mission) {
     document.getElementById('ms-chest-riddle-popup')?.remove();
+    this._riddlePopupOpen  = true;
+    this._riddleSelectedIdx = null;
 
     let qd = {};
     try { qd = JSON.parse(mission.riddle_text || '{}'); } catch { qd = {}; }
@@ -446,8 +498,8 @@ export class MissionSystem {
       const choiceText = qd[key] || '';
       if (!choiceText) return;
       const btn = document.createElement('button');
-      btn.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,255,255,0.05);border:.5px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-family:"Montserrat",sans-serif;font-size:13px;cursor:pointer;text-align:left;transition:background .15s;width:100%;';
-      const labelSpan = document.createElement('span');
+      btn.className = 'riddle-choice-btn';
+      btn.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,255,255,0.05);border:.5px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-family:"Montserrat",sans-serif;font-size:13px;cursor:pointer;text-align:left;transition:background .15s;width:100%;';      const labelSpan = document.createElement('span');
       labelSpan.style.cssText = 'color:#FFE066;font-weight:700;flex-shrink:0;';
       labelSpan.textContent = 'ABCD'[i] + '.';
       const textSpan = document.createElement('span');
@@ -462,7 +514,7 @@ export class MissionSystem {
           btn.style.cssText += 'background:rgba(50,200,100,0.15);border-color:rgba(50,200,100,0.5);';
           feedback.style.color = '#FFE066';
           feedback.textContent = '✓ Chính xác! Rương đã mở!';
-          setTimeout(() => { overlay.remove(); this._completeMission(mission.mission_index); }, 800);
+          setTimeout(() => { this._riddlePopupOpen = false; overlay.remove(); this._completeMission(mission.mission_index); }, 800);
         } else {
           btn.style.background = 'rgba(255,80,80,0.1)';
           btn.style.borderColor = 'rgba(255,80,80,0.3)';
@@ -479,11 +531,12 @@ export class MissionSystem {
 
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕ Đóng';
-    closeBtn.style.cssText = 'align-self:center;padding:6px 18px;background:transparent;border:.5px solid rgba(255,255,255,0.2);border-radius:8px;color:rgba(255,255,255,0.45);font-family:"Montserrat",sans-serif;font-size:11px;cursor:pointer;';
-    closeBtn.addEventListener('click', () => overlay.remove());
+    closeBtn.className = 'riddle-close-btn';
+    closeBtn.style.cssText = 'align-self:center;padding:6px 18px;background:transparent;border:.5px solid rgba(255,255,255,0.2);border-radius:8px;color:rgba(255,255,255,0.45);font-family:"Montserrat",sans-serif;font-size:11px;cursor:pointer;transition:background .15s,border-color .15s,color .15s;';
+    closeBtn.addEventListener('click', () => { this._riddlePopupOpen = false; overlay.remove(); });
     box.appendChild(closeBtn);
 
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    overlay.addEventListener('click', e => { if (e.target === overlay) { this._riddlePopupOpen = false; overlay.remove(); } });
     overlay.appendChild(box);
     document.body.appendChild(overlay);
   }
@@ -594,7 +647,8 @@ export class MissionSystem {
 
     btnRow.append(submitBtn, closeBtn);
     box.appendChild(btnRow);
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    overlay.addEventListener('click', e => { if (e.target === overlay) { this._riddlePopupOpen = false; overlay.remove(); } });
+    closeBtn.addEventListener('click', () => { this._riddlePopupOpen = false; overlay.remove(); }, { once: true });
     overlay.appendChild(box);
     document.body.appendChild(overlay);
   }
@@ -691,15 +745,42 @@ export class MissionSystem {
       <div style="color:rgba(255,255,255,0.4);font-size:10px;line-height:1.6;">Huy hiệu hoàn thành đã được lưu vào hồ sơ của bạn.</div>
     `;
 
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = 'Tuyệt vời! 🎉';
-    closeBtn.style.cssText = 'padding:12px 36px;background:rgba(104,229,227,0.15);border:1px solid rgba(104,229,227,0.5);border-radius:10px;color:#68e5e3;font-family:"Montserrat",sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.05em;transition:background .2s;';
-    closeBtn.addEventListener('mouseenter', () => closeBtn.style.background = 'rgba(104,229,227,0.28)');
-    closeBtn.addEventListener('mouseleave', () => closeBtn.style.background = 'rgba(104,229,227,0.15)');
-    closeBtn.addEventListener('click', () => overlay.remove());
-    box.appendChild(closeBtn);
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center;';
+
+    const replayBtn = document.createElement('button');
+    replayBtn.textContent = '🔄 Chơi lại';
+    replayBtn.style.cssText = 'padding:12px 28px;background:rgba(200,169,110,0.12);border:1px solid rgba(200,169,110,0.45);border-radius:10px;color:#c8a96e;font-family:"Montserrat",sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.05em;transition:background .2s;';
+    replayBtn.addEventListener('mouseenter', () => replayBtn.style.background = 'rgba(200,169,110,0.25)');
+    replayBtn.addEventListener('mouseleave', () => replayBtn.style.background = 'rgba(200,169,110,0.12)');
+    replayBtn.addEventListener('click', async () => {
+      replayBtn.disabled = true;
+      replayBtn.textContent = 'Đang reset...';
+      await this._resetMissions();
+      overlay.remove();
+    });
+
+    btnRow.append(replayBtn);
+    box.appendChild(btnRow);
     overlay.appendChild(box);
     document.body.appendChild(overlay);
+  }
+
+  // ─── Reset tất cả nhiệm vụ để chơi lại ───────────────────────────────────────
+  async _resetMissions() {
+    const userId = this._s.manager.auth.profile?.id;
+    if (userId) {
+      await supabase.from('mission_completions').delete().eq('room_id', this._roomId).eq('user_id', userId);
+      await supabase.from('room_completions').delete().eq('room_id', this._roomId).eq('user_id', userId);
+    }
+    this._completed.clear();
+    this._foundEggs.clear();
+    this._allDone = false;
+    this._missions.forEach(m => {
+      if (m.mission_type === 'story_sequence') this._applyStoryArtworkOverlay();
+    });
+    this._buildHUD();
+    this._s._toast?.('Nhiệm vụ đã được reset! Hãy khám phá lại từ đầu 🎯', 'success', 3000);
   }
 
   // ─── Cleanup ──────────────────────────────────────────────────────────────────

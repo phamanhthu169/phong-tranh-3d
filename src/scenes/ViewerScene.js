@@ -2304,6 +2304,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
           obj.updateMatrixWorld(true);
           const bBox = new THREE.Box3().setFromObject(obj);
           obj.position.set(pos.x, usePedestal ? (0.90 - bBox.min.y) : -bBox.min.y, pos.z);
+          obj.position.set(m.x, m.y, m.z); // ghi đè Y đã lưu (giống StudioScene)
           if (m.ry) obj.rotation.y = m.ry;
           this.threeScene.add(obj);
           const pl = new THREE.PointLight(0xfff0dd, 1.5, 4); pl.position.set(pos.x, pos.y+2, pos.z); this.threeScene.add(pl);
@@ -2716,6 +2717,83 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
       if (this.wpTravelT >= 1) this.wpTravelTarget = null;
     } else {
+      // ── Gamepad (Remote Gamepad app) ──────────────────────────
+      const _gp = (navigator.getGamepads?.() || [])[0];
+      if (_gp) {
+        const _x = _gp.axes[0], _y = _gp.axes[1];
+        const _D = 0.35;
+        this.keys['KeyW'] = _y < -_D;
+        this.keys['KeyS'] = _y >  _D;
+        this.keys['KeyA'] = _x < -_D;
+        this.keys['KeyD'] = _x >  _D;
+        // Joystick phải → xoay camera
+        const _rx = _gp.axes[2], _ry = _gp.axes[3];
+        if (Math.abs(_rx) > _D) this.yaw   -= _rx * 0.03;
+        if (Math.abs(_ry) > _D) {
+          this.pitch -= _ry * 0.03;
+          this.pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.pitch));
+        }
+        // Nút A (buttons[0]) → xem tranh hoặc mở rương
+        const _btnA = _gp.buttons[0]?.pressed;
+        if (_btnA && !this._gpBtnAWas) {
+          if (document.getElementById('artwork-popup')?.classList.contains('open')) {
+            document.getElementById('artwork-popup').classList.remove('open');
+          } else if (this._nearArtwork) {
+            this._showArtworkPopup(this._nearArtwork, this.artworks.indexOf(this._nearArtwork), 'artwork');
+          } else if (this._nearChest && !this._chestPopupOpen) {
+            this._openChestPopup(this._nearChest);
+          }
+        }
+        this._gpBtnAWas = _btnA;
+
+        // Nút Y (buttons[3]) → mở riddle chest / artwork popup / confirm đáp án
+        const _btnY = _gp.buttons[3]?.pressed;
+        if (_btnY && !this._gpBtnYWas) {
+          if (this.missionSystem?._riddlePopupOpen) {
+            this.missionSystem._riddleConfirmGamepad();
+          } else if (this.missionSystem?._nearRiddleMission) {
+            this.missionSystem._openChestRiddlePopup(this.missionSystem._nearRiddleMission);
+            this.missionSystem._riddlePopupOpen = true;
+          }
+        }
+        this._gpBtnYWas = _btnY;
+
+        // Proximity: tìm tranh gần nhất trong bán kính 6
+        { const _cam = this.camera.position;
+          this._nearArtwork = this.artworks.find(a => {
+            const p = new THREE.Vector3(); a.group.getWorldPosition(p);
+            return p.distanceTo(_cam) < 8;
+          }) || null;
+          const _hintEl = document.getElementById('vw-art-hint');
+          if (_hintEl) _hintEl.style.display = this._nearArtwork && !document.getElementById('artwork-popup')?.classList.contains('open') ? 'flex' : 'none';
+        }
+
+        // Khi riddle popup đang mở: dùng mũi tên lên/xuống để chọn đáp án, chặn di chuyển
+        if (this.missionSystem?._riddlePopupOpen) {
+          const _up = _gp.buttons[12]?.pressed;
+          const _dn = _gp.buttons[13]?.pressed;
+          if (_up && !this._gpDUpWas) this.missionSystem._riddleMoveGamepad(-1);
+          if (_dn && !this._gpDDnWas) this.missionSystem._riddleMoveGamepad(1);
+          this._gpDUpWas = _up;
+          this._gpDDnWas = _dn;
+          // Chặn movement
+          this.keys['KeyW'] = false;
+          this.keys['KeyS'] = false;
+          this.keys['KeyA'] = false;
+          this.keys['KeyD'] = false;
+        } else {
+          // Dpad → xoay camera (khi không có popup)
+          const _CAM_SPD = 0.15;
+          if (_gp.buttons[12]?.pressed) { this.pitch += _CAM_SPD; this.pitch = Math.min(Math.PI/2, this.pitch); }
+          if (_gp.buttons[13]?.pressed) { this.pitch -= _CAM_SPD; this.pitch = Math.max(-Math.PI/2, this.pitch); }
+          if (_gp.buttons[14]?.pressed) this.yaw += _CAM_SPD;
+          if (_gp.buttons[15]?.pressed) this.yaw -= _CAM_SPD;
+          this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
+          this._gpDUpWas = false;
+          this._gpDDnWas = false;
+        }
+      }
+      // ─────────────────────────────────────────────────────────
       const speed = this._walkSpeed;
       const posY  = this.camera.position.y;
       this.moveDir.set(0,0,0);
@@ -2785,8 +2863,16 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     const wallDist  = wallHits.length ? wallHits[0].distance : Infinity;
     const charDist  = Math.min(1.5, Math.max(0.2, wallDist - 0.35));
 
+    // MỚI:
     this._character.position.copy(this.camera.position).addScaledVector(this._charFwd, charDist);
-    this._character.position.y = this.floorY;
+    // Chỉ ghim xuống sàn nếu camera đang ở gần sàn (đi bộ bình thường)
+    // Nếu camera đang ở trên cao (spawn point trên trời) thì nhân vật theo camera
+    const cameraHeightAboveFloor = this.camera.position.y - this.floorY;
+    if (cameraHeightAboveFloor < 3.0) {
+      this._character.position.y = this.floorY;
+    } else {
+      this._character.position.y = this.camera.position.y - 1.6;
+    }
 
     // --- Animation ---
     const isMoving = rawDir.lengthSq() > 0 || this.wpTravelTarget !== null;
@@ -2854,8 +2940,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
           const baseScale = 0.6 / Math.max(sz.x, sz.y, sz.z);
           mesh.scale.setScalar(baseScale * (row.chest_scale > 0 ? row.chest_scale : 1.0));
           const scaledBox = new THREE.Box3().setFromObject(mesh);
-          const chestFloorY = (this.floorY ?? 0) - scaledBox.min.y;
-          mesh.position.set(row.pos_x, chestFloorY, row.pos_z);
+          const surfaceY = (row.pos_y !== undefined && row.pos_y !== null) ? row.pos_y : (this.floorY ?? 0);
+          mesh.position.set(row.pos_x, surfaceY - scaledBox.min.y, row.pos_z);
           mesh.rotation.y = row.rot_y || 0;
           chest.mesh = mesh;
           this.threeScene.add(mesh);
@@ -2875,6 +2961,21 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     hint.style.cssText = 'position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(15,13,12,.94);border:.5px solid #c8a96e;border-radius:4px;padding:8px 20px;color:#c8a96e;font-family:monospace;font-size:10px;letter-spacing:.14em;display:none;z-index:25;pointer-events:none;white-space:nowrap';
     document.body.appendChild(hint);
     this._el(hint);
+
+    // Hint cho riddle chest (MissionSystem) — hiện khi đứng gần rương nhiệm vụ
+    const riddleHint = document.createElement('div');
+    riddleHint.id = 'ms-riddle-hint';
+    riddleHint.style.cssText = 'position:fixed;bottom:170px;left:50%;transform:translateX(-50%);background:rgba(15,13,12,.94);border:.5px solid rgba(200,169,110,0.6);border-radius:8px;padding:10px 22px;color:#c8a96e;font-family:Montserrat,sans-serif;font-size:12px;letter-spacing:.08em;display:none;z-index:25;pointer-events:none;white-space:nowrap;align-items:center;gap:8px;';
+    riddleHint.innerHTML = '🗝 Bấm <b style="color:#FFE066;border:1px solid rgba(200,169,110,0.7);padding:1px 8px;border-radius:4px;margin:0 2px;">Y</b> để mở rương';
+    document.body.appendChild(riddleHint);
+    this._el(riddleHint);
+
+    const artHint = document.createElement('div');
+    artHint.id = 'vw-art-hint';
+    artHint.style.cssText = 'position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(15,13,12,.94);border:.5px solid rgba(104,229,227,0.6);border-radius:8px;padding:10px 22px;color:#68e5e3;font-family:Montserrat,sans-serif;font-size:12px;letter-spacing:.08em;display:none;z-index:25;pointer-events:none;white-space:nowrap;align-items:center;gap:8px;';
+    artHint.innerHTML = '🖼 Bấm <b style="color:#68e5e3;border:1px solid rgba(104,229,227,0.7);padding:1px 8px;border-radius:4px;margin:0 2px;">A</b> để xem tranh';
+    document.body.appendChild(artHint);
+    this._el(artHint);
 
     const popup = document.createElement('div');
     popup.id = 'vw-chest-popup';

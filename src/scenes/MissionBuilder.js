@@ -273,7 +273,7 @@ export class MissionBuilder {
       obj.userData._chestBase = base;
       obj.scale.setScalar(base * sc);
       const scaledBox = new THREE.Box3().setFromObject(obj);
-      const chestFloorY = (s.floorY ?? 0) - scaledBox.min.y;
+      const chestFloorY = pos.y - scaledBox.min.y;
       obj.position.set(pos.x, chestFloorY, pos.z);
       obj.rotation.y = egg.rot_y ?? 0;
       s.threeScene.add(obj);
