@@ -2257,27 +2257,29 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
           return Promise.resolve();
         } else {
           return new Promise(resolve => {
-            const img = new Image(); img.crossOrigin = 'anonymous'; img.src = toCDN(a.storageUrl);
-            img.onload = () => {
-              const sw = img.naturalWidth, sh = img.naturalHeight;
-              const scale = Math.min(1, MAX_TEX / Math.max(sw, sh));
-              const cw = Math.round(sw * scale), ch = Math.round(sh * scale);
-              const canvas = document.createElement('canvas'); canvas.width=cw; canvas.height=ch;
-              canvas.getContext('2d').drawImage(img, 0, 0, cw, ch);
-              const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.LinearFilter; tex.colorSpace = THREE.SRGBColorSpace;
+            const isPng = a.isPng || /\.png(\?|$)/i.test(a.storageUrl);
+            new THREE.TextureLoader().load(toCDN(a.storageUrl), (tex) => {
+              tex.minFilter = THREE.LinearFilter; tex.colorSpace = THREE.SRGBColorSpace;
+              const sw = tex.image.naturalWidth || tex.image.width;
+              const sh = tex.image.naturalHeight || tex.image.height;
               const AH = 1.65, AW = AH * (sw / sh);
               const frame = new THREE.Mesh(new THREE.BoxGeometry(AW + framePad, AH + framePad, frameThickness), frameMat);
               frame.visible = frameVisible;
               group.add(frame);
-              const plane = new THREE.Mesh(new THREE.PlaneGeometry(AW, AH), new THREE.MeshBasicMaterial({ map:tex }));
+              const planeMat = new THREE.MeshBasicMaterial({
+                map: tex,
+                transparent: isPng,
+                alphaTest: isPng ? 0.05 : 0,
+                side: THREE.FrontSide,
+              });
+              const plane = new THREE.Mesh(new THREE.PlaneGeometry(AW, AH), planeMat);
               plane.position.z = frameThickness / 2 + 0.002;
               group.add(plane);
               this.threeScene.add(group);
-              this.artworks.push({ group, sourceImage: img, meta, storageUrl: a.storageUrl });
+              this.artworks.push({ group, sourceImage: tex.image, meta, storageUrl: a.storageUrl });
               _artTick();
               resolve();
-            };
-            img.onerror = () => { _artTick(); resolve(); };
+            }, undefined, () => { _artTick(); resolve(); });
           });
         }
       });

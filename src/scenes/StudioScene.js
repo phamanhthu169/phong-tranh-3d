@@ -1775,7 +1775,9 @@ _buildStudioLeftBtns() {
 
     document.getElementById('fi-img').addEventListener('change', async (e) => {
       const MAX_UPLOAD_SIZE = 50 * 1024 * 1024;
-      for (const file of Array.from(e.target.files)) {
+      const allFiles = Array.from(e.target.files);
+      for (const file of allFiles) {
+        const isFirst = allFiles.indexOf(file) === 0;
         if (file.size > MAX_UPLOAD_SIZE) { this._showFileSizeLimitModal(file.name, file.size); continue; }
         const isVideo = file.type.startsWith('video/');
         if (isVideo) {
@@ -1798,7 +1800,7 @@ ctx.fillRect(0, 0, 120, 120);
 ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
               this._uploadedSources.push({ type: 'video', label: file.name, src, thumbCanvas: th });
               this._renderUploadedList();
-              this.selectSource(src); vid.play(); this.setMode('place');
+              if (isFirst) { this.selectSource(src); vid.play(); this.setMode('place'); }
               this.toast('Video ✓ — click tường để đặt', 'success');
             });
           } catch (err) { this.toast('Lỗi: ' + err.message, 'error'); }
@@ -1806,27 +1808,26 @@ ctx.drawImage(vid, 0, (120 - dh) / 2, 120, dh); }, { once: true }); }, 200);
           this.toast('Đang upload...', 'info', 10000);
           const storageUrl = await this.uploadToStorage(file);
           if (!storageUrl) { this.toast('Upload thất bại, ảnh sẽ không được lưu', 'error'); continue; }
-          const img = new Image();
-          img.onload = () => {
-            const nw = img.naturalWidth, nh = img.naturalHeight;
-            const cv = document.createElement('canvas'); cv.width = 512; cv.height = Math.round(512 * nh / nw);
-            cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-            const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-            const src = { canvas: cv, texture: tex, naturalWidth: nw, naturalHeight: nh, storageUrl };
+          // THAY BẰNG:
+          const isPng = file.type === 'image/png' || file.name.toLowerCase().endsWith('.png');
+          const objectUrl = URL.createObjectURL(file);
+          new THREE.TextureLoader().load(objectUrl, (tex) => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            const nw = tex.image.naturalWidth || tex.image.width;
+            const nh = tex.image.naturalHeight || tex.image.height;
+            const src = { texture: tex, naturalWidth: nw, naturalHeight: nh, storageUrl, _isPng: isPng };
             const th = document.createElement('canvas'); th.width = 120; th.height = 120;
             const ctx = th.getContext('2d');
-            const scale = 120 / img.naturalWidth;
-            const dh = img.naturalHeight * scale;
-            const dy = (120 - dh) / 2;
-            ctx.fillStyle = 'rgba(255,255,255,0.08)';
-            ctx.fillRect(0, 0, 120, 120);
-            ctx.drawImage(img, 0, dy, 120, dh);
+            if (!isPng) { ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(0, 0, 120, 120); }
+            const scale = 120 / nw;
+            const dh = nh * scale;
+            ctx.drawImage(tex.image, 0, (120 - dh) / 2, 120, dh);
+            URL.revokeObjectURL(objectUrl);
             this._uploadedSources.push({ type: 'image', label: file.name, src, thumbCanvas: th });
             this._renderUploadedList();
-            this.selectSource(src); this.setMode('place');
+            if (isFirst) { this.selectSource(src); this.setMode('place'); }
             this.toast('Ảnh ✓ — click tường để đặt', 'success');
-          };
-          img.src = URL.createObjectURL(file);
+          });
         }
       }
       e.target.value = '';
@@ -2126,35 +2127,12 @@ _renderMusicPlaylist() {
       if (key && !thumbCache.has(key)) thumbCache.set(key, item);
     }
 
-    // Build unique list from what's actually placed in the room
+    // Build list từ _uploadedSources (bao gồm cả chưa đặt lẫn đã đặt)
     const byType = { image: [], video: [], model: [], youtube: [] };
-    const seenUrls = new Set();
 
-    for (const a of this.artworks) {
-      const key = a.storageUrl;
-      if (!key || seenUrls.has(key)) continue;
-      seenUrls.add(key);
-      const cached = thumbCache.get(key);
-      const type = a.isYouTube ? 'youtube' : (a.isVideo ? 'video' : 'image');
-      byType[type].push({
-        label: cached?.label || (a.isYouTube ? ('YouTube: ' + a.youtubeId) : key.split('/').pop().replace(/^\d+_/, '')) || key,
-        type,
-        src: cached?.src || { storageUrl: key, isYouTube: a.isYouTube, youtubeId: a.youtubeId },
-        thumbCanvas: cached?.thumbCanvas || null,
-      });
-    }
-
-    for (const m of this.models3d) {
-      const key = m.storageUrl;
-      if (!key || seenUrls.has(key)) continue;
-      seenUrls.add(key);
-      const cached = thumbCache.get(key);
-      byType['model'].push({
-        label: cached?.label || m.name || key.split('/').pop().replace(/^\d+_/, '') || key,
-        type: 'model',
-        src: cached?.src || { storageUrl: key },
-        thumbCanvas: null,
-      });
+    for (const item of this._uploadedSources) {
+      const t = item.type;
+      if (byType[t] !== undefined) byType[t].push(item);
     }
 
     const renderInner = (inner, items, type) => {
@@ -2217,35 +2195,10 @@ _renderMusicPlaylist() {
           });
         };
         card.addEventListener('click', () => {
-          const url = item.src?.storageUrl;
-          let placed = null, placedType = null, placedIdx = -1;
-          if (type === 'model') {
-            placedIdx = this.models3d.findIndex(m => m.storageUrl === url);
-            if (placedIdx >= 0) { placed = this.models3d[placedIdx]; placedType = 'model'; }
-          } else {
-            placedIdx = this.artworks.findIndex(a => a.storageUrl === url);
-            if (placedIdx >= 0) { placed = this.artworks[placedIdx]; placedType = 'artwork'; }
-          }
-          if (placed && this._infoPopup) {
-            this.selectedItem = { type: placedType, data: placed, index: placedIdx };
-            const m = placed.meta || {};
-            ['title', 'artist', 'year', 'desc', 'price', 'weight'].forEach(k => {
-              const el = document.getElementById('pop-' + k);
-              if (el) el.value = m[k] || '';
-            });
-            const _wv = m['weight'] || '';
-            document.querySelectorAll('[data-w]').forEach(b => {
-              const on = b.dataset.w === _wv;
-              b.style.background  = on ? 'rgba(255,220,80,0.2)' : 'rgba(255,255,255,0.10)';
-              b.style.borderColor = on ? 'rgba(255,220,80,0.6)' : 'rgba(255,255,255,0.2)';
-              b.style.color       = on ? 'rgba(255,220,80,1)'   : '#FFFFFF';
-            });
-            this._infoPopup.style.display = 'flex';
-          } else {
-            this.selectSource(item.src);
-            this.setMode('place');
-            updateAllCards();
-          }
+          this.selectSource(item.src);
+          this.setMode('place');
+          updateAllCards();
+          this.toast('Click tường để đặt tranh', 'info');
         });
         card.dataset.upcard = type + '-' + idx;
         const isSel = this.selectedSource === item.src;
@@ -3935,7 +3888,8 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     group.add(frame);
 
     // ── Plane material — PNG tách nền dùng transparent ──
-    const isPng = !src.isVideo && src.storageUrl && /\.png(\?|$)/i.test(src.storageUrl);
+    const isPng = src._isPng ||
+                  (!src.isVideo && src.storageUrl && /\.png(\?|$)/i.test(src.storageUrl));
     const planeMat = new THREE.MeshBasicMaterial({
       map: tex,
       transparent: isPng || src._forceTransparent || false,
@@ -3949,6 +3903,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     this.threeScene.add(group);
     const ad = {
       group, frame, plane,
+      isPng: isPng || false,
       isVideo: src.isVideo || false,
       isYouTube: src.isYouTube || false,
       youtubeId: src.youtubeId || null,
@@ -5070,6 +5025,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         frameColor:     a.frameColor   ?? 0x182D58,
         frameThickness: a.frameThickness ?? 0.08,
         meta: a.meta,
+        isPng: a.isPng || false,
       })),
       models: this.models3d.map(m => ({
         x: m.object.position.x,
@@ -5233,7 +5189,8 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
           const tex = await new Promise(resolve => new THREE.TextureLoader().load(a.storageUrl, resolve, undefined, () => resolve(null)));
           if (!tex) continue;
           tex.colorSpace = THREE.SRGBColorSpace;
-          this.placeArtwork({ texture: tex, storageUrl: a.storageUrl, naturalWidth: a.naturalWidth || 1, naturalHeight: a.naturalHeight || 1 }, pos, [a.rx || 0, a.ry || 0, a.rz || 0], a.meta || {}, sv, frameOpts);
+          const _isPng = a.isPng || /\.png(\?|$)/i.test(a.storageUrl);
+          this.placeArtwork({ texture: tex, storageUrl: a.storageUrl, naturalWidth: a.naturalWidth || 1, naturalHeight: a.naturalHeight || 1, _isPng }, pos, [a.rx || 0, a.ry || 0, a.rz || 0], a.meta || {}, sv, frameOpts);
         }
       }
     }
