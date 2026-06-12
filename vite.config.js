@@ -1,6 +1,20 @@
 import { defineConfig } from 'vite'
+import { createServer } from 'vite'
+
 export default defineConfig({
   base: '/',
-  // trả về index.html cho mọi URL — cần thiết để /studio, /explore, ... hoạt động
   appType: 'spa',
+  server: {
+    middlewareMode: false,
+  },
+  plugins: [
+    {
+      name: 'serve-public-files',
+      configureServer(server) {
+        server.middlewares.use('/sounds', (req, res, next) => {
+          next()
+        })
+      },
+    },
+  ],
 })

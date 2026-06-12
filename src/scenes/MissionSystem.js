@@ -20,6 +20,7 @@ export class MissionSystem {
     this._hudCollapsed = true;  // Mặc định đóng khi vào phòng
     this._roomId       = null;
     this._gltfLoader   = new GLTFLoader();
+    this._chestMixers  = new Map(); // Map<missionIndex, { mixer, action, mesh }>
   }
 
   // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -87,8 +88,13 @@ export class MissionSystem {
   }
 
   // ─── Render loop ──────────────────────────────────────────────────────────────
-  update() {
+  update(delta) {
     this._checkRiddleProximity();
+    // Tick tất cả AnimationMixer của rương
+    if (this._chestMixers.size) {
+      const dt = delta ?? (this._clock ? this._clock.getDelta() : 0.016);
+      this._chestMixers.forEach(({ mixer }) => mixer.update(dt));
+    }
   }
 // ─── Gamepad proximity check cho chest riddle ─────────────────────────────
   _checkRiddleProximity() {
@@ -127,6 +133,7 @@ export class MissionSystem {
       closeBtn.style.borderColor = isClose ? 'rgba(200,169,110,0.6)'  : 'rgba(255,255,255,0.2)';
       closeBtn.style.color       = isClose ? '#FFE066'                 : 'rgba(255,255,255,0.45)';
     }
+    this._sfx('choice_hover');
   }
 
   // ─── Gamepad: xác nhận item đang highlight (đáp án hoặc nút Đóng) ─────────
@@ -162,6 +169,31 @@ export class MissionSystem {
             mesh.rotation.y = cp.rot_y ?? 0;
             this._s.threeScene.add(mesh);
             this._eggObjects.push(mesh);
+
+            // ── Setup AnimationMixer ──
+            if (gltf.animations?.length) {
+              const mixer  = new THREE.AnimationMixer(mesh);
+              const action = mixer.clipAction(gltf.animations[0]);
+              action.setLoop(THREE.LoopOnce, 1);
+              action.clampWhenFinished = true; // giữ nguyên frame cuối khi xong
+              action.timeScale = 1;
+
+              if (this._completed.has(m.mission_index)) {
+                // Đã hoàn thành: nhảy thẳng tới frame cuối (mở)
+                action.play();
+                action.time = gltf.animations[0].duration;
+                mixer.update(0);
+              } else {
+                // Chưa hoàn thành: giữ frame 0 (đóng), không play
+                action.play();
+                action.time = 0;
+                mixer.update(0);
+                action.paused = true;
+              }
+
+              this._chestMixers.set(m.mission_index, { mixer, action, mesh, duration: gltf.animations[0].duration });
+            }
+
             resolve();
           }, null, () => resolve());
         });
@@ -402,12 +434,23 @@ export class MissionSystem {
     if (!document.getElementById('ms-hud-style')) {
       const style = document.createElement('style');
       style.id = 'ms-hud-style';
-      style.textContent = `
-        @keyframes ms-badge-pulse {
-          0%, 100% { transform: scale(1);    box-shadow: 0 0 6px rgba(248,113,113,0.6); }
-          50%       { transform: scale(1.15); box-shadow: 0 0 10px rgba(248,113,113,0.9); }
-        }
-      `;
+     style.textContent = `
+      @keyframes ms-badge-pulse {
+        0%, 100% { transform: scale(1);    box-shadow: 0 0 6px rgba(248,113,113,0.6); }
+        50%       { transform: scale(1.15); box-shadow: 0 0 10px rgba(248,113,113,0.9); }
+      }
+      @keyframes ms-popup-in {
+        0%   { transform: scale(0.6); opacity: 0; }
+        65%  { transform: scale(1.06); opacity: 1; }
+        82%  { transform: scale(0.97); }
+        100% { transform: scale(1); }
+      }
+      @keyframes ms-popup-out {
+        0%   { transform: scale(1); opacity: 1; }
+        30%  { transform: scale(1.04); }
+        100% { transform: scale(0.6); opacity: 0; }
+      }
+    `;
       document.head.appendChild(style);
     }
 
@@ -448,11 +491,61 @@ export class MissionSystem {
     return '';
   }
 
+  // ─── Chest: play open animation rồi mới hiện popup câu đố ──────────────────
+  _playChestOpenThenRiddle(mission) {
+    const chestData = this._chestMixers.get(mission.mission_index);
+    if (!chestData) {
+      // Không có animation → mở popup luôn
+      this._openChestRiddlePopup(mission);
+      return;
+    }
+    const { mixer, action, duration } = chestData;
+    // Nếu đang paused (chưa play lần nào) thì unpause và chạy từ đầu
+    action.paused = false;
+    action.time   = 0;
+    mixer.update(0);
+
+    // Sau khi animation xong (duration giây) thì hiện popup
+    const timeoutMs = Math.round(duration * 1000);
+    setTimeout(() => this._openChestRiddlePopup(mission), timeoutMs);
+  }
+
+  // ─── Sound effects ────────────────────────────────────────────────────────────
+  _sfx(name) {
+    const map = {
+      popup_open  : '/sounds/popup_open.mp3',
+      choice_hover: '/sounds/choice_hover.mp3',
+      close       : '/sounds/close.mp3',
+      correct     : '/sounds/correct.mp3',
+      wrong       : '/sounds/wrong.mp3',
+      chest_open  : '/sounds/chest_open.mp3',
+    };
+    const src = map[name];
+    if (!src) return;
+
+    // Debounce choice_hover để tránh spam Audio objects khi di chuột nhanh
+    if (name === 'choice_hover') {
+      if (this._sfxHoverTs && Date.now() - this._sfxHoverTs < 120) return;
+      this._sfxHoverTs = Date.now();
+    }
+
+    // Cache và reuse Audio object theo từng tên
+    if (!this._sfxCache) this._sfxCache = {};
+    if (!this._sfxCache[name]) {
+      this._sfxCache[name] = new Audio(src);
+      this._sfxCache[name].volume = 0.5;
+    }
+    const audio = this._sfxCache[name];
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  }
+
   // ─── Chest riddle popup ───────────────────────────────────────────────────────
   _openChestRiddlePopup(mission) {
     document.getElementById('ms-chest-riddle-popup')?.remove();
     this._riddlePopupOpen  = true;
     this._riddleSelectedIdx = null;
+    this._sfx('popup_open');
 
     let qd = {};
     try { qd = JSON.parse(mission.riddle_text || '{}'); } catch { qd = {}; }
@@ -465,7 +558,7 @@ export class MissionSystem {
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1000;display:flex;align-items:center;justify-content:center;';
 
     const box = document.createElement('div');
-    box.style.cssText = 'background:linear-gradient(135deg,rgba(118,170,171,1),rgba(35,92,208,0.5));border:.5px solid rgba(200,169,110,0.4);border-radius:16px;padding:28px;max-width:420px;width:90%;display:flex;flex-direction:column;gap:14px;font-family:"Montserrat",sans-serif;color:#FFFFFF;';
+    box.style.cssText = 'background:linear-gradient(135deg,rgba(118,170,171,1),rgba(35,92,208,0.5));border:.5px solid rgba(200,169,110,0.4);border-radius:16px;padding:28px;max-width:420px;width:90%;display:flex;flex-direction:column;gap:14px;font-family:"Montserrat",sans-serif;color:#FFFFFF;animation:ms-popup-in 0.4s cubic-bezier(.36,.07,.19,.97);';
     const titleDiv = document.createElement('div');
     titleDiv.style.cssText = 'color:#FFE066;font-size:14px;font-weight:700;letter-spacing:.05em;';
     titleDiv.textContent = `🗝 ${mission.title || 'Giải mã rương câu đố'}`;
@@ -505,17 +598,26 @@ export class MissionSystem {
       const textSpan = document.createElement('span');
       textSpan.textContent = choiceText;
       btn.append(labelSpan, textSpan);
-      btn.addEventListener('mouseenter', () => { if (!answered) btn.style.background = 'rgba(200,169,110,0.1)'; });
+      btn.addEventListener('mouseenter', () => { if (!answered) { btn.style.background = 'rgba(200,169,110,0.1)'; this._sfx('choice_hover'); } });
       btn.addEventListener('mouseleave', () => { if (!answered) btn.style.background = 'rgba(255,255,255,0.05)'; });
       btn.addEventListener('click', () => {
         if (answered) return;
         if (key === correctKey) {
           answered = true;
+          this._sfx('correct');
           btn.style.cssText += 'background:rgba(50,200,100,0.15);border-color:rgba(50,200,100,0.5);';
           feedback.style.color = '#FFE066';
           feedback.textContent = '✓ Chính xác! Rương đã mở!';
-          setTimeout(() => { this._riddlePopupOpen = false; overlay.remove(); this._completeMission(mission.mission_index); }, 800);
+          const chestData = this._chestMixers.get(mission.mission_index);
+          if (chestData) {
+            chestData.action.paused = false;
+            chestData.action.time   = 0;
+            chestData.mixer.update(0);
+            this._sfx('chest_open');
+          }
+          setTimeout(() => { this._riddlePopupOpen = false; closeWithAnim(); this._completeMission(mission.mission_index); }, 1000);
         } else {
+          this._sfx('wrong');
           btn.style.background = 'rgba(255,80,80,0.1)';
           btn.style.borderColor = 'rgba(255,80,80,0.3)';
           setTimeout(() => { btn.style.background = 'rgba(255,255,255,0.05)'; btn.style.borderColor = 'rgba(255,255,255,0.15)'; }, 600);
@@ -533,125 +635,19 @@ export class MissionSystem {
     closeBtn.textContent = '✕ Đóng';
     closeBtn.className = 'riddle-close-btn';
     closeBtn.style.cssText = 'align-self:center;padding:6px 18px;background:transparent;border:.5px solid rgba(255,255,255,0.2);border-radius:8px;color:rgba(255,255,255,0.45);font-family:"Montserrat",sans-serif;font-size:11px;cursor:pointer;transition:background .15s,border-color .15s,color .15s;';
-    closeBtn.addEventListener('click', () => { this._riddlePopupOpen = false; overlay.remove(); });
+    closeBtn.addEventListener('click', () => { this._sfx('close'); this._riddlePopupOpen = false; closeWithAnim(); });
     box.appendChild(closeBtn);
 
-    overlay.addEventListener('click', e => { if (e.target === overlay) { this._riddlePopupOpen = false; overlay.remove(); } });
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-  }
-
-  // ─── Story sequence popup ─────────────────────────────────────────────────────
-  _openStoryUI(mission) {
-    document.getElementById('ms-story-popup')?.remove();
-
-    const urls = mission.story_artwork_urls || [];
-    // Normalize URLs (strip query params) for robust matching
-    const norm = u => (u || '').split('?')[0];
-    const artworks = urls.map(u => this._s.artworks.find(a => norm(a.storageUrl) === norm(u))).filter(Boolean);
-    if (!artworks.length) {
-      this._s._toast?.('Nhiệm vụ này chưa có tranh được cấu hình.', 'info', 2500);
-      return;
-    }
-
-    // Shuffle for visitor
-    const shuffled = [...artworks].sort(() => Math.random() - 0.5);
-
-    const overlay = document.createElement('div');
-    overlay.id = 'ms-story-popup';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:1000;display:flex;align-items:center;justify-content:center;';
-
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#0d1520;border:.5px solid rgba(104,229,227,0.35);border-radius:16px;padding:24px;max-width:480px;width:92%;display:flex;flex-direction:column;gap:14px;font-family:"Montserrat",sans-serif;max-height:90vh;overflow-y:auto;';
-
-    const hintHtml = mission.story_hint
-      ? `<div style="color:rgba(255,200,100,0.75);font-size:10px;margin-top:4px;">💡 Gợi ý: ${mission.story_hint}</div>` : '';
-    box.innerHTML = `
-      <div style="color:#68e5e3;font-size:14px;font-weight:700;">📖 ${mission.title || 'Xếp mạch chuyện'}</div>
-      <div style="color:rgba(255,255,255,0.5);font-size:10px;line-height:1.6;">
-        Dùng nút ↑↓ để sắp xếp các bức tranh theo đúng thứ tự câu chuyện (từ trên xuống dưới).
-      </div>
-      ${hintHtml}
-    `;
-
-    const list = document.createElement('div');
-    list.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
-
-    shuffled.forEach(art => {
-      const name = art.meta?.title || art.storageUrl?.split('/').pop().replace(/^\d+_/, '') || 'Tranh';
-      const item = document.createElement('div');
-      item.dataset.url = art.storageUrl;
-      item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,0.05);border:.5px solid rgba(255,255,255,0.1);border-radius:8px;';
-      item.innerHTML = `
-        <div style="width:44px;height:44px;background:rgba(255,255,255,0.07);border-radius:5px;flex-shrink:0;overflow:hidden;">
-          ${art.storageUrl ? `<img src="${art.storageUrl}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">` : ''}
-        </div>
-        <div style="flex:1;overflow:hidden;">
-          <div style="color:#fff;font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name.substring(0, 40)}</div>
-          ${art.meta?.artist ? `<div style="color:rgba(255,255,255,0.4);font-size:9px;">${art.meta.artist.substring(0, 30)}</div>` : ''}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
-          <button class="story-up"   style="padding:3px 8px;font-size:11px;background:rgba(255,255,255,0.08);border:.5px solid rgba(255,255,255,0.18);border-radius:4px;color:#fff;cursor:pointer;line-height:1;">↑</button>
-          <button class="story-down" style="padding:3px 8px;font-size:11px;background:rgba(255,255,255,0.08);border:.5px solid rgba(255,255,255,0.18);border-radius:4px;color:#fff;cursor:pointer;line-height:1;">↓</button>
-        </div>
-      `;
-      list.appendChild(item);
-    });
-
-    const moveItem = (el, dir) => {
-      const items = [...list.querySelectorAll('[data-url]')];
-      const i = items.indexOf(el);
-      const target = items[i + dir];
-      if (!target) return;
-      if (dir === -1) list.insertBefore(el, target);
-      else list.insertBefore(target, el);
+    const closeWithAnim = () => {
+      box.style.animation = 'ms-popup-out 0.25s ease forwards';
+      setTimeout(() => overlay.remove(), 230);
     };
-
-    list.addEventListener('click', e => {
-      const btn  = e.target.closest('.story-up, .story-down');
-      if (!btn) return;
-      const item = btn.closest('[data-url]');
-      moveItem(item, btn.classList.contains('story-up') ? -1 : 1);
-    });
-
-    box.appendChild(list);
-
-    const feedback = document.createElement('div');
-    feedback.style.cssText = 'font-size:11px;text-align:center;min-height:18px;';
-    box.appendChild(feedback);
-
-    const btnRow = document.createElement('div');
-    btnRow.style.cssText = 'display:flex;gap:8px;';
-
-    const submitBtn = document.createElement('button');
-    submitBtn.textContent = '✓ Xác nhận thứ tự';
-    submitBtn.style.cssText = 'flex:1;padding:10px;background:rgba(104,229,227,0.12);border:.5px solid rgba(104,229,227,0.45);border-radius:8px;color:#68e5e3;font-family:"Montserrat",sans-serif;font-size:12px;font-weight:700;cursor:pointer;';
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '✕';
-    closeBtn.style.cssText = 'padding:10px 14px;background:transparent;border:.5px solid rgba(255,255,255,0.2);border-radius:8px;color:rgba(255,255,255,0.45);font-family:"Montserrat",sans-serif;font-size:12px;cursor:pointer;';
-    closeBtn.addEventListener('click', () => overlay.remove());
-
-    submitBtn.addEventListener('click', () => {
-      const currentOrder = [...list.querySelectorAll('[data-url]')].map(el => el.dataset.url);
-      const isCorrect    = urls.length === currentOrder.length && urls.every((u, i) => u === currentOrder[i]);
-      if (isCorrect) {
-        feedback.style.color = '#68e5e3';
-        feedback.textContent = '✓ Chính xác! Bạn đã xếp đúng thứ tự.';
-        submitBtn.disabled = true;
-        setTimeout(() => { overlay.remove(); this._completeMission(mission.mission_index); }, 900);
-      } else {
-        feedback.style.color = '#f87171';
-        feedback.textContent = '✗ Thứ tự chưa đúng, thử lại nhé!';
-      }
-    });
-
-    btnRow.append(submitBtn, closeBtn);
-    box.appendChild(btnRow);
-    overlay.addEventListener('click', e => { if (e.target === overlay) { this._riddlePopupOpen = false; overlay.remove(); } });
-    closeBtn.addEventListener('click', () => { this._riddlePopupOpen = false; overlay.remove(); }, { once: true });
+    overlay.addEventListener('click', e => { if (e.target === overlay) { this._riddlePopupOpen = false; closeWithAnim(); } });
     overlay.appendChild(box);
     document.body.appendChild(overlay);
   }
+
+  
 
   // ─── Complete a mission ───────────────────────────────────────────────────────
   async _completeMission(missionIndex) {
@@ -719,6 +715,14 @@ export class MissionSystem {
   _showCompletionModal(isFirstTime, tokenReward) {
     document.getElementById('ms-complete-modal')?.remove();
 
+    // ─── Sound effect & confetti khi hiện popup chúc mừng ────────────────────
+    try {
+      const audio = new Audio('/sounds/mission-complete.mp3');
+      audio.volume = 0.8;
+      audio.play().catch(() => {});
+    } catch (_) {}
+    this._startConfetti();
+
     const overlay = document.createElement('div');
     overlay.id = 'ms-complete-modal';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:2000;display:flex;align-items:center;justify-content:center;';
@@ -756,6 +760,7 @@ export class MissionSystem {
     replayBtn.addEventListener('click', async () => {
       replayBtn.disabled = true;
       replayBtn.textContent = 'Đang reset...';
+      this._stopConfetti();
       await this._resetMissions();
       overlay.remove();
     });
@@ -776,6 +781,13 @@ export class MissionSystem {
     this._completed.clear();
     this._foundEggs.clear();
     this._allDone = false;
+    // Reset tất cả rương về trạng thái đóng (frame 0)
+    this._chestMixers.forEach(({ mixer, action }) => {
+      action.paused = false;
+      action.time   = 0;
+      mixer.update(0);
+      action.paused = true;
+    });
     this._missions.forEach(m => {
       if (m.mission_type === 'story_sequence') this._applyStoryArtworkOverlay();
     });
@@ -783,15 +795,74 @@ export class MissionSystem {
     this._s._toast?.('Nhiệm vụ đã được reset! Hãy khám phá lại từ đầu 🎯', 'success', 3000);
   }
 
+  // ─── Confetti ─────────────────────────────────────────────────────────────────
+  _startConfetti() {
+    document.getElementById('ms-confetti-canvas')?.remove();
+    const canvas = document.createElement('canvas');
+    canvas.id = 'ms-confetti-canvas';
+    canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2001;';
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const COLORS = ['#68e5e3','#c8a96e','#f87171','#a78bfa','#34d399','#fbbf24','#f472b6','#60a5fa'];
+    const pieces = Array.from({ length: 120 }, () => ({
+      x:          Math.random() * canvas.width,
+      y:          Math.random() * -canvas.height,
+      w:          6 + Math.random() * 8,
+      h:          10 + Math.random() * 6,
+      color:      COLORS[Math.floor(Math.random() * COLORS.length)],
+      rot:        Math.random() * Math.PI * 2,
+      vx:         (Math.random() - 0.5) * 2,
+      vy:         5 + Math.random() * 5,
+      vr:         (Math.random() - 0.5) * 0.15,
+      swing:      Math.random() * Math.PI * 2,
+      swingSpeed: 0.03 + Math.random() * 0.03,
+    }));
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      pieces.forEach(p => {
+        p.swing += p.swingSpeed;
+        p.x += p.vx + Math.sin(p.swing) * 0.8;
+        p.y += p.vy;
+        p.rot += p.vr;
+        if (p.y > canvas.height + 20) {
+          p.y = -20;
+          p.x = Math.random() * canvas.width;
+        }
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      });
+      this._confettiRaf = requestAnimationFrame(draw);
+    };
+    draw();
+    this._confettiResize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+    window.addEventListener('resize', this._confettiResize);
+  }
+
+  _stopConfetti() {
+    cancelAnimationFrame(this._confettiRaf);
+    document.getElementById('ms-confetti-canvas')?.remove();
+    if (this._confettiResize) window.removeEventListener('resize', this._confettiResize);
+  }
+
   // ─── Cleanup ──────────────────────────────────────────────────────────────────
   dispose() {
+    this._stopConfetti();
+    this._sfxCache = {};
     this._hudEl?.remove();
     document.getElementById('ms-chest-riddle-popup')?.remove();
     document.getElementById('ms-story-popup')?.remove();
     document.getElementById('ms-complete-modal')?.remove();
     this._eggSpheres.forEach(d => this._s.threeScene.remove(d.sphere));
     this._eggObjects.forEach(obj => this._s.threeScene.remove(obj));
-    this._eggSpheres = [];
-    this._eggObjects = [];
+    this._chestMixers.forEach(({ mixer }) => mixer.stopAllAction());
+    this._eggSpheres  = [];
+    this._eggObjects  = [];
+    this._chestMixers = new Map();
   }
 }
