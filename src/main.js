@@ -3,6 +3,7 @@ import { SceneManager }    from './core/SceneManager.js';
 import { LandingScene }    from './scenes/LandingScene.js';
 import { LoginScene }      from './scenes/LoginScene.js';
 import { RegisterScene }   from './scenes/RegisterScene.js';
+import { ForgotPasswordScene } from './scenes/ForgotPasswordScene.js';
 import { DashboardScene }  from './scenes/DashboardScene.js';
 import { StudioScene }     from './scenes/StudioScene.js';
 import { ExploreScene }    from './scenes/ExploreScene.js';
@@ -25,6 +26,7 @@ manager
   .register('landing',   LandingScene)
   .register('login',     LoginScene)
   .register('register',  RegisterScene)
+  .register('forgot-password', ForgotPasswordScene)
   .register('dashboard', DashboardScene)
   .register('studio',    StudioScene)
   .register('explore',   ExploreScene)

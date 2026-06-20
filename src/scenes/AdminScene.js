@@ -122,6 +122,16 @@ export class AdminScene extends BaseScene {
           <div class="adm-stat"><div class="adm-stat-n" style="color:#b86000">${appsPending}</div><div class="adm-stat-l">Chờ duyệt</div></div>
         </div>
         ${appsHtml}
+
+        <div class="adm-section-title">Đặt lại mật khẩu tài khoản</div>
+        <div class="adm-sub">Dùng khi user quên mật khẩu và không tự khôi phục được qua câu hỏi bí mật</div>
+        <div class="adm-card">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="adm-reset-name" class="adm-note-input" placeholder="Tên hiển thị tài khoản..." style="flex:1;min-width:200px">
+            <button id="adm-reset-search" class="adm-btn adm-btn-dismiss">Tìm tài khoản</button>
+          </div>
+          <div id="adm-reset-result"></div>
+        </div>
       </div>
     `;
 
@@ -169,6 +179,78 @@ export class AdminScene extends BaseScene {
         await supabase.from('artist_applications').update({ status: 'rejected', admin_note: note }).eq('id', id);
         await this._render();
       });
+    });
+
+    const resetNameInput = overlay.querySelector('#adm-reset-name');
+    const resetSearchBtn = overlay.querySelector('#adm-reset-search');
+    resetSearchBtn.addEventListener('click', () => this._handleResetSearch());
+    resetNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') this._handleResetSearch(); });
+  }
+
+  async _handleResetSearch() {
+    const overlay   = document.getElementById('admin-overlay');
+    const nameInput = overlay.querySelector('#adm-reset-name');
+    const resultEl  = overlay.querySelector('#adm-reset-result');
+    const name      = nameInput.value.trim();
+
+    resultEl.innerHTML = '';
+    if (!name) {
+      resultEl.innerHTML = `<div style="font-size:11px;color:#b54a3a;margin-top:8px">Vui lòng nhập tên hiển thị</div>`;
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, display_name, role')
+      .eq('display_name', name)
+      .maybeSingle();
+
+    if (error || !data) {
+      resultEl.innerHTML = `<div style="font-size:11px;color:#b54a3a;margin-top:8px">Không tìm thấy tài khoản với tên này</div>`;
+      return;
+    }
+
+    resultEl.innerHTML = `
+      <div style="padding:12px;background:rgba(24,45,88,.04);border-radius:5px;margin-top:8px">
+        <div style="font-size:12px;color:#182D58;margin-bottom:10px">
+          Tài khoản: <b>${this._esc(data.display_name)}</b>
+          <span style="opacity:.5">(${this._esc(data.role)})</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input id="adm-reset-newpass" class="adm-note-input" type="text" placeholder="Mật khẩu mới (tối thiểu 6 ký tự)..." style="flex:1;min-width:200px">
+          <button id="adm-reset-confirm" class="adm-btn adm-btn-approve" data-id="${data.id}">Xác nhận đặt lại</button>
+        </div>
+        <div id="adm-reset-msg" style="margin-top:8px;font-size:11px"></div>
+      </div>
+    `;
+
+    const confirmBtn = resultEl.querySelector('#adm-reset-confirm');
+    confirmBtn.addEventListener('click', async () => {
+      const profileId    = confirmBtn.dataset.id;
+      const newPassInput = resultEl.querySelector('#adm-reset-newpass');
+      const newPassword  = newPassInput.value;
+      const msgEl        = resultEl.querySelector('#adm-reset-msg');
+
+      if (!newPassword || newPassword.length < 6) {
+        msgEl.style.color = '#b54a3a';
+        msgEl.textContent = 'Mật khẩu phải có ít nhất 6 ký tự';
+        return;
+      }
+
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Đang lưu...';
+      try {
+        await this.manager.auth.adminResetPassword(profileId, newPassword);
+        msgEl.style.color = '#4a9a6a';
+        msgEl.textContent = `Đã đặt lại mật khẩu thành công. Hãy gửi mật khẩu mới này cho user qua kênh liên hệ khác: "${newPassword}"`;
+        newPassInput.disabled = true;
+        confirmBtn.textContent = '✓ Đã đặt lại';
+      } catch (err) {
+        msgEl.style.color = '#b54a3a';
+        msgEl.textContent = err.message || 'Có lỗi xảy ra, vui lòng thử lại';
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Xác nhận đặt lại';
+      }
     });
   }
 

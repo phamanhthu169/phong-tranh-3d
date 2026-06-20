@@ -42,6 +42,10 @@ export class LoginScene extends BaseScene {
         <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Mật khẩu</label>
         <input id="li-password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu..."
           style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
+        <button id="li-forgot" type="button"
+          style="align-self:flex-end;background:none;border:none;color:#c8a96e;font-family:monospace;font-size:9px;letter-spacing:.06em;cursor:pointer;padding:2px 0;text-decoration:underline;">
+          Quên mật khẩu?
+        </button>
       </div>
 
       <div id="li-msg" style="font-size:10px;letter-spacing:.06em;display:none;padding:6px 8px;border-radius:3px;"></div>
@@ -71,6 +75,7 @@ export class LoginScene extends BaseScene {
     sub.addEventListener('click', () => this._handleLogin());
     card.addEventListener('keydown', e => { if (e.key === 'Enter') this._handleLogin(); });
     document.getElementById('li-to-register').addEventListener('click', () => this.manager.navigateTo('register'));
+    document.getElementById('li-forgot').addEventListener('click', () => this.manager.navigateTo('forgot-password'));
   }
 
   _showMsg(text, type = 'error') {

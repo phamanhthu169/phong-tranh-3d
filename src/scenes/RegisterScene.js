@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BaseScene } from './BaseScene.js';
 import { HEADER_H }  from '../core/SceneManager.js';
+import { SECURITY_QUESTIONS } from '../core/AuthManager.js';
 
 export class RegisterScene extends BaseScene {
   async init() {
@@ -105,6 +106,24 @@ export class RegisterScene extends BaseScene {
           style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
       </div>
 
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Câu hỏi bí mật</label>
+        <select id="re-secquestion"
+          style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
+          <option value="" disabled selected>-- Chọn câu hỏi --</option>
+          ${SECURITY_QUESTIONS.map(q => `<option value="${q}">${q}</option>`).join('')}
+        </select>
+        <div style="color:#666;font-size:9px;letter-spacing:.06em;line-height:1.6">
+          Dùng để khôi phục mật khẩu nếu bạn quên sau này.
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Câu trả lời</label>
+        <input id="re-secanswer" type="text" autocomplete="off" placeholder="Câu trả lời của bạn..."
+          style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
+      </div>
+
       <div id="re-msg" style="font-size:10px;letter-spacing:.06em;display:none;padding:6px 8px;border-radius:3px;"></div>
 
       <button id="re-submit"
@@ -151,15 +170,19 @@ export class RegisterScene extends BaseScene {
   }
 
   async _handleRegister() {
-    const name      = document.getElementById('re-name').value.trim();
-    const role      = document.querySelector('input[name="re-role"]:checked')?.value ?? 'user';
-    const password  = document.getElementById('re-password').value;
-    const password2 = document.getElementById('re-password2').value;
+    const name        = document.getElementById('re-name').value.trim();
+    const role        = document.querySelector('input[name="re-role"]:checked')?.value ?? 'user';
+    const password    = document.getElementById('re-password').value;
+    const password2   = document.getElementById('re-password2').value;
+    const secQuestion = document.getElementById('re-secquestion').value;
+    const secAnswer   = document.getElementById('re-secanswer').value.trim();
 
     if (!name)               { this._showMsg('Vui lòng nhập tên hiển thị'); return; }
     if (!password)           { this._showMsg('Vui lòng nhập mật khẩu'); return; }
     if (password.length < 6) { this._showMsg('Mật khẩu phải có ít nhất 6 ký tự'); return; }
     if (password !== password2) { this._showMsg('Mật khẩu xác nhận không khớp'); return; }
+    if (!secQuestion)         { this._showMsg('Vui lòng chọn câu hỏi bí mật'); return; }
+    if (!secAnswer)           { this._showMsg('Vui lòng nhập câu trả lời cho câu hỏi bí mật'); return; }
 
     let artistInfo = null;
     if (role === 'artist') {
@@ -183,7 +206,8 @@ export class RegisterScene extends BaseScene {
     sub.textContent = 'Đang tạo...';
 
     try {
-      await this.manager.auth.register(name, role, password, artistInfo);
+      const security = { question: secQuestion, answer: secAnswer };
+      await this.manager.auth.register(name, role, password, artistInfo, security);
       this._showMsg(
         role === 'artist'
           ? 'Tạo hồ sơ thành công! Đơn xin cấp duyệt Nghệ sĩ đã được gửi, vui lòng chờ admin xét duyệt.'

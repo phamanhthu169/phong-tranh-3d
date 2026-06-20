@@ -9,7 +9,7 @@ export const HEADER_H = 90;
 // Scene dùng document-flow (body cuộn, footer hiện, header trong suốt)
 const PAGE_SCENES     = ['landing', 'pricing', 'support'];
 // Scene dùng overlay relative (body cuộn, footer ở đáy, header đặc)
-const APP_PAGE_SCENES = ['forum', 'dashboard', 'explore', 'profile', 'settings', 'login', 'register'];
+const APP_PAGE_SCENES = ['forum', 'dashboard', 'explore', 'profile', 'settings', 'login', 'register', 'forgot-password'];
 // Scene dùng Three.js canvas full-screen, ẩn mọi UI
 const FULL3D_SCENES   = ['studio', 'viewer', 'preview'];
 
