@@ -76,8 +76,8 @@ export class AuthManager {
   get isLoggedIn() { return !!this._profile; }
   get isArtist() { return this._profile?.role === 'artist'; }
 
-  // Đăng ký tài khoản mới (tên + role + mật khẩu)
-  async register(name, role, password) {
+  // Đăng ký tài khoản mới (tên + role + mật khẩu + thông tin đơn xin cấp duyệt nếu là artist)
+  async register(name, role, password, artistInfo = null) {
     // Kiểm tra tên đã tồn tại chưa
     const { data: existing } = await supabase
       .from('profiles')
@@ -88,10 +88,14 @@ export class AuthManager {
     if (existing) throw new Error('Tên này đã được sử dụng, vui lòng chọn tên khác');
 
     const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
+
+    // Trong lúc chờ duyệt, tài khoản chọn "artist" vẫn được cấp quyền user bình thường
+    const actualRole = role === 'artist' ? 'user' : role;
+
     const newProfile = {
       id: uuidv4(),
       name,
-      role,
+      role: actualRole,
       location: '',
       website: '',
       bio: '',
@@ -108,6 +112,22 @@ export class AuthManager {
       });
 
     if (error) throw new Error('Có lỗi xảy ra khi tạo tài khoản');
+
+    if (role === 'artist' && artistInfo) {
+      const { error: appError } = await supabase
+        .from('artist_applications')
+        .insert({
+          profile_id: newProfile.id,
+          full_name: artistInfo.full_name,
+          phone: artistInfo.phone,
+          facebook_link: artistInfo.facebook_link || null,
+          portfolio_link: artistInfo.portfolio_link || null,
+          address: artistInfo.address,
+          province: artistInfo.province,
+          status: 'pending',
+        });
+      if (appError) console.error('Lỗi khi gửi đơn xin cấp duyệt Nghệ sĩ:', appError);
+    }
 
     this._profile = newProfile;
     this._saveToLocal(newProfile);

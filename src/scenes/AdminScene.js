@@ -10,6 +10,13 @@ const STATUS_CHIP = {
   dismissed: 'background:rgba(24,45,88,.08);border:1px solid rgba(24,45,88,.2);color:#182D58',
 };
 
+const ART_STATUS_LABELS = { pending: 'Chờ duyệt', approved: 'Đã duyệt', rejected: 'Từ chối' };
+const ART_STATUS_CHIP = {
+  pending:  'background:rgba(200,100,0,.1);border:1px solid rgba(200,100,0,.3);color:#b86000',
+  approved: 'background:rgba(90,170,122,.1);border:1px solid rgba(90,170,122,.3);color:#4a9a6a',
+  rejected: 'background:rgba(24,45,88,.08);border:1px solid rgba(24,45,88,.2);color:#182D58',
+};
+
 export class AdminScene extends BaseScene {
   async init() {
     await this.manager.auth.ready();
@@ -40,13 +47,25 @@ export class AdminScene extends BaseScene {
     const { data } = await supabase.from('complaints').select('*').order('created_at', { ascending: false });
     this._complaints = data || [];
 
+    const { data: apps } = await supabase
+      .from('artist_applications')
+      .select('*, profiles(display_name)')
+      .order('created_at', { ascending: false });
+    this._applications = apps || [];
+
     const total    = this._complaints.length;
     const open     = this._complaints.filter(c => c.status === 'open').length;
     const resolved = this._complaints.filter(c => c.status === 'resolved').length;
 
+    const appsPending = this._applications.filter(a => a.status === 'pending').length;
+
     const listHtml = total === 0
       ? `<div style="text-align:center;padding:80px 0;color:#182D58;font-size:13px;letter-spacing:.14em;text-transform:uppercase;opacity:.5">Chưa có khiếu nại nào</div>`
       : this._complaints.map(c => this._complaintCard(c)).join('');
+
+    const appsHtml = this._applications.length === 0
+      ? `<div style="text-align:center;padding:40px 0;color:#182D58;font-size:13px;letter-spacing:.14em;text-transform:uppercase;opacity:.5">Chưa có đơn xin cấp duyệt nào</div>`
+      : this._applications.map(a => this._applicationCard(a)).join('');
 
     overlay.innerHTML = `
       <style>
@@ -75,6 +94,16 @@ export class AdminScene extends BaseScene {
         .adm-btn-resolve:hover:not(:disabled){background:rgba(90,170,122,.2)}
         .adm-btn-dismiss{background:rgba(24,45,88,.06);border:1px solid rgba(24,45,88,.2);color:#182D58}
         .adm-btn-dismiss:hover:not(:disabled){background:rgba(24,45,88,.12)}
+        .adm-btn-approve{background:rgba(90,170,122,.1);border:1px solid rgba(90,170,122,.3);color:#4a9a6a}
+        .adm-btn-approve:hover:not(:disabled){background:rgba(90,170,122,.2)}
+        .adm-btn-reject{background:rgba(24,45,88,.06);border:1px solid rgba(24,45,88,.2);color:#182D58}
+        .adm-btn-reject:hover:not(:disabled){background:rgba(24,45,88,.12)}
+        .adm-section-title{color:#2222C6;font-family:'Montserrat',sans-serif;font-size:24px;font-weight:800;line-height:1.1;margin:36px 0 6px}
+        .adm-art-info{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:14px}
+        .adm-art-row{font-size:12px;color:#182D58;letter-spacing:.02em}
+        .adm-art-row b{opacity:.55;font-weight:600;margin-right:4px}
+        .adm-art-row a{color:#2222C6;text-decoration:none;word-break:break-all}
+        .adm-art-row a:hover{text-decoration:underline}
       </style>
       <div class="adm-wrap">
         <div class="adm-heading">Quản lý khiếu nại</div>
@@ -85,6 +114,14 @@ export class AdminScene extends BaseScene {
           <div class="adm-stat"><div class="adm-stat-n" style="color:#4a9a6a">${resolved}</div><div class="adm-stat-l">Đã giải quyết</div></div>
         </div>
         ${listHtml}
+
+        <div class="adm-section-title">Đơn xin cấp duyệt Nghệ sĩ</div>
+        <div class="adm-sub">Người dùng đăng ký với vai trò Nghệ sĩ, đang chờ xét duyệt</div>
+        <div class="adm-stats">
+          <div class="adm-stat"><div class="adm-stat-n">${this._applications.length}</div><div class="adm-stat-l">Tổng cộng</div></div>
+          <div class="adm-stat"><div class="adm-stat-n" style="color:#b86000">${appsPending}</div><div class="adm-stat-l">Chờ duyệt</div></div>
+        </div>
+        ${appsHtml}
       </div>
     `;
 
@@ -106,6 +143,30 @@ export class AdminScene extends BaseScene {
         btn.disabled = true;
         btn.textContent = 'Đang lưu...';
         await supabase.from('complaints').update({ status: 'dismissed', admin_note: note }).eq('id', id);
+        await this._render();
+      });
+    });
+
+    overlay.querySelectorAll('.adm-btn-approve[data-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id        = btn.dataset.id;
+        const profileId = btn.dataset.profileId;
+        const note      = overlay.querySelector(`.adm-note-input[data-app-id="${id}"]`)?.value.trim() || null;
+        btn.disabled = true;
+        btn.textContent = 'Đang lưu...';
+        await supabase.from('artist_applications').update({ status: 'approved', admin_note: note }).eq('id', id);
+        await supabase.from('profiles').update({ role: 'artist' }).eq('id', profileId);
+        await this._render();
+      });
+    });
+
+    overlay.querySelectorAll('.adm-btn-reject[data-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id   = btn.dataset.id;
+        const note = overlay.querySelector(`.adm-note-input[data-app-id="${id}"]`)?.value.trim() || null;
+        btn.disabled = true;
+        btn.textContent = 'Đang lưu...';
+        await supabase.from('artist_applications').update({ status: 'rejected', admin_note: note }).eq('id', id);
         await this._render();
       });
     });
@@ -155,6 +216,56 @@ export class AdminScene extends BaseScene {
         </div>
         <div class="adm-desc">${this._esc(c.description)}</div>
         ${screenshotHtml}
+        ${actionHtml}
+      </div>
+    `;
+  }
+
+  _applicationCard(a) {
+    const date = new Date(a.created_at).toLocaleDateString('vi-VN', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+    const statusLabel = ART_STATUS_LABELS[a.status] || a.status;
+    const chipStyle   = ART_STATUS_CHIP[a.status]   || ART_STATUS_CHIP.pending;
+    const accountName = a.profiles?.display_name || '(đã xóa tài khoản)';
+
+    const facebookHtml  = a.facebook_link
+      ? `<a href="${this._esc(a.facebook_link)}" target="_blank" rel="noopener">${this._esc(a.facebook_link)}</a>`
+      : '<span style="opacity:.4">—</span>';
+    const portfolioHtml = a.portfolio_link
+      ? `<a href="${this._esc(a.portfolio_link)}" target="_blank" rel="noopener">${this._esc(a.portfolio_link)}</a>`
+      : '<span style="opacity:.4">—</span>';
+
+    const noteExisting = a.admin_note
+      ? `<div class="adm-note-existing">Ghi chú admin: ${this._esc(a.admin_note)}</div>`
+      : '';
+
+    const actionHtml = a.status === 'pending'
+      ? `${noteExisting}
+         <div class="adm-note-wrap">
+           <input class="adm-note-input" data-app-id="${a.id}" placeholder="Ghi chú xử lý (tùy chọn)" />
+           <button class="adm-btn adm-btn-approve" data-id="${a.id}" data-profile-id="${a.profile_id}">✓ Duyệt</button>
+           <button class="adm-btn adm-btn-reject" data-id="${a.id}">Từ chối</button>
+         </div>`
+      : noteExisting;
+
+    return `
+      <div class="adm-card">
+        <div class="adm-card-head">
+          <div>
+            <div class="adm-order-id">${this._esc(a.full_name)}</div>
+            <div class="adm-buyer">Tài khoản: ${this._esc(accountName)}</div>
+            <div class="adm-date">${date}</div>
+          </div>
+          <span class="adm-chip" style="${chipStyle}">${statusLabel}</span>
+        </div>
+        <div class="adm-art-info">
+          <div class="adm-art-row"><b>SĐT:</b>${this._esc(a.phone)}</div>
+          <div class="adm-art-row"><b>Tỉnh/TP:</b>${this._esc(a.province)}</div>
+          <div class="adm-art-row"><b>Facebook:</b>${facebookHtml}</div>
+          <div class="adm-art-row"><b>Portfolio:</b>${portfolioHtml}</div>
+        </div>
+        <div class="adm-desc">${this._esc(a.address)}</div>
         ${actionHtml}
       </div>
     `;

@@ -44,16 +44,52 @@ export class RegisterScene extends BaseScene {
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#1a1a1a;font-size:11px;letter-spacing:.06em;">
             <input type="radio" name="re-role" value="user" checked
               style="accent-color:#c8a96e;width:14px;height:14px;cursor:pointer;">
-            Người dùng
+            Khách trải nghiệm
           </label>
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#1a1a1a;font-size:11px;letter-spacing:.06em;">
             <input type="radio" name="re-role" value="artist"
               style="accent-color:#c8a96e;width:14px;height:14px;cursor:pointer;">
-            Artist
+            Nghệ sĩ
           </label>
         </div>
         <div style="color:#666;font-size:9px;letter-spacing:.06em;line-height:1.6">
-          Artist có thể tạo & publish phòng tranh 3D.
+          Nghệ sĩ có thể tạo & publish phòng tranh 3D.
+        </div>
+      </div>
+
+      <div id="re-artist-fields" style="display:none;flex-direction:column;gap:14px;padding:14px;background:rgba(200,169,110,.06);border:1px solid rgba(200,169,110,.25);border-radius:5px;">
+        <div style="color:#c8a96e;font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-weight:700">Đơn xin cấp duyệt tài khoản Nghệ sĩ</div>
+
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Họ và tên</label>
+          <input id="re-fullname" type="text" placeholder="Họ và tên đầy đủ..."
+            style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Số điện thoại</label>
+          <input id="re-phone" type="tel" placeholder="Số điện thoại liên hệ..."
+            style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Link Facebook</label>
+          <input id="re-facebook" type="text" placeholder="https://facebook.com/..."
+            style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Link portfolio / samples</label>
+          <input id="re-portfolio" type="text" placeholder="https://..."
+            style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="color:#555;font-size:9px;letter-spacing:.12em;text-transform:uppercase">Địa chỉ liên lạc</label>
+          <input id="re-address" type="text" placeholder="Số nhà, tên đường, quận/huyện..."
+            style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;margin-bottom:6px;">
+          <input id="re-province" type="text" placeholder="Tỉnh/Thành phố..."
+            style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);color:#1a1a1a;font-family:monospace;font-size:12px;padding:9px 10px;border-radius:3px;outline:none;">
         </div>
       </div>
 
@@ -93,6 +129,13 @@ export class RegisterScene extends BaseScene {
     sub.addEventListener('mouseenter', () => sub.style.background = 'rgba(200,169,110,.3)');
     sub.addEventListener('mouseleave', () => sub.style.background = 'rgba(200,169,110,.15)');
 
+    card.querySelectorAll('input[name="re-role"]').forEach(r => {
+      r.addEventListener('change', () => {
+        const isArtist = document.querySelector('input[name="re-role"]:checked')?.value === 'artist';
+        document.getElementById('re-artist-fields').style.display = isArtist ? 'flex' : 'none';
+      });
+    });
+
     sub.addEventListener('click', () => this._handleRegister());
     card.addEventListener('keydown', e => { if (e.key === 'Enter') this._handleRegister(); });
     document.getElementById('re-to-login').addEventListener('click', () => this.manager.navigateTo('login'));
@@ -118,14 +161,36 @@ export class RegisterScene extends BaseScene {
     if (password.length < 6) { this._showMsg('Mật khẩu phải có ít nhất 6 ký tự'); return; }
     if (password !== password2) { this._showMsg('Mật khẩu xác nhận không khớp'); return; }
 
+    let artistInfo = null;
+    if (role === 'artist') {
+      const full_name      = document.getElementById('re-fullname').value.trim();
+      const phone          = document.getElementById('re-phone').value.trim();
+      const facebook_link  = document.getElementById('re-facebook').value.trim();
+      const portfolio_link = document.getElementById('re-portfolio').value.trim();
+      const address        = document.getElementById('re-address').value.trim();
+      const province       = document.getElementById('re-province').value.trim();
+
+      if (!full_name) { this._showMsg('Vui lòng nhập họ và tên'); return; }
+      if (!phone)     { this._showMsg('Vui lòng nhập số điện thoại'); return; }
+      if (!address)   { this._showMsg('Vui lòng nhập địa chỉ liên lạc'); return; }
+      if (!province)  { this._showMsg('Vui lòng nhập Tỉnh/Thành phố'); return; }
+
+      artistInfo = { full_name, phone, facebook_link, portfolio_link, address, province };
+    }
+
     const sub = document.getElementById('re-submit');
     sub.disabled = true;
     sub.textContent = 'Đang tạo...';
 
     try {
-      await this.manager.auth.register(name, role, password);
-      this._showMsg('Tạo hồ sơ thành công!', 'success');
-      setTimeout(() => this.manager.navigateTo('landing'), 800);
+      await this.manager.auth.register(name, role, password, artistInfo);
+      this._showMsg(
+        role === 'artist'
+          ? 'Tạo hồ sơ thành công! Đơn xin cấp duyệt Nghệ sĩ đã được gửi, vui lòng chờ admin xét duyệt.'
+          : 'Tạo hồ sơ thành công!',
+        'success'
+      );
+      setTimeout(() => this.manager.navigateTo('landing'), 1200);
     } catch (err) {
       this._showMsg(err.message || 'Có lỗi xảy ra, vui lòng thử lại');
       sub.disabled = false;
