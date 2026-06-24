@@ -51,13 +51,14 @@ export class StudioScene extends BaseScene {
     if (!this.manager.auth.isLoggedIn) {
       this.manager.navigateTo('login'); return;
     }
-    if (!this.manager.auth.isArtist) {
-      this.manager.navigateTo('landing'); return;
+const _isAdmin = this.manager.auth.profile?.role === 'admin';
+    this._isAdmin = _isAdmin; // lưu lại để dùng ở saveGallery() và _buildStudioTopBar()
+    if (!this.manager.auth.isArtist && !_isAdmin) {      this.manager.navigateTo('landing'); return;
     }
     const _studioUserId = this.manager.auth.user?.id;
     if (this.manager.currentRoom) {
       // Vào từ in-app navigation — kiểm tra ownership
-      if (!_studioUserId || !this.manager.currentRoom.id.startsWith(_studioUserId + ':::')) {
+        if (!_isAdmin && (!_studioUserId || !this.manager.currentRoom.id.startsWith(_studioUserId + ':::'))) {
         this.manager.currentRoom = null;
         this.manager.navigateTo('dashboard'); return;
       }
@@ -75,6 +76,19 @@ export class StudioScene extends BaseScene {
       } else {
         this.manager.navigateTo('dashboard'); return;
       }
+    }
+
+    /* ── Nếu là Admin chỉnh hộ: lưu lại tên phòng & tên artist GỐC từ DB
+       để khoá lại, không cho bị đổi khi admin bấm Lưu ── */
+    if (this._isAdmin) {
+      const { data: _origData } = await supabase
+        .from('gallery')
+        .select('scene_data')
+        .eq('name', this.manager.currentRoom.id)
+        .limit(1);
+      const _origMeta = _origData?.[0]?.scene_data?._meta || {};
+      this._originalRoomName   = _origMeta.roomName   ?? this.manager.currentRoom.name ?? '';
+      this._originalArtistName = _origMeta.artistName ?? '';
     }
 
     /* ── Scene ── */
@@ -123,6 +137,7 @@ export class StudioScene extends BaseScene {
     this._undoStack     = [];
     this._redoStack     = [];
     this._usePedestal   = true;
+    this._useAutoRotate = false;
     this.chests          = [];
     this._chestPlacingMode = false;
     this._pendingChestPos  = null;
@@ -654,6 +669,13 @@ roomNameInput.addEventListener('blur', function() {
 });
     if (this.manager.currentRoom?.name) {
     roomNameInput.value = this.manager.currentRoom?.name || '';
+    }
+
+    // Admin chỉnh hộ: khoá ô tên phòng lại, không cho gõ/đổi
+    if (this._isAdmin) {
+      roomNameInput.readOnly = true;
+      roomNameInput.title = 'Admin không thể đổi tên phòng của artist';
+      roomNameInput.style.cursor = 'not-allowed';
     }
 
     // Autosave
@@ -2743,12 +2765,18 @@ _renderMusicPlaylist() {
         pane.innerHTML = `<div class="rp-section-title">Thêm đồ trang trí</div>`;
         {
           const pedestalRow = document.createElement('div');
-          pedestalRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 10px 8px;';
-          pedestalRow.innerHTML = `<label style="color:#FFFFFF;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="rp-pedestal-toggle" style="accent-color:#68e5e3;cursor:pointer;width:13px;height:13px;"> đặt lên bục trắng</label>`;
+          pedestalRow.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:2px 10px 8px;';
+          pedestalRow.innerHTML = `
+            <label style="color:#FFFFFF;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="rp-pedestal-toggle" style="accent-color:#68e5e3;cursor:pointer;width:13px;height:13px;"> đặt lên bục trắng</label>
+            <label style="color:#FFFFFF;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="rp-autorotate-toggle-decor" style="accent-color:#68e5e3;cursor:pointer;width:13px;height:13px;"> tự động xoay</label>
+          `;
           pane.appendChild(pedestalRow);
           const pedestalChk = pedestalRow.querySelector('#rp-pedestal-toggle');
           pedestalChk.checked = this._usePedestal;
           pedestalChk.addEventListener('change', (e) => { this._usePedestal = e.target.checked; });
+          const autoRotateChkDecor = pedestalRow.querySelector('#rp-autorotate-toggle-decor');
+          autoRotateChkDecor.checked = this._useAutoRotate;
+          autoRotateChkDecor.addEventListener('change', (e) => { this._useAutoRotate = e.target.checked; });
         }
         const decorGrid = document.createElement('div');
         decorGrid.id = 'rp-decor-grid';
@@ -3001,6 +3029,22 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         }});
 
         const rowModel = makeRow({ label: '3D', type: 'model', onAdd: () => document.getElementById('fi-3d').click() });
+        // ── Thêm ô tick đặt lên bục trắng + tự động xoay cho model upload ──
+        {
+          const modelOptsRow = document.createElement('div');
+          modelOptsRow.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:4px 4px 6px;';
+          modelOptsRow.innerHTML = `
+            <label style="color:#FFFFFF;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="rp-upload-pedestal-toggle" style="accent-color:#68e5e3;cursor:pointer;width:13px;height:13px;"> đặt lên bục trắng</label>
+            <label style="color:#FFFFFF;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="rp-upload-autorotate-toggle" style="accent-color:#68e5e3;cursor:pointer;width:13px;height:13px;"> tự động xoay</label>
+          `;
+          rowModel.appendChild(modelOptsRow);
+          const uploadPedestalChk = modelOptsRow.querySelector('#rp-upload-pedestal-toggle');
+          uploadPedestalChk.checked = this._usePedestal;
+          uploadPedestalChk.addEventListener('change', (e) => { this._usePedestal = e.target.checked; });
+          const uploadAutoRotateChk = modelOptsRow.querySelector('#rp-upload-autorotate-toggle');
+          uploadAutoRotateChk.checked = this._useAutoRotate;
+          uploadAutoRotateChk.addEventListener('change', (e) => { this._useAutoRotate = e.target.checked; });
+        }
         const rowText  = makeRow({ label: 'Văn bản', type: 'text', onAdd: () => this.textEditor?.togglePanel() });
 
         this._rowRefs = { image: rowImg, video: rowVid, model: rowModel, text: rowText };
@@ -3672,6 +3716,19 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         <button class="hud-btn" id="hud-yt-watch" style="display:none;background:rgba(255,0,0,0.2);border-color:rgba(255,80,80,0.5);color:#ff8080;">▶ Xem video</button>
         <button id="hud-close" style="background:none;border:none;color:#FFFFFF;cursor:pointer;font-size:14px;flex-shrink:0">✕</button>
       </div>
+      <!-- Model controls — only shown for model 3D -->
+      <div id="hud-model-controls" style="display:none;flex-direction:column;gap:6px;border-top:0.5px solid rgba(255,255,255,0.15);padding-top:8px;">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <label style="color:rgba(255,255,255,0.85);font-size:11px;letter-spacing:.06em;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;">
+            <input type="checkbox" id="hud-pedestal-toggle" style="accent-color:#68e5e3;width:14px;height:14px;">
+            <span>Đặt lên bục trắng</span>
+          </label>
+          <label style="color:rgba(255,255,255,0.85);font-size:11px;letter-spacing:.06em;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;">
+            <input type="checkbox" id="hud-autorotate-toggle" style="accent-color:#68e5e3;width:14px;height:14px;">
+            <span>Tự động xoay</span>
+          </label>
+        </div>
+      </div>
       <!-- Frame controls — only shown for artwork/video -->
       <div id="hud-frame-controls" style="display:none;flex-direction:column;gap:6px;border-top:0.5px solid rgba(255,255,255,0.15);padding-top:8px;">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -3726,6 +3783,70 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       const ad = this.selectedItem?.data;
       if (ad?.isYouTube && ad.youtubeId) this._showYouTubeOverlay(ad.youtubeId);
     });
+
+    // ── Model controls: bục trắng ──
+    document.getElementById('hud-pedestal-toggle').addEventListener('change', (e) => {
+      const sel = this.selectedItem;
+      if (!sel || (sel.type !== 'model' && sel.type !== 'chest')) return;
+      const wantPedestal = e.target.checked;
+      if (wantPedestal === sel.data.hasPedestal) return;
+
+      if (sel.type === 'chest') {
+        const chest = sel.data;
+        if (!chest.mesh) return;
+        if (wantPedestal) {
+          // Thêm bục: tạo pedestal, nâng rương lên đúng mặt bục (khớp _placeChestMesh)
+          const px = chest.mesh.position.x;
+          const pz = chest.mesh.position.z;
+          if (chest.pedestal) this.threeScene.remove(chest.pedestal);
+          chest.pedestal = this.makePedestal(new THREE.Vector3(px, 0, pz));
+          const bBox = new THREE.Box3().setFromObject(chest.mesh);
+          chest.mesh.position.y += (0.87 - bBox.min.y);
+          chest.hasPedestal = true;
+        } else {
+          // Xoá bục: hạ rương xuống sàn
+          if (chest.pedestal) { this.threeScene.remove(chest.pedestal); chest.pedestal = null; }
+          const bBox = new THREE.Box3().setFromObject(chest.mesh);
+          const surfaceY = (chest.pos_y !== undefined && chest.pos_y !== null) ? chest.pos_y : (this.floorY ?? 0);
+          chest.mesh.position.y += (surfaceY - bBox.min.y);
+          chest.hasPedestal = false;
+        }
+        this._saveChestTransform(chest);
+        return;
+      }
+
+      const md = sel.data;
+      if (wantPedestal) {
+        // Thêm bục: tạo pedestal, nâng model lên 0.90 (top bục)
+        const px = md.object.position.x;
+        const pz = md.object.position.z;
+        md.pedestal = this.makePedestal(new THREE.Vector3(px, 0, pz));
+        const bBox = new THREE.Box3().setFromObject(md.object);
+        // dịch Y sao cho min của model = 0.90
+        md.object.position.y += (0.90 - bBox.min.y);
+        md.hasPedestal = true;
+      } else {
+        // Xóa bục: hạ model xuống sàn
+        if (md.pedestal) { this.threeScene.remove(md.pedestal); md.pedestal = null; }
+        const bBox = new THREE.Box3().setFromObject(md.object);
+        const currentMinY = bBox.min.y;
+        md.object.position.y += (-currentMinY); // đẩy min về 0
+        md.hasPedestal = false;
+      }
+      this._triggerAutosave();
+    });
+
+    // ── Model controls: tự động xoay ──
+    document.getElementById('hud-autorotate-toggle').addEventListener('change', (e) => {
+      const sel = this.selectedItem;
+      if (!sel || (sel.type !== 'model' && sel.type !== 'chest')) return;
+      sel.data.autoRotate = e.target.checked;
+      if (sel.type === 'chest') {
+        this._saveChestTransform(sel.data);
+      } else {
+        this._triggerAutosave();
+      }
+    });
   }
 
   getSelObj() {
@@ -3774,6 +3895,20 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       }
     }
 
+    // ── Model controls: hiện với model 3D hoặc rương kho báu ──
+    const modelControls = document.getElementById('hud-model-controls');
+    if (modelControls) {
+      if (type === 'model' || type === 'chest') {
+        modelControls.style.display = 'flex';
+        const pedestalEl   = document.getElementById('hud-pedestal-toggle');
+        const autoRotateEl = document.getElementById('hud-autorotate-toggle');
+        if (pedestalEl)   pedestalEl.checked   = data.hasPedestal === true;
+        if (autoRotateEl) autoRotateEl.checked = data.autoRotate  === true;
+      } else {
+        modelControls.style.display = 'none';
+      }
+    }
+
     this._setTransformButtonsEnabled(true);
     const canFlip = ['artwork', 'text'].includes(type);
     ['stb2-fliph', 'stb2-flipfb'].forEach(id => {
@@ -3790,6 +3925,8 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     this.selectedItem = null;
     this._hud.style.display = 'none';
     if (this._infoPopup) this._infoPopup.style.display = 'none';
+    const modelControls = document.getElementById('hud-model-controls');
+    if (modelControls) modelControls.style.display = 'none';
     this._setTransformButtonsEnabled(false);
     ['stb2-fliph', 'stb2-flipfb'].forEach(id => document.getElementById(id)?.classList.remove('on'));
   }
@@ -3838,7 +3975,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     g.position.copy(pos); this.threeScene.add(g); return g;
   }
 
-  place3DModel(object, pos, storageUrl, name, meta = {}, scaleVec = null, usePedestal = true, floorMode = true) {
+  place3DModel(object, pos, storageUrl, name, meta = {}, scaleVec = null, usePedestal = true, floorMode = true, autoRotate = false) {
     if (scaleVec) { object.scale.copy(scaleVec); }
     else {
       const box = new THREE.Box3().setFromObject(object);
@@ -3860,7 +3997,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     this.threeScene.add(object);
     const pl = new THREE.PointLight(0xfff0dd, 1.5, 4); pl.position.set(pos.x, pos.y + 2, pos.z); this.threeScene.add(pl);
     const ped = (usePedestal && floorMode) ? this.makePedestal(new THREE.Vector3(pos.x, 0, pos.z)) : null;
-    const md = { object, light: pl, pedestal: ped, hasPedestal: usePedestal && floorMode, storageUrl: storageUrl || null, name: name || null, meta: { title: '', artist: '', year: '', desc: '', price: '', weight: '', ...meta } };
+    const md = { object, light: pl, pedestal: ped, hasPedestal: usePedestal && floorMode, autoRotate: autoRotate, storageUrl: storageUrl || null, name: name || null, meta: { title: '', artist: '', year: '', desc: '', price: '', weight: '', ...meta } };
     this.models3d.push(md); return md;
   }
 
@@ -4638,7 +4775,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         const isFloor = n.y > 0.7;
         let md;
         if (isFloor) {
-          md = this.place3DModel(this.selectedSource.object.clone(), hit.point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null, {}, null, this._usePedestal, true);
+          md = this.place3DModel(this.selectedSource.object.clone(), hit.point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null, {}, null, this._usePedestal, true, this._useAutoRotate);
         } else {
           md = this.place3DModel(this.selectedSource.object.clone(), hit.point.clone(), this.selectedSource.storageUrl || null, this.selectedSource.name || null, {}, null, false, false);
         }
@@ -4936,6 +5073,8 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       this.camera.position.add(this.moveDir);
     }
     this.artworks.forEach(a => { if (a.isVideo && a.videoTex) a.videoTex.needsUpdate = true; });
+    this.models3d.forEach(m => { if (m.autoRotate) m.object.rotation.y += dt * 0.6; });
+    this.chests.forEach(c => { if (c.autoRotate && c.mesh) c.mesh.rotation.y += dt * 0.6; });
     this._drawMinimap();  }
 
   /* ══════════════════════════════════════════════ SAVE / LOAD ══════════════════════════════════════════════ */
@@ -4992,12 +5131,16 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     const btn = document.getElementById('btn-studio-save');
     if (btn) btn.style.opacity = '0.5';
 
+    // Nếu admin đang chỉnh hộ: luôn giữ tên phòng & tên artist GỐC, không cho phép bị đổi
+    const _roomNameToSave   = this._isAdmin ? (this._originalRoomName || room.name) : room.name;
+    const _artistNameToSave = this._isAdmin ? (this._originalArtistName || '') : (this.manager.auth.user?.name || '');
+
     const galleryData = {
       _meta: {
-        roomName: room.name,
+        roomName: _roomNameToSave,
         isPublished: room.isPublished,
         artistId: room.artistId,
-        artistName: this.manager.auth.user?.name || '',
+        artistName: _artistNameToSave,
         selectedTemplate: this.selectedTemplate,
         description: room.description || '',
         tags: room.tags || [],
@@ -5038,6 +5181,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         storageUrl: m.storageUrl || null,
         name: m.name || null,
         hasPedestal: m.hasPedestal !== false,
+        autoRotate: m.autoRotate || false,
         meta: m.meta,
       })),
       texts: this.textEditor.getSaveData(),
@@ -5060,8 +5204,8 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         directionalIntensity: this.dirLight.intensity,
       },
       hdrPath: this._selectedHdrPath || null,
-      gallery_name: room.name,
-      artist_name: this.manager.auth.user?.name || 'Artist',
+      gallery_name: _roomNameToSave,
+      artist_name: _artistNameToSave || 'Artist',
       musicUrl: this._musicPlaylist.length ? this._musicPlaylist[0].url : null,
       musicPlaylist: this._musicPlaylist.length ? this._musicPlaylist : null,
       uploadedSources: this._buildUploadedSourcesSaveData(),
@@ -5200,7 +5344,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         const pos = new THREE.Vector3(m.x, m.y, m.z);
         const sv  = m.sx ? new THREE.Vector3(m.sx, m.sy, m.sz) : null;
         const onLoad = obj => {
-        const placed = this.place3DModel(obj, pos, m.storageUrl, m.name || null, m.meta || {}, sv, m.hasPedestal !== false);
+        const placed = this.place3DModel(obj, pos, m.storageUrl, m.name || null, m.meta || {}, sv, m.hasPedestal !== false, true, m.autoRotate || false);
         if (placed) {
           placed.object.position.set(m.x, m.y, m.z); // ghi đè Y đã lưu
           if (m.ry) placed.object.rotation.y = m.ry;
@@ -5373,7 +5517,19 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         <div><label>Câu đố</label><textarea id="cc-question" placeholder="Nhập câu đố..."></textarea></div>
         <div><label>Đáp án</label><input type="text" id="cc-answer" placeholder="Đáp án đúng..."></div>
         <div><label>Số ⭐ Ngôi Sao thưởng</label><input type="number" id="cc-tokens" value="50" min="1" max="9999"></div>
-        <div style="display:flex;gap:8px;justify-content:flex-end">
+        
+        <div style="border-top:1px solid #ccc;padding-top:12px;margin-top:12px;">
+          <label style="color:#FFFFFF;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <input type="checkbox" id="cc-pedestal-toggle" style="accent-color:#68e5e3;cursor:pointer;width:13px;height:13px;"> 
+            đặt lên bục trắng
+          </label>
+          <label style="color:#FFFFFF;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" id="cc-autorotate-toggle" style="accent-color:#68e5e3;cursor:pointer;width:13px;height:13px;"> 
+            tự động xoay
+          </label>
+        </div>
+        
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
           <button class="pp-btn" id="cc-cancel">Huỷ</button>
           <button class="pp-btn primary" id="cc-save">Lưu rương ✓</button>
         </div>
@@ -5399,6 +5555,9 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     document.getElementById('cc-question').value = '';
     document.getElementById('cc-answer').value = '';
     document.getElementById('cc-tokens').value = '50';
+    document.getElementById('cc-pedestal-toggle').checked = true;    // ✅ NEW
+    document.getElementById('cc-autorotate-toggle').checked = false;  // ✅ NEW
+    this._chestCfg.classList.add('open');
     this._chestCfg.classList.add('open');
   }
 
@@ -5407,11 +5566,26 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     if (!roomId) return;
     const { data, error } = await supabase.from('treasure_chests').select('*').eq('room_id', roomId);
     if (error || !data) return;
-    this.chests.forEach(c => { if (c.mesh) this.threeScene.remove(c.mesh); });
+    this.chests.forEach(c => { 
+      if (c.mesh) this.threeScene.remove(c.mesh); 
+      if (c.pedestal) this.threeScene.remove(c.pedestal);
+    });
     this.chests = [];
     for (const row of data) {
-      const chest = { id: row.id, question: row.question, answer: row.answer, token_amount: row.token_amount,
-        pos_x: row.pos_x, pos_y: row.pos_y, pos_z: row.pos_z, rot_y: row.rot_y, mesh: null };
+      const chest = { 
+        id: row.id, 
+        question: row.question, 
+        answer: row.answer, 
+        token_amount: row.token_amount,
+        pos_x: row.pos_x, 
+        pos_y: row.pos_y, 
+        pos_z: row.pos_z, 
+        rot_y: row.rot_y,
+        hasPedestal: row.has_pedestal !== false,
+        autoRotate: row.auto_rotate === true,
+        pedestal: null,
+        mesh: null 
+      };
       this.chests.push(chest);
       this._placeChestMesh(chest);
     }
@@ -5426,14 +5600,33 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       const sz = box.getSize(new THREE.Vector3());
       const baseScale = 0.6 / Math.max(sz.x, sz.y, sz.z);
       mesh.scale.setScalar(baseScale * (chest.chest_scale > 0 ? chest.chest_scale : 1.0));
+      
+      mesh.position.set(0, 0, 0);
+      mesh.updateMatrixWorld(true);
       const scaledBox = new THREE.Box3().setFromObject(mesh);
-      // Giống place3DModel: đặt đáy model chạm đúng điểm click (pos_y),
-      // thay vì dùng this.floorY cố định.
+      
       const surfaceY = (chest.pos_y !== undefined && chest.pos_y !== null) ? chest.pos_y : (this.floorY ?? 0);
-      mesh.position.set(chest.pos_x, surfaceY - scaledBox.min.y, chest.pos_z);
+      
+      if (chest.hasPedestal) {
+        mesh.position.set(chest.pos_x, 0.87 - scaledBox.min.y, chest.pos_z);
+      } else {
+        mesh.position.set(chest.pos_x, surfaceY - scaledBox.min.y, chest.pos_z);
+      }
+      
       mesh.rotation.y = chest.rot_y || 0;
       chest.mesh = mesh;
       chest._baseScale = baseScale;
+      
+      if (chest.hasPedestal) {
+        if (chest.pedestal) this.threeScene.remove(chest.pedestal);
+        chest.pedestal = this.makePedestal(new THREE.Vector3(chest.pos_x, 0, chest.pos_z));
+      } else {
+        if (chest.pedestal) {
+          this.threeScene.remove(chest.pedestal);
+          chest.pedestal = null;
+        }
+      }
+      
       this.threeScene.add(mesh);
     });
   }
@@ -5444,9 +5637,13 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     const roty = chest.mesh.rotation.y;
     const multiplier = chest._baseScale ? chest.mesh.scale.x / chest._baseScale : 1.0;
     const { error } = await supabase.from('treasure_chests').update({
-      pos_x: pos.x, pos_y: pos.y, pos_z: pos.z,
+      pos_x: pos.x, 
+      pos_y: pos.y, 
+      pos_z: pos.z,
       rot_y: roty,
       chest_scale: multiplier,
+      has_pedestal: chest.hasPedestal,
+      auto_rotate: chest.autoRotate,
     }).eq('id', chest.id);
     if (!error) {
       chest.pos_x = pos.x; chest.pos_y = pos.y; chest.pos_z = pos.z;
@@ -5462,7 +5659,8 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     this.chests.forEach((c, i) => {
       const el = document.createElement('div');
       el.className = 'chest-item';
-      el.innerHTML = `<span class="chest-item-lbl">Rương ${i + 1} · ⭐ ${c.token_amount}</span><button class="chest-item-del">✕</button>`;
+      const icons = `${c.hasPedestal ? ' 🎨' : ''} ${c.autoRotate ? ' ⚙️' : ''}`;
+      el.innerHTML = `<span class="chest-item-lbl">Rương ${i + 1} · ⭐ ${c.token_amount}${icons}</span><button class="chest-item-del">✕</button>`;
       el.querySelector('.chest-item-del').addEventListener('click', () => this._deleteChest(c.id));
       list.appendChild(el);
     });
@@ -5472,6 +5670,9 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     const question = document.getElementById('cc-question').value.trim();
     const answer   = document.getElementById('cc-answer').value.trim();
     const tokens   = parseInt(document.getElementById('cc-tokens').value) || 50;
+    const hasPedestal = document.getElementById('cc-pedestal-toggle').checked;
+    const autoRotate = document.getElementById('cc-autorotate-toggle').checked;
+    
     if (!question || !answer) { this.toast('Nhập câu đố và đáp án', 'error'); return; }
     if (!this._pendingChestPos) return;
     const roomId = this.manager.currentRoom?.id;
@@ -5484,12 +5685,26 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       question,
       answer,
       token_amount: tokens,
+      has_pedestal: hasPedestal,
+      auto_rotate: autoRotate,
     }).select().single();
     if (error) { this.toast('Lỗi: ' + error.message, 'error'); return; }
     this._chestCfg.classList.remove('open');
     this._pendingChestPos = null;
-    const chest = { id: data.id, question, answer, token_amount: tokens,
-      pos_x: data.pos_x, pos_y: data.pos_y, pos_z: data.pos_z, rot_y: 0, mesh: null };
+    const chest = { 
+      id: data.id, 
+      question, 
+      answer, 
+      token_amount: tokens,
+      pos_x: data.pos_x, 
+      pos_y: data.pos_y, 
+      pos_z: data.pos_z, 
+      rot_y: 0,
+      hasPedestal: hasPedestal,
+      autoRotate: autoRotate,
+      pedestal: null,
+      mesh: null 
+    };
     this.chests.push(chest);
     this._placeChestMesh(chest);
     this._renderChestList();

@@ -243,13 +243,31 @@ export class Header {
     }
 
     if (isAdmin) {
-      dd.appendChild(_makeBtn(
-        '🛡  Quản lý khiếu nại',
-        '#b86000',
-        'rgba(200,100,0,.08)',
-        () => { this._closeDropdown(); this.manager.navigateTo('admin'); }
-      ));
+  // Thêm mục Quản lý phòng tranh
+  dd.appendChild(_makeBtn(
+    '🎨  Quản lý phòng tranh',
+    '#1a3a6e',
+    'rgba(24,45,88,.07)',
+    () => { 
+      this._closeDropdown(); 
+      this.manager.navigateTo('admin');
+      // Tự động scroll đến phần quản lý phòng tranh
+      setTimeout(() => {
+        const section = document.querySelector('.adm-section-title');
+        if (section && section.textContent.includes('Quản lý phòng tranh')) {
+          section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 500);
     }
+  ));
+
+  dd.appendChild(_makeBtn(
+    '🛡  Quản lý khiếu nại',
+    '#b86000',
+    'rgba(200,100,0,.08)',
+    () => { this._closeDropdown(); this.manager.navigateTo('admin'); }
+  ));
+}
 
     // Divider
     const divider = document.createElement('div');

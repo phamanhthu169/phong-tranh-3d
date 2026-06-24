@@ -87,6 +87,7 @@ export class AuthManager {
   get user() { return this._profile; }
   get isLoggedIn() { return !!this._profile; }
   get isArtist() { return this._profile?.role === 'artist'; }
+  get isAdmin()  { return this._profile?.role === 'admin'; }
 
   // Đăng ký tài khoản mới (tên + role + mật khẩu + thông tin đơn xin cấp duyệt nếu là artist
   // + câu hỏi bí mật { question, answer } dùng để khôi phục mật khẩu sau này)

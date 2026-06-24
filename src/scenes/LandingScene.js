@@ -22,7 +22,7 @@ export class LandingScene extends BaseScene {
         src: '/landingpage/cta.svg',
         alt: 'Bắt đầu xây phòng',
         top: 476, width: 300, left: 127.25, centered: false,
-        onClick: () => this.manager.navigateTo(this.manager.auth.isLoggedIn ? 'studio' : 'register'),
+        onClick: () => this.manager.navigateTo(this.manager.auth.isLoggedIn ? 'studio' : 'login'),
       },
       {
         src: '/landingpage/explore.svg',
@@ -34,7 +34,7 @@ export class LandingScene extends BaseScene {
         src: '/landingpage/studio.svg',
         alt: 'Studio',
         top: 3082.7, width: 289 * 0.85, left: 253, centered: false,
-        onClick: () => this.manager.navigateTo(this.manager.auth.isLoggedIn ? 'studio' : 'register'),
+        onClick: () => this.manager.navigateTo(this.manager.auth.isLoggedIn ? 'studio' : 'login'),
       },
       {
         src: '/landingpage/forum.svg',
@@ -89,12 +89,7 @@ export class LandingScene extends BaseScene {
     style.id = 'lp-strip-style';
     style.textContent = `
       @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap');
-      @keyframes lp-marquee {
-        0%   { transform: translateX(0); }
-        100% { transform: translateX(-50%); }
-      }
-      .lp-strip-track { display:flex; gap:20px; will-change:transform; animation:lp-marquee 40s linear infinite; }
-      .lp-strip-track:hover { animation-play-state:paused; }
+      .lp-strip-track { display:flex; gap:20px; will-change:transform; }
       .lp-strip-item { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; cursor:pointer; transition:opacity .2s; }
       .lp-strip-item:hover { opacity:.82; }
       .lp-strip-label {
@@ -125,6 +120,18 @@ export class LandingScene extends BaseScene {
         display:flex; align-items:center; justify-content:center;
         color:rgba(255,255,255,0.25); font-size:40px;
       }
+      .lp-strip-thumb-wrap { position:relative; display:inline-block; }
+      .lp-strip-medal { position:absolute; top:-10px; left:-10px; z-index:3; pointer-events:none; filter:drop-shadow(0 3px 7px rgba(0,0,0,.45)); width:52px; }
+      .lp-strip-arrow {
+        position:absolute; top:0; bottom:0; width:96px; z-index:9995;
+        display:flex; align-items:center; justify-content:center;
+        cursor:pointer; opacity:0; transition:opacity .25s;
+      }
+      .lp-strip-arrow:hover { opacity:1; }
+      .lp-strip-arrow-left  { left:0;  background:linear-gradient(to right, rgba(0,0,0,0.55) 0%, transparent 100%); }
+      .lp-strip-arrow-right { right:0; background:linear-gradient(to left,  rgba(0,0,0,0.55) 0%, transparent 100%); }
+      .lp-strip-arrow svg { filter:drop-shadow(0 2px 6px rgba(0,0,0,.5)); transition:transform .15s; }
+      .lp-strip-arrow:hover svg { transform:scale(1.15); }
     `;
     document.head.appendChild(style);
     this._stripStyle = style;
@@ -138,20 +145,53 @@ export class LandingScene extends BaseScene {
     const track = document.createElement('div');
     track.className = 'lp-strip-track';
     wrap.appendChild(track);
+
+    // Arrow buttons
+    const arrowSVG = (dir) => `<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="18" cy="18" r="17" fill="rgba(0,0,0,0.35)" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
+      <polyline points="${dir === 'left' ? '21,11 13,18 21,25' : '15,11 23,18 15,25'}" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>`;
+
+    const btnLeft  = document.createElement('div');
+    btnLeft.className  = 'lp-strip-arrow lp-strip-arrow-left';
+    btnLeft.innerHTML  = arrowSVG('left');
+
+    const btnRight = document.createElement('div');
+    btnRight.className = 'lp-strip-arrow lp-strip-arrow-right';
+    btnRight.innerHTML = arrowSVG('right');
+
+    wrap.appendChild(btnLeft);
+    wrap.appendChild(btnRight);
     document.body.appendChild(wrap);
     this._stripEl = wrap;
+    this._stripTrack = track;
+    this._stripBtnLeft  = btnLeft;
+    this._stripBtnRight = btnRight;
 
-    supabase
-      .from('gallery')
-      .select('name, scene_data')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
+    Promise.all([
+      supabase.from('gallery').select('name, scene_data').order('created_at', { ascending: false }),
+      supabase.from('gallery_likes').select('gallery_name'),
+    ]).then(([{ data }, { data: likesData }]) => {
         const rooms = (data || []).filter(row =>
           row.name.includes(':::') && row.scene_data?._meta?.isPublished === true
         );
         if (!rooms.length) { wrap.remove(); return; }
 
+        // Tính likes count
+        const likesMap = {};
+        (likesData || []).forEach(l => {
+          likesMap[l.gallery_name] = (likesMap[l.gallery_name] || 0) + 1;
+        });
+
+        // Xếp hạng top 3 theo likes
+        const ranked = [...rooms]
+          .sort((a, b) => (likesMap[b.name] || 0) - (likesMap[a.name] || 0))
+          .slice(0, 3);
+        const rankMap = {};
+        ranked.forEach((r, i) => { rankMap[r.name] = i; });
+
         const buildItem = (room) => {
+          const rank = rankMap[room.name] ?? -1;
           const meta = room.scene_data?._meta || {};
           const roomName = meta.roomName || 'Phòng tranh';
           const artistName = meta.artistName || meta.artistId || '';
@@ -172,18 +212,30 @@ export class LandingScene extends BaseScene {
             item.appendChild(artist);
           }
 
+          const thumbWrap = document.createElement('div');
+          thumbWrap.className = 'lp-strip-thumb-wrap';
+
+          if (rank >= 0 && rank < 3) {
+            const medal = document.createElement('img');
+            medal.src = `/medals/medal-${rank + 1}.svg`;
+            medal.alt = `Top ${rank + 1}`;
+            medal.className = `lp-strip-medal`;
+            thumbWrap.appendChild(medal);
+          }
+
           if (thumbUrl) {
             const img = document.createElement('img');
             img.src = thumbUrl;
             img.alt = roomName;
             img.className = 'lp-strip-thumb';
-            item.appendChild(img);
+            thumbWrap.appendChild(img);
           } else {
             const ph = document.createElement('div');
             ph.className = 'lp-strip-placeholder';
             ph.textContent = '🖼';
-            item.appendChild(ph);
+            thumbWrap.appendChild(ph);
           }
+          item.appendChild(thumbWrap);
 
           item.addEventListener('click', () => {
             this.manager.currentRoom = {
@@ -197,26 +249,59 @@ export class LandingScene extends BaseScene {
           return item;
         };
 
+        // Top 3 luôn liền nhau đầu mỗi set, phần còn lại theo sau
+        const top3 = ranked; // đã sort theo likes, tối đa 3 phòng
+        const top3Names = new Set(top3.map(r => r.name));
+        const rest = rooms.filter(r => !top3Names.has(r.name));
+        const orderedRooms = [...top3, ...rest];
+
         // Fill track: duplicate enough times for seamless loop (min 2 sets)
-        const sets = Math.max(2, Math.ceil(10 / rooms.length) * 2);
+        const sets = Math.max(2, Math.ceil(10 / orderedRooms.length) * 2);
         for (let i = 0; i < sets; i++) {
-          rooms.forEach(room => track.appendChild(buildItem(room)));
+          orderedRooms.forEach(room => track.appendChild(buildItem(room)));
         }
 
-        // Animate speed proportional to content length (px/s ≈ 120)
+        // JS-driven scroll loop
         requestAnimationFrame(() => {
           const halfW = track.scrollWidth / 2;
-          const dur = Math.max(15, halfW / 120);
-          track.style.animationDuration = `${dur}s`;
-          // Reset to translateX(-50%) endpoint based on actual width
-          track.style.setProperty('--lp-half', `${halfW}px`);
-          const s = document.getElementById('lp-strip-style');
-          if (s) {
-            s.textContent = s.textContent.replace(
-              'translateX(-50%)',
-              `translateX(-${halfW}px)`
-            );
-          }
+
+          const BASE_SPEED = 80;   // px/s bình thường
+          const FAST_SPEED = 320;  // px/s khi hover mũi tên
+          const EASE = 6;          // hệ số ease tốc độ (càng cao càng nhanh hội tụ)
+
+          let x = 0;
+          let targetSpeed = BASE_SPEED; // dương = sang trái
+          let currentSpeed = BASE_SPEED;
+          let lastTime = null;
+
+          const btnLeft  = this._stripBtnLeft;
+          const btnRight = this._stripBtnRight;
+
+          btnRight.addEventListener('mouseenter', () => { targetSpeed =  FAST_SPEED; });
+          btnRight.addEventListener('mouseleave', () => { targetSpeed =  BASE_SPEED; });
+          btnLeft.addEventListener('mouseenter',  () => { targetSpeed = -FAST_SPEED; });
+          btnLeft.addEventListener('mouseleave',  () => { targetSpeed =  BASE_SPEED; });
+
+          const tick = (now) => {
+            if (!this._stripEl || !document.body.contains(this._stripEl)) return;
+            if (lastTime === null) lastTime = now;
+            const dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+
+            // Ease currentSpeed → targetSpeed
+            currentSpeed += (targetSpeed - currentSpeed) * Math.min(EASE * dt, 1);
+
+            x += currentSpeed * dt;
+
+            // Seamless loop: wrap when passed a full half
+            if (x >= halfW)  x -= halfW;
+            if (x < 0)       x += halfW;
+
+            track.style.transform = `translateX(${-x}px)`;
+            requestAnimationFrame(tick);
+          };
+
+          requestAnimationFrame(tick);
         });
       });
   }

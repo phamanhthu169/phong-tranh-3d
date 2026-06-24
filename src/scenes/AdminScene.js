@@ -123,6 +123,16 @@ export class AdminScene extends BaseScene {
         </div>
         ${appsHtml}
 
+        <div class="adm-section-title">Quản lý phòng tranh</div>
+        <div class="adm-sub">Tìm và mở studio của bất kỳ artist nào</div>
+        <div class="adm-card">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="adm-gallery-name" class="adm-note-input" placeholder="Tên tài khoản artist..." style="flex:1;min-width:200px">
+            <button id="adm-gallery-search" class="adm-btn adm-btn-dismiss">Tìm phòng</button>
+          </div>
+          <div id="adm-gallery-result"></div>
+        </div>
+
         <div class="adm-section-title">Đặt lại mật khẩu tài khoản</div>
         <div class="adm-sub">Dùng khi user quên mật khẩu và không tự khôi phục được qua câu hỏi bí mật</div>
         <div class="adm-card">
@@ -181,10 +191,95 @@ export class AdminScene extends BaseScene {
       });
     });
 
+    const galleryNameInput = overlay.querySelector('#adm-gallery-name');
+    const gallerySearchBtn = overlay.querySelector('#adm-gallery-search');
+    gallerySearchBtn.addEventListener('click', () => this._handleGallerySearch());
+    galleryNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') this._handleGallerySearch(); });
+
     const resetNameInput = overlay.querySelector('#adm-reset-name');
     const resetSearchBtn = overlay.querySelector('#adm-reset-search');
     resetSearchBtn.addEventListener('click', () => this._handleResetSearch());
     resetNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') this._handleResetSearch(); });
+  }
+
+  async _handleGallerySearch() {
+    const overlay  = document.getElementById('admin-overlay');
+    const input    = overlay.querySelector('#adm-gallery-name');
+    const resultEl = overlay.querySelector('#adm-gallery-result');
+    const name     = input.value.trim();
+
+    resultEl.innerHTML = '';
+    if (!name) {
+      resultEl.innerHTML = `<div style="font-size:11px;color:#b54a3a;margin-top:8px">Vui lòng nhập tên tài khoản</div>`;
+      return;
+    }
+
+    // Tìm profile theo tên
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, display_name, role')
+      .eq('display_name', name)
+      .maybeSingle();
+
+    if (profileError || !profile) {
+      resultEl.innerHTML = `<div style="font-size:11px;color:#b54a3a;margin-top:8px">Không tìm thấy tài khoản với tên này</div>`;
+      return;
+    }
+
+    if (profile.role !== 'artist') {
+      resultEl.innerHTML = `<div style="font-size:11px;color:#b54a3a;margin-top:8px">Tài khoản này không phải Artist (role: ${this._esc(profile.role)})</div>`;
+      return;
+    }
+
+    // Tìm tất cả phòng của artist này
+    const { data: galleries } = await supabase
+      .from('gallery')
+      .select('name, scene_data')
+      .like('name', profile.id + ':::' + '%')
+      .order('name', { ascending: true });
+
+    if (!galleries || galleries.length === 0) {
+      resultEl.innerHTML = `<div style="font-size:11px;color:#b54a3a;margin-top:8px">Artist này chưa có phòng tranh nào</div>`;
+      return;
+    }
+
+    const rows = galleries.map(g => {
+      const meta     = g.scene_data?._meta || {};
+      const roomName = meta.roomName || g.name;
+      const published = meta.isPublished ? '<span style="color:#4a9a6a;font-weight:600">Đã xuất bản</span>' : '<span style="opacity:.4">Chưa xuất bản</span>';
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(24,45,88,.08)">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#182D58">${this._esc(roomName)}</div>
+            <div style="font-size:11px;margin-top:2px">${published}</div>
+          </div>
+          <button class="adm-btn adm-btn-approve adm-open-studio" data-room="${this._esc(g.name)}" data-artist="${this._esc(profile.id)}">Mở Studio</button>
+        </div>
+      `;
+    }).join('');
+
+    resultEl.innerHTML = `
+      <div style="padding:12px;background:rgba(24,45,88,.04);border-radius:5px;margin-top:8px">
+        <div style="font-size:12px;color:#182D58;margin-bottom:8px">
+          Artist: <b>${this._esc(profile.display_name)}</b> · ${galleries.length} phòng
+        </div>
+        ${rows}
+      </div>
+    `;
+
+    resultEl.querySelectorAll('.adm-open-studio').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const roomId = btn.dataset.room;
+        this.manager.currentRoom = {
+          id: roomId,
+          name: null,
+          artistId: btn.dataset.artist,
+          isPublished: false,
+        };
+        console.log('AdminScene - setting currentRoom:', this.manager.currentRoom);
+        this.manager.navigateTo('studio');
+      });
+    });
   }
 
   async _handleResetSearch() {

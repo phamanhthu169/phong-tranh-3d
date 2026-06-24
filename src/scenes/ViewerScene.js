@@ -1179,7 +1179,7 @@ export class ViewerScene extends BaseScene {
 
       <div class="icon-btn" id="btn-fullscreen" title="Phóng to màn hình"><img src="/icons/fullscreen.svg" style="width:18px;height:18px"></div>
       <div class="icon-btn" id="btn-sound" title="Tắt / mở âm thanh" style="background-image: url('/icons/sound.svg'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
-      <div class="icon-btn" id="btn-route" title="Lộ trình tham quan" style="background-image: url('/icons/route.svg'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
+      <div class="icon-btn" id="btn-route" title="Lộ trình tham quan" style="display:none; background-image: url('/icons/route.svg'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
         <div class="icon-btn" id="btn-like" title="Thích phòng tranh này"><img src="/icons/heart-empty.svg" style="width:18px;height:18px"></div>
         <span id="like-count" style="color:rgba(212,197,169,0.6);font-size:9px;font-family:monospace;letter-spacing:.04em;min-width:20px;text-align:center;line-height:1"></span>
@@ -2311,7 +2311,7 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
           this.threeScene.add(obj);
           const pl = new THREE.PointLight(0xfff0dd, 1.5, 4); pl.position.set(pos.x, pos.y+2, pos.z); this.threeScene.add(pl);
           if (usePedestal) this._makePedestal(new THREE.Vector3(pos.x, 0, pos.z));
-          this.models3d.push({ object:obj, name:m.name, meta });
+          this.models3d.push({ object:obj, name:m.name, meta, hasPedestal: usePedestal });
         };
         return new Promise(resolve => {
           if (ext==='glb'||ext==='gltf') this.gltfLoader.load(toCDN(m.storageUrl), g=>{ onLoad(g.scene); _modTick(); resolve(); }, null, () => { _modTick(); resolve(); });
@@ -2824,6 +2824,8 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
       this.camera.position.add(this.moveDir); this.camera.position.y = posY;
     }
     this.artworks.forEach(a => { if (a.isVideo && a.videoTex) a.videoTex.needsUpdate = true; });
+    this.models3d.forEach(m => { if (m.hasPedestal) m.object.rotation.y += dt * 0.6; });
+    this.chests.forEach(c => { if (c.autoRotate && c.mesh) c.mesh.rotation.y += dt * 0.6; });
     this._checkChestProximity();
     this._drawMinimap();
     this._updateCharacter(dt);
@@ -2931,7 +2933,9 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
     const loader = new GLTFLoader();
     for (const row of data) {
       const chest = { id: row.id, question: row.question, answer: row.answer, token_amount: row.token_amount,
-        pos_x: row.pos_x, pos_y: row.pos_y, pos_z: row.pos_z, mesh: null };
+        pos_x: row.pos_x, pos_y: row.pos_y, pos_z: row.pos_z,
+        hasPedestal: row.has_pedestal !== false, autoRotate: row.auto_rotate === true,
+        pedestal: null, mesh: null };
       this.chests.push(chest);
       await new Promise(resolve => {
         loader.load('/treasure/treasure_chest.glb', (gltf) => {
@@ -2943,7 +2947,12 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
           mesh.scale.setScalar(baseScale * (row.chest_scale > 0 ? row.chest_scale : 1.0));
           const scaledBox = new THREE.Box3().setFromObject(mesh);
           const surfaceY = (row.pos_y !== undefined && row.pos_y !== null) ? row.pos_y : (this.floorY ?? 0);
-          mesh.position.set(row.pos_x, surfaceY - scaledBox.min.y, row.pos_z);
+          if (chest.hasPedestal) {
+            mesh.position.set(row.pos_x, 0.87 - scaledBox.min.y, row.pos_z);
+            chest.pedestal = this._makePedestal(new THREE.Vector3(row.pos_x, 0, row.pos_z));
+          } else {
+            mesh.position.set(row.pos_x, surfaceY - scaledBox.min.y, row.pos_z);
+          }
           mesh.rotation.y = row.rot_y || 0;
           chest.mesh = mesh;
           this.threeScene.add(mesh);
