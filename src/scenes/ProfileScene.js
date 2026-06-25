@@ -30,12 +30,18 @@ export class ProfileScene extends BaseScene {
     // Target: xem profile ai?
     // Nếu manager.profileTarget được set → xem người đó, không thì xem mình
     const isSelf = !this.manager.profileTarget;
-    // Auth profile đã chứa đầy đủ fields (name, role, location, website, bio)
+    // Auth profile đã chứa đầy đủ fields (name, role, location, website, bio, avatarUrl, coverUrl)
     // vì AuthManager.updateProfile lưu merge vào cùng một object
-    this._target = isSelf
-      ? { ...this.manager.auth.profile }
-      : { ...this.manager.profileTarget };
-      console.log('profile:', JSON.stringify(this.manager.auth.profile));
+    if (isSelf) {
+      this._target = { ...this.manager.auth.profile };
+    } else {
+      // QUAN TRỌNG: profileTarget thường chỉ được nơi gọi truyền vài field rút gọn
+      // (vd { id, display_name, role } từ danh sách follow, hoặc { name, role } từ chỗ khác).
+      // Không bao giờ tin tưởng profileTarget là đầy đủ → luôn fetch lại nguyên row
+      // từ Supabase để có avatar_url, cover_url, bio, location, website mới nhất.
+      const fallback = { ...this.manager.profileTarget };
+      this._target = await this._fetchFullProfile(fallback) || fallback;
+    }
 
     // Reset target sau khi đọc
     this.manager.profileTarget = null;
@@ -57,6 +63,40 @@ export class ProfileScene extends BaseScene {
       await this._loadProducts();
     } else {
       await this._loadTokenRank();
+    }
+  }
+
+  // ─── Fetch đầy đủ profile của người khác từ Supabase (id ưu tiên, fallback display_name) ──
+  async _fetchFullProfile(target) {
+    if (!target) return null;
+    try {
+      let query = supabase
+        .from('profiles')
+        .select('id, display_name, role, location, website, bio, avatar_url, cover_url');
+
+      query = target.id
+        ? query.eq('id', target.id)
+        : query.eq('display_name', target.name || target.display_name);
+
+      const { data, error } = await query.maybeSingle();
+      if (error || !data) {
+        if (error) console.error('[ProfileScene] _fetchFullProfile error:', error);
+        return null;
+      }
+
+      return {
+        id: data.id,
+        name: data.display_name,
+        role: data.role,
+        location: data.location || '',
+        website: data.website || '',
+        bio: data.bio || '',
+        avatarUrl: data.avatar_url || '',
+        coverUrl: data.cover_url || '',
+      };
+    } catch (e) {
+      console.error('[ProfileScene] _fetchFullProfile exception:', e);
+      return null;
     }
   }
 
@@ -2154,10 +2194,17 @@ export class ProfileScene extends BaseScene {
     }
 
     const ids = follows.map(r => r[resultCol]).filter(Boolean);
-    const { data: profiles } = await supabase
+    const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, display_name, role, avatar_url')
+      .select('id, display_name, role')
       .in('id', ids);
+
+    if (profilesError) {
+      console.error('[_loadFollows] profiles query error message:', profilesError.message);
+      console.error('[_loadFollows] profiles query error code:', profilesError.code);
+      console.error('[_loadFollows] profiles query error details:', profilesError.details);
+      console.error('[_loadFollows] profiles query error hint:', profilesError.hint);
+    }
 
     if (this._disposed) return;
 
@@ -2171,9 +2218,7 @@ export class ProfileScene extends BaseScene {
       const name = p.display_name || 'Ẩn danh';
       const card = document.createElement('div');
       card.className = 'pf-follow-card';
-      const avatarHtml = p.avatar_url
-        ? `<img src="${this._esc(p.avatar_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />`
-        : `<span>${name.charAt(0).toUpperCase()}</span>`;
+      const avatarHtml = `<span>${name.charAt(0).toUpperCase()}</span>`;
       card.innerHTML = `
         <div class="pf-avatar-circle" style="width:38px;height:38px;font-size:16px;flex-shrink:0;cursor:default">${avatarHtml}</div>
         <div>
@@ -2182,7 +2227,7 @@ export class ProfileScene extends BaseScene {
         </div>
       `;
       card.addEventListener('click', () => {
-        this.manager.profileTarget = { ...p, name, avatarUrl: p.avatar_url };
+        this.manager.profileTarget = { ...p, name };
         this.manager.navigateTo('profile');
       });
       listEl.appendChild(card);

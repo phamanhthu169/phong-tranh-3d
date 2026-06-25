@@ -24,6 +24,28 @@ export class AuthManager {
     this._ready     = this._init();
   }
 
+  // Chuẩn hoá 1 row raw từ Supabase (snake_case) sang field app dùng (camelCase/tên rút gọn).
+  // Dùng chung cho _init() và mọi nơi khác cần đọc lại profile từ DB.
+  _normalizeRow(data) {
+    return {
+      id: data.id,
+      name: data.display_name,
+      role: data.role,
+      location: data.location || '',
+      website: data.website || '',
+      bio: data.bio || '',
+      avatarUrl: data.avatar_url || '',
+      coverUrl: data.cover_url || '',
+      bank_name: data.bank_name || '',
+      bank_account_number: data.bank_account_number || '',
+      bank_account_holder: data.bank_account_holder || '',
+      province: data.province || '',
+      district: data.district || '',
+      ward:     data.ward     || '',
+      street:   data.street   || '',
+    };
+  }
+
   async _init() {
     const localProfile = this._loadFromLocal();
     if (!localProfile) return;
@@ -35,7 +57,8 @@ export class AuthManager {
       .maybeSingle();
 
     if (!error && data) {
-      this._profile = { ...localProfile, ...data };
+      // data (DB) là nguồn sự thật, localProfile chỉ bổ sung field nào DB không có (vd password_hash không select)
+      this._profile = { ...localProfile, ...this._normalizeRow(data) };
       this._saveToLocal(this._profile);
     } else if (error && error.code !== 'PGRST116') {
       console.error('Lỗi khi đồng bộ profile từ Supabase:', error);
@@ -60,19 +83,35 @@ export class AuthManager {
   }
 
   async _upsertToSupabase(profile) {
-    const payload = {
-      id: profile.id,
-      display_name: profile.name,
-      role: profile.role,
+    // Map field phía JS (camelCase / tên rút gọn) sang tên cột thật trong Supabase.
+    // CHÚ Ý: mỗi khi thêm field mới vào profile (avatar, cover, bio, ...) phải thêm
+    // vào map này, nếu không field sẽ chỉ tồn tại ở RAM + localStorage, không bao giờ
+    // được lưu xuống DB → mất khi đăng xuất / đăng nhập lại trên thiết bị khác.
+    const FIELD_MAP = {
+      name:                'display_name',
+      role:                'role',
+      password_hash:       'password_hash',
+      location:            'location',
+      website:             'website',
+      bio:                 'bio',
+      avatarUrl:           'avatar_url',
+      coverUrl:            'cover_url',
+      bank_name:           'bank_name',
+      bank_account_number: 'bank_account_number',
+      bank_account_holder: 'bank_account_holder',
+      province:            'province',
+      district:            'district',
+      ward:                'ward',
+      street:              'street',
     };
-    if (profile.password_hash) payload.password_hash = profile.password_hash;
-    if (profile.bank_name !== undefined)           payload.bank_name           = profile.bank_name           || null;
-    if (profile.bank_account_number !== undefined) payload.bank_account_number = profile.bank_account_number || null;
-    if (profile.bank_account_holder !== undefined) payload.bank_account_holder = profile.bank_account_holder || null;
-    if (profile.province !== undefined)            payload.province            = profile.province             || null;
-    if (profile.district !== undefined)            payload.district            = profile.district             || null;
-    if (profile.ward !== undefined)                payload.ward                = profile.ward                 || null;
-    if (profile.street !== undefined)              payload.street              = profile.street               || null;
+
+    const payload = { id: profile.id };
+    for (const [jsKey, dbCol] of Object.entries(FIELD_MAP)) {
+      if (profile[jsKey] === undefined) continue;
+      // password_hash chỉ gửi khi có giá trị thật (tránh ghi đè rỗng nếu chưa set)
+      if (jsKey === 'password_hash' && !profile[jsKey]) continue;
+      payload[dbCol] = profile[jsKey] === '' ? null : profile[jsKey];
+    }
 
     const { error } = await supabase
       .from('profiles')
@@ -173,21 +212,7 @@ export class AuthManager {
     const ok = await bcrypt.compare(password, data.password_hash);
     if (!ok) throw new Error('Mật khẩu không đúng');
 
-    this._profile = {
-      id: data.id,
-      name: data.display_name,
-      role: data.role,
-      location: data.location || '',
-      website: data.website || '',
-      bio: data.bio || '',
-      bank_name: data.bank_name || '',
-      bank_account_number: data.bank_account_number || '',
-      bank_account_holder: data.bank_account_holder || '',
-      province: data.province || '',
-      district: data.district || '',
-      ward:     data.ward     || '',
-      street:   data.street   || '',
-    };
+    this._profile = this._normalizeRow(data);
     this._saveToLocal(this._profile);
     this._notify();
   }

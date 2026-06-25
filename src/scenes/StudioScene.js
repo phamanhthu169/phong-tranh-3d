@@ -3997,8 +3997,14 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
     this.threeScene.add(object);
     const pl = new THREE.PointLight(0xfff0dd, 1.5, 4); pl.position.set(pos.x, pos.y + 2, pos.z); this.threeScene.add(pl);
     const ped = (usePedestal && floorMode) ? this.makePedestal(new THREE.Vector3(pos.x, 0, pos.z)) : null;
-    const md = { object, light: pl, pedestal: ped, hasPedestal: usePedestal && floorMode, autoRotate: autoRotate, storageUrl: storageUrl || null, name: name || null, meta: { title: '', artist: '', year: '', desc: '', price: '', weight: '', ...meta } };
+    const md = { object, light: pl, pedestal: ped, hasPedestal: usePedestal && floorMode, autoRotate: autoRotate, storageUrl: storageUrl || null, name: name || null, meta: { title: '', artist: '', year: '', desc: '', price: '', weight: '', ...meta, id: meta.id || this._genItemId() } };
     this.models3d.push(md); return md;
+  }
+
+  // ─── Sinh id ổn định cho artwork/model (dùng để sync sang artist_products) ──
+  _genItemId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return 'itm_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
   }
 
   placeArtwork(src, pos, rot, meta = {}, scaleVec = null, frameOpts = {}) {
@@ -4052,7 +4058,7 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
       frameVisible,
       frameColor,
       frameThickness,
-      meta: { title: '', artist: '', year: '', desc: '', price: '', weight: '', ...meta },
+      meta: { title: '', artist: '', year: '', desc: '', price: '', weight: '', ...meta, id: meta.id || this._genItemId() },
     };
     this.artworks.push(ad); return ad;
   }
@@ -5227,6 +5233,10 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         this.toast('Lưu thất bại: ' + error.message, 'error');
       } else {
         this.toast('Đã lưu ✓', 'success');
+        // Đồng bộ tác phẩm có giá → tab Sản phẩm trong Profile (không chặn UI, lỗi không làm hỏng luồng save)
+        this._syncProductsFromGallery(room, _artistNameToSave, galleryData).catch(err => {
+          console.error('[Sync products] lỗi:', err);
+        });
       }
     } finally {
       this._saving = false;
@@ -5234,6 +5244,85 @@ const rowVid = makeRow({ label: 'Video', type: 'video', onAdd: () => {
         this._pendingSave = false;
         this._triggerAutosave();
       }
+    }
+  }
+
+  // ─── Đồng bộ artwork/model có giá → artist_products (tab Sản phẩm trong Profile) ──
+  // Quy ước: artist_products.source_id = meta.id của artwork/model.
+  // - Có giá (price không rỗng) → upsert vào artist_products.
+  // - Trước đó có giá, giờ bị xoá giá hoặc xoá khỏi phòng → xoá khỏi artist_products.
+  // - Sản phẩm tạo tay (source_id NULL) không bị đụng tới.
+  async _syncProductsFromGallery(room, artistName, galleryData) {
+    if (!artistName) return;
+    const roomId = room.id;
+
+    // 1. Gom các item đang có giá (đã trim) trong phòng hiện tại
+    const priced = [];
+    (galleryData.artworks || []).forEach(a => {
+      const price = (a.meta?.price || '').trim();
+      if (!price || !a.meta?.id) return;
+      priced.push({
+        sourceId: a.meta.id,
+        title: a.meta.title || 'Tác phẩm chưa đặt tên',
+        price,
+        description: a.meta.desc || '',
+        mediaUrl: a.storageUrl || null,
+        isVideo: !!a.isVideo,
+      });
+    });
+    (galleryData.models || []).forEach(m => {
+      const price = (m.meta?.price || '').trim();
+      if (!price || !m.meta?.id) return;
+      priced.push({
+        sourceId: m.meta.id,
+        title: m.meta.title || m.name || 'Model chưa đặt tên',
+        price,
+        description: m.meta.desc || '',
+        mediaUrl: null, // model 3D không có ảnh thumbnail để hiện ở card sản phẩm
+        isVideo: false,
+      });
+    });
+
+    // 2. Lấy danh sách sản phẩm đã sync trước đó của phòng này
+    const { data: existing, error: fetchErr } = await supabase
+      .from('artist_products')
+      .select('id, source_id')
+      .eq('source_room', roomId)
+      .not('source_id', 'is', null);
+
+    if (fetchErr) { console.error('[Sync products] fetch lỗi:', fetchErr); return; }
+
+    const existingBySourceId = new Map((existing || []).map(r => [r.source_id, r.id]));
+    const pricedSourceIds = new Set(priced.map(p => p.sourceId));
+
+    // 3. Upsert (thêm mới / cập nhật) các item đang có giá
+    if (priced.length) {
+      const rows = priced.map(p => ({
+        artist_name: artistName,
+        source_id: p.sourceId,
+        source_room: roomId,
+        title: p.title,
+        price: p.price,
+        description: p.description,
+        media_urls: p.mediaUrl ? [p.mediaUrl] : [],
+      }));
+      const { error: upsertErr } = await supabase
+        .from('artist_products')
+        .upsert(rows, { onConflict: 'source_id' });
+      if (upsertErr) console.error('[Sync products] upsert lỗi:', upsertErr);
+    }
+
+    // 4. Xoá những sản phẩm từng sync từ phòng này nhưng giờ không còn giá / không còn artwork
+    const toDeleteIds = [];
+    existingBySourceId.forEach((rowId, sourceId) => {
+      if (!pricedSourceIds.has(sourceId)) toDeleteIds.push(rowId);
+    });
+    if (toDeleteIds.length) {
+      const { error: delErr } = await supabase
+        .from('artist_products')
+        .delete()
+        .in('id', toDeleteIds);
+      if (delErr) console.error('[Sync products] xoá lỗi:', delErr);
     }
   }
 
