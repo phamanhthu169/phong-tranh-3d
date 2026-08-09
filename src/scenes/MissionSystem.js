@@ -21,6 +21,8 @@ export class MissionSystem {
     this._roomId       = null;
     this._gltfLoader   = new GLTFLoader();
     this._chestMixers  = new Map(); // Map<missionIndex, { mixer, action, mesh }>
+    this._chestWrongCount = new Map(); // Map<missionIndex, number> — số lần trả lời sai của rương đó
+    this._totalStarsEarned = 0; // tổng số star đã kiếm được trong phòng này (phiên hiện tại)
   }
 
   // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -428,6 +430,42 @@ export class MissionSystem {
     `;
     content.appendChild(prog);
 
+    // ── Nút chơi lại (chỉ hiện khi đã hoàn thành toàn bộ phòng) ──
+    if (this._allDone) {
+      const replayCost   = this._getReplayCost();
+      const tokenBalance = this._s.manager.auth.profile?.token_balance ?? 0;
+      const canAfford    = tokenBalance >= replayCost;
+
+      const replayBtn = document.createElement('button');
+      replayBtn.id = 'ms-hud-replay-btn';
+      replayBtn.style.cssText = 'margin-top:6px;padding:8px;border-radius:8px;font-family:"Montserrat",sans-serif;font-size:10px;font-weight:700;letter-spacing:.05em;transition:background .2s;' +
+        (canAfford
+          ? 'background:rgba(200,169,110,0.15);border:.5px solid rgba(200,169,110,0.45);color:#FFE066;cursor:pointer;'
+          : 'background:rgba(255,255,255,0.06);border:.5px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.4);cursor:not-allowed;');
+      replayBtn.innerHTML = canAfford
+        ? `🔄 Chơi lại (-${replayCost} ${this._tokenIconHTML(12)})`
+        : `🔒 Chơi lại (${tokenBalance}/${replayCost} ${this._tokenIconHTML(12)})`;
+      replayBtn.disabled = !canAfford;
+
+      if (canAfford) {
+        replayBtn.addEventListener('mouseenter', () => replayBtn.style.background = 'rgba(200,169,110,0.28)');
+        replayBtn.addEventListener('mouseleave', () => replayBtn.style.background = 'rgba(200,169,110,0.15)');
+      }
+
+      replayBtn.addEventListener('click', async (e) => {
+        e.stopPropagation(); // tránh trigger toggle collapse của titleRow
+        if (replayBtn.disabled) return;
+        this._showReplayConfirm(replayCost, async () => {
+          replayBtn.disabled = true;
+          replayBtn.textContent = 'Đang xử lý...';
+          const ok = await this._spendTokensForReplay(replayCost);
+          if (!ok) { this._buildHUD(); return; }
+          await this._resetMissions();
+        });
+      });
+      content.appendChild(replayBtn);
+    }
+
     hud.appendChild(content);
 
     // ── Inject badge CSS (chỉ 1 lần) ──
@@ -449,6 +487,10 @@ export class MissionSystem {
         0%   { transform: scale(1); opacity: 1; }
         30%  { transform: scale(1.04); }
         100% { transform: scale(0.6); opacity: 0; }
+      }
+      @keyframes ms-star-pulse {
+        0%, 100% { box-shadow: 0 0 0 rgba(255,80,80,0); }
+        50%      { box-shadow: 0 0 14px rgba(255,80,80,0.5); }
       }
     `;
       document.head.appendChild(style);
@@ -489,6 +531,44 @@ export class MissionSystem {
     if (m.mission_type === 'chest_riddle')   return 'Tìm rương bí ẩn trong phòng và giải đố';
     if (m.mission_type === 'story_sequence') return 'Click để sắp xếp thứ tự các bức tranh';
     return '';
+  }
+// ─── Tạo lại detection sphere còn thiếu (dùng khi replay) ──────────────────
+  _ensureDetectionSpheres() {
+    this._missions.forEach(m => {
+      if (this._completed.has(m.mission_index)) return;
+
+      if (m.mission_type === 'chest_riddle') {
+        const exists = this._eggSpheres.some(d => d.missionIndex === m.mission_index && d.isChestRiddle);
+        if (exists) return;
+        const cp = (m.easter_eggs || [])[0];
+        if (!cp || cp.pos_x === null || cp.pos_x === undefined) return;
+        const sphere = new THREE.Mesh(
+          new THREE.SphereGeometry(0.7, 10, 10),
+          new THREE.MeshBasicMaterial({ visible: false })
+        );
+        sphere.position.set(cp.pos_x, (cp.pos_y ?? this._s.floorY ?? 0), cp.pos_z);
+        this._s.threeScene.add(sphere);
+        this._eggSpheres.push({ sphere, missionIndex: m.mission_index, eggIndex: -1, isChestRiddle: true, mission: m });
+        return;
+      }
+
+      if (m.mission_type === 'hidden_object') {
+        (m.easter_eggs || []).forEach((egg, eggIdx) => {
+          if (egg.pos_x === null || egg.pos_x === undefined) return;
+          const exists = this._eggSpheres.some(d => d.missionIndex === m.mission_index && d.eggIndex === eggIdx);
+          if (exists) return;
+          const pos = new THREE.Vector3(egg.pos_x, egg.pos_y ?? 0, egg.pos_z);
+          const sc  = egg.scale ?? 0.5;
+          const detSphere = new THREE.Mesh(
+            new THREE.SphereGeometry(Math.max(0.4, sc * 0.8), 10, 10),
+            new THREE.MeshBasicMaterial({ visible: false })
+          );
+          detSphere.position.copy(pos);
+          this._s.threeScene.add(detSphere);
+          this._eggSpheres.push({ sphere: detSphere, missionIndex: m.mission_index, eggIndex: eggIdx });
+        });
+      }
+    });
   }
 
   // ─── Chest: play open animation rồi mới hiện popup câu đố ──────────────────
@@ -569,6 +649,29 @@ export class MissionSystem {
     subtitleDiv.textContent = 'Chọn đáp án đúng để mở rương và hoàn thành nhiệm vụ.';
     box.appendChild(subtitleDiv);
 
+    // ── Star indicator: rương bắt đầu với 3 star, mỗi lần sai trừ 1 (tối thiểu 0) ──
+    if (!this._chestWrongCount.has(mission.mission_index)) this._chestWrongCount.set(mission.mission_index, 0);
+    const starWrap = document.createElement('div');
+    starWrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px;background:rgba(255,80,80,0.08);border:.5px solid rgba(255,80,80,0.35);border-radius:8px;animation:ms-star-pulse 1.4s ease-in-out 2;';
+
+    const starWarnDiv = document.createElement('div');
+    starWarnDiv.style.cssText = 'color:#f87171;font-size:10px;font-weight:700;';
+    starWarnDiv.textContent = '⚠️ Trả lời sai sẽ mất 1 star!';
+    starWrap.appendChild(starWarnDiv);
+
+    const starDiv = document.createElement('div');
+    starDiv.style.cssText = 'font-size:16px;letter-spacing:3px;';
+    const renderStars = () => {
+      const wrong     = this._chestWrongCount.get(mission.mission_index) || 0;
+      const starsLeft = Math.max(0, 3 - wrong);
+      starDiv.innerHTML = Array.from({length:3}, (_,i) =>
+        `<img src="/medals/star.svg" style="width:20px;height:20px;margin:0 2px;opacity:${i < starsLeft ? 1 : 0.25}">`
+      ).join('');
+    };
+    renderStars();
+    starWrap.appendChild(starDiv);
+    box.appendChild(starWrap);
+
     const questionDiv = document.createElement('div');
     questionDiv.style.cssText = 'color:#fff;font-size:13px;line-height:1.7;background:rgba(200,169,110,0.05);padding:14px;border-radius:10px;border:.5px solid rgba(200,169,110,0.15);';
     questionDiv.textContent = questionText;
@@ -606,8 +709,10 @@ export class MissionSystem {
           answered = true;
           this._sfx('correct');
           btn.style.cssText += 'background:rgba(50,200,100,0.15);border-color:rgba(50,200,100,0.5);';
+          const wrong     = this._chestWrongCount.get(mission.mission_index) || 0;
+          const starsLeft = Math.max(0, 3 - wrong);
           feedback.style.color = '#FFE066';
-          feedback.textContent = '✓ Chính xác! Rương đã mở!';
+          feedback.textContent = `✓ Chính xác! Rương đã mở! +${starsLeft} ⭐`;
           const chestData = this._chestMixers.get(mission.mission_index);
           if (chestData) {
             chestData.action.paused = false;
@@ -615,14 +720,19 @@ export class MissionSystem {
             chestData.mixer.update(0);
             this._sfx('chest_open');
           }
-          setTimeout(() => { this._riddlePopupOpen = false; closeWithAnim(); this._completeMission(mission.mission_index); }, 1000);
+          setTimeout(() => { this._riddlePopupOpen = false; closeWithAnim(); this._completeMission(mission.mission_index, starsLeft); }, 1000);
         } else {
           this._sfx('wrong');
           btn.style.background = 'rgba(255,80,80,0.1)';
           btn.style.borderColor = 'rgba(255,80,80,0.3)';
           setTimeout(() => { btn.style.background = 'rgba(255,255,255,0.05)'; btn.style.borderColor = 'rgba(255,255,255,0.15)'; }, 600);
+          const wrong = (this._chestWrongCount.get(mission.mission_index) || 0) + 1;
+          this._chestWrongCount.set(mission.mission_index, wrong);
+          renderStars();
           feedback.style.color = '#f87171';
-          feedback.textContent = '✗ Chưa đúng, thử lại nhé!';
+          feedback.textContent = wrong <= 3
+            ? '✗ Chưa đúng, bạn mất 1 star của rương này!'
+            : '✗ Chưa đúng, rương này đã hết star!';
         }
       });
       choicesDiv.appendChild(btn);
@@ -650,16 +760,28 @@ export class MissionSystem {
   
 
   // ─── Complete a mission ───────────────────────────────────────────────────────
-  async _completeMission(missionIndex) {
+  async _completeMission(missionIndex, starsEarned = 0) {
     if (this._completed.has(missionIndex)) return;
     this._completed.add(missionIndex);
+    this._totalStarsEarned += starsEarned;
 
     const userId = this._s.manager.auth.profile?.id;
     if (userId) {
       await supabase.from('mission_completions').upsert(
-        { user_id: userId, room_id: this._roomId, mission_index: missionIndex },
+        { user_id: userId, room_id: this._roomId, mission_index: missionIndex, stars_earned: starsEarned },
         { onConflict: 'user_id,room_id,mission_index' }
       );
+
+      if (starsEarned > 0) {
+        const { data: pf } = await supabase
+          .from('profiles').select('star_balance').eq('id', userId).maybeSingle();
+        const newStarBalance = (pf?.star_balance || 0) + starsEarned;
+        await supabase.from('profiles').update({ star_balance: newStarBalance }).eq('id', userId);
+        if (this._s.manager.auth.profile) {
+          this._s.manager.auth.profile.star_balance = newStarBalance;
+          this._s._updateTokenDisplay?.();
+        }
+      }
     }
 
     this._buildHUD();
@@ -673,6 +795,7 @@ export class MissionSystem {
 
     if (this._completed.size >= this._missions.length && !this._allDone) {
       this._allDone = true;
+      this._buildHUD();
       setTimeout(() => this._onAllComplete(), 700);
     }
   }
@@ -708,11 +831,11 @@ export class MissionSystem {
       }
     }
 
-    this._showCompletionModal(isFirstTime, tokenReward);
+    await this._showCompletionModal(isFirstTime, tokenReward, this._totalStarsEarned);
   }
 
   // ─── Completion modal ─────────────────────────────────────────────────────────
-  _showCompletionModal(isFirstTime, tokenReward) {
+  async _showCompletionModal(isFirstTime, tokenReward, starsEarned = 0) {
     document.getElementById('ms-complete-modal')?.remove();
 
     // ─── Sound effect & confetti khi hiện popup chúc mừng ────────────────────
@@ -723,51 +846,234 @@ export class MissionSystem {
     } catch (_) {}
     this._startConfetti();
 
+    // ─── Lấy dữ liệu rank + star hiện tại để dựng thanh tiến trình ────────────
+    // Dùng getMin() để tự nhận diện tên cột ngưỡng rank, dù là min_stars hay min_tokens
+    const { data: ranksRaw } = await supabase.from('ranks').select('*');
+    const getMin = r => r.min_stars ?? r.min_tokens ?? 0;
+    const ranks = (ranksRaw || []).slice().sort((a, b) => getMin(a) - getMin(b));
+
+    const currentBalance = this._s.manager.auth.profile?.star_balance ?? 0;
+    const startBalance   = Math.max(0, currentBalance - starsEarned);
+
+    let currentRank = null, nextRank = null;
+    ranks.forEach(r => {
+      if (getMin(r) <= currentBalance) currentRank = r;
+      if (!nextRank && getMin(r) > currentBalance) nextRank = r;
+    });
+
+    const rangeStart = currentRank ? getMin(currentRank) : 0;
+    const rangeEnd   = nextRank ? getMin(nextRank) : rangeStart;
+    const pct = v => rangeEnd > rangeStart
+      ? Math.min(100, Math.max(0, ((v - rangeStart) / (rangeEnd - rangeStart)) * 100))
+      : 100;
+    const startPct = pct(startBalance);
+    const endPct   = pct(currentBalance);
+    const starsToNext = nextRank ? Math.max(0, rangeEnd - currentBalance) : 0;
+
     const overlay = document.createElement('div');
     overlay.id = 'ms-complete-modal';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:2000;display:flex;align-items:center;justify-content:center;';
 
     const box = document.createElement('div');
-    box.style.cssText = 'background:linear-gradient(135deg,#0d1520,#101e2e);border:1px solid rgba(104,229,227,0.4);border-radius:20px;padding:36px 32px;max-width:400px;width:88%;display:flex;flex-direction:column;align-items:center;gap:16px;font-family:"Montserrat",sans-serif;text-align:center;';
+    box.style.cssText = 'background:linear-gradient(135deg,#0d1520,#101e2e);border:1px solid rgba(104,229,227,0.4);border-radius:20px;padding:36px 32px;max-width:400px;width:88%;display:flex;flex-direction:column;align-items:center;gap:16px;font-family:"Montserrat",sans-serif;text-align:center;box-sizing:border-box;';
 
-    const msg         = this._config?.completion_message || 'Chúc mừng bạn đã hoàn thành tất cả nhiệm vụ!';
-    const tokenBlock  = isFirstTime
-      ? `<div style="display:flex;align-items:center;gap:10px;background:rgba(200,169,110,0.12);border:.5px solid rgba(200,169,110,0.4);border-radius:12px;padding:12px 20px;">
-           <img src="/token/star.png" style="width:28px;height:28px;object-fit:contain;" onerror="this.style.display='none'">
-           <div>
-             <div style="color:#c8a96e;font-size:16px;font-weight:800;">+${tokenReward} Token</div>
-             <div style="color:rgba(200,169,110,0.6);font-size:10px;">Đã thêm vào tài khoản</div>
+    const msg = this._config?.completion_message || 'Chúc mừng bạn đã hoàn thành tất cả nhiệm vụ!';
+
+    // ── CSS chung cho 2 khung Token / Star (giống hệt nhau) ──
+    const REWARD_CARD_CSS = 'flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:rgba(255,80,80,0.1);border:.5px solid rgba(255,180,80,0.4);border-radius:12px;padding:10px 12px;box-sizing:border-box;';
+
+    const tokenBlock = isFirstTime
+      ? `<div style="${REWARD_CARD_CSS}">
+            <img src="/medals/token.svg" style="width:24px;height:24px;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'">
+            <div style="text-align:left;min-width:0;">
+             <div style="color:#FFE066;font-size:14px;font-weight:800;white-space:nowrap;">+${tokenReward} Token</div>
+             <div style="color:rgba(255,224,102,0.6);font-size:9px;white-space:nowrap;">Đã thêm vào tài khoản</div>
            </div>
          </div>`
-      : `<div style="color:rgba(255,255,255,0.35);font-size:11px;">Bạn đã hoàn thành phòng tranh này trước đó.</div>`;
+      : `<div style="flex:1;color:rgba(255,255,255,0.35);font-size:11px;">Bạn đã hoàn thành phòng tranh này trước đó.</div>`;
+
+    const starBlock = `<div style="${REWARD_CARD_CSS}">
+            <img src="/medals/star.svg" style="width:24px;height:24px;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'">
+            <div style="text-align:left;min-width:0;">
+             <div style="color:#FFE066;font-size:14px;font-weight:800;white-space:nowrap;">+${starsEarned} ⭐ Star</div>
+             <div style="color:rgba(255,224,102,0.6);font-size:9px;white-space:nowrap;">Đã cộng vào rank</div>
+           </div>
+         </div>`;
+
+    // ── Thanh tiến trình rank ──
+    const rankProgressHtml = currentRank ? `
+      <div style="width:calc(100% + 24px);margin:0 -12px;padding:0 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(255,255,255,0.55);">
+          <span>🏅 ${currentRank.name}</span>
+          <span>${nextRank ? `${nextRank.name} 🔒` : 'Rank cao nhất'}</span>
+        </div>
+        <div id="ms-rank-bar-track" style="height:8px;background:rgba(255,255,255,0.1);border-radius:6px;overflow:hidden;">
+          <div id="ms-rank-bar-fill" style="height:100%;width:${startPct}%;background:linear-gradient(90deg,#c8a96e,#FFE066);border-radius:6px;transition:width 3s cubic-bezier(.22,.9,.4,1);"></div>        </div>
+        <div style="font-size:9px;color:rgba(255,255,255,0.4);">
+          ${nextRank ? `Còn ${starsToNext} ⭐ để lên hạng ${nextRank.name}` : 'Bạn đã đạt hạng cao nhất!'}
+        </div>
+      </div>` : '';
 
     box.innerHTML = `
       <div style="font-size:56px;line-height:1;">🏆</div>
       <div style="color:#68e5e3;font-size:18px;font-weight:800;letter-spacing:.05em;">HOÀN THÀNH!</div>
       <div style="color:rgba(255,255,255,0.8);font-size:13px;line-height:1.7;">${msg}</div>
-      ${tokenBlock}
-      <div style="color:rgba(255,255,255,0.4);font-size:10px;line-height:1.6;">Huy hiệu hoàn thành đã được lưu vào hồ sơ của bạn.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${tokenBlock}${starBlock}</div>
+      ${rankProgressHtml}
     `;
 
     const btnRow = document.createElement('div');
     btnRow.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center;';
 
+    const replayCost   = this._getReplayCost();
+    const tokenBalance = this._s.manager.auth.profile?.token_balance ?? 0;
+    const canAfford    = tokenBalance >= replayCost;
+
     const replayBtn = document.createElement('button');
-    replayBtn.textContent = '🔄 Chơi lại';
-    replayBtn.style.cssText = 'padding:12px 28px;background:rgba(200,169,110,0.12);border:1px solid rgba(200,169,110,0.45);border-radius:10px;color:#c8a96e;font-family:"Montserrat",sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.05em;transition:background .2s;';
-    replayBtn.addEventListener('mouseenter', () => replayBtn.style.background = 'rgba(200,169,110,0.25)');
-    replayBtn.addEventListener('mouseleave', () => replayBtn.style.background = 'rgba(200,169,110,0.12)');
+    replayBtn.style.cssText = 'padding:12px 28px;border-radius:10px;font-family:"Montserrat",sans-serif;font-size:13px;font-weight:700;letter-spacing:.05em;transition:background .2s;' +
+      (canAfford
+        ? 'background:rgba(200,169,110,0.12);border:1px solid rgba(200,169,110,0.45);color:#c8a96e;cursor:pointer;'
+        : 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.4);cursor:not-allowed;');
+    replayBtn.innerHTML = canAfford
+      ? `🔄 Chơi lại (-${replayCost} ${this._tokenIconHTML(14)})`
+      : `🔒 Chơi lại (${tokenBalance}/${replayCost} ${this._tokenIconHTML(14)})`;
+    replayBtn.disabled = !canAfford;
+
+    if (canAfford) {
+      replayBtn.addEventListener('mouseenter', () => replayBtn.style.background = 'rgba(200,169,110,0.25)');
+      replayBtn.addEventListener('mouseleave', () => replayBtn.style.background = 'rgba(200,169,110,0.12)');
+    }
+
     replayBtn.addEventListener('click', async () => {
-      replayBtn.disabled = true;
-      replayBtn.textContent = 'Đang reset...';
+      if (replayBtn.disabled) return;
+      this._showReplayConfirm(replayCost, async () => {
+        replayBtn.disabled = true;
+        replayBtn.textContent = 'Đang xử lý...';
+        const ok = await this._spendTokensForReplay(replayCost);
+        if (!ok) {
+          replayBtn.disabled = false;
+          replayBtn.innerHTML = `🔄 Chơi lại (-${replayCost} ${this._tokenIconHTML(14)})`;
+          return;
+        }
+        this._stopConfetti();
+        await this._resetMissions();
+        overlay.remove();
+      });
+    });
+
+    const backToGalleryBtn = document.createElement('button');
+    backToGalleryBtn.textContent = 'Quay lại phòng tranh';
+    backToGalleryBtn.style.cssText = 'padding:12px 24px;border-radius:10px;font-family:"Montserrat",sans-serif;font-size:13px;font-weight:700;letter-spacing:.03em;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.75);cursor:pointer;transition:background .2s;';
+    backToGalleryBtn.addEventListener('mouseenter', () => backToGalleryBtn.style.background = 'rgba(255,255,255,0.14)');
+    backToGalleryBtn.addEventListener('mouseleave', () => backToGalleryBtn.style.background = 'rgba(255,255,255,0.06)');
+    backToGalleryBtn.addEventListener('click', () => {
       this._stopConfetti();
-      await this._resetMissions();
       overlay.remove();
     });
 
-    btnRow.append(replayBtn);
+    const homeBtn = document.createElement('button');
+    homeBtn.textContent = 'Tham quan phòng tranh khác';
+    homeBtn.style.cssText = 'padding:12px 24px;border-radius:10px;font-family:"Montserrat",sans-serif;font-size:13px;font-weight:700;letter-spacing:.03em;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.75);cursor:pointer;transition:background .2s;';
+    homeBtn.addEventListener('mouseenter', () => homeBtn.style.background = 'rgba(255,255,255,0.14)');
+    homeBtn.addEventListener('mouseleave', () => homeBtn.style.background = 'rgba(255,255,255,0.06)');
+    homeBtn.addEventListener('click', () => {
+      this._stopConfetti();
+      overlay.remove();
+      this._s.manager.navigateTo('explore');
+    });
+
+    btnRow.append(replayBtn, backToGalleryBtn, homeBtn);
     box.appendChild(btnRow);
     overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    // ── Trigger animation thanh rank: bắt đầu sau 2s, kéo dài 3s (transition đã set ở CSS) ──
+    setTimeout(() => {
+      const fill = document.getElementById('ms-rank-bar-fill');
+      if (fill && fill.isConnected) {
+        fill.style.width = `${endPct}%`;
+        try {
+          const progressAudio = new Audio('/sounds/progress.mp3');
+          progressAudio.volume = 0.8;
+          progressAudio.play().catch(err => console.warn('[progress sound] không phát được:', err));
+        } catch (err) { console.warn('[progress sound] lỗi khởi tạo:', err); }
+      } else {
+        console.warn('[progress sound] bỏ qua: #ms-rank-bar-fill không tồn tại (currentRank null?)');
+      }
+    }, 2000);
+  }
+
+ // ─── Replay cost helpers ──────────────────────────────────────────────────────
+  _getReplayCost() {
+    return this._config?.replay_cost ?? 100;
+  }
+
+  _tokenIconHTML(size = 14) {
+    return `<img src="/medals/token.svg" style="width:${size}px;height:${size}px;vertical-align:-2px;object-fit:contain;">`;
+  }
+
+  // Trừ token của user để đổi lấy 1 lượt chơi lại. Trả về true nếu thành công.
+  async _spendTokensForReplay(cost) {
+    const userId = this._s.manager.auth.profile?.id;
+    if (!userId) { this._s._toast?.('Đăng nhập để chơi lại', 'info', 2500); return false; }
+
+    // Đọc số dư mới nhất từ DB để tránh lệch dữ liệu cục bộ
+    const { data: pf, error: pfe } = await supabase
+      .from('profiles').select('token_balance').eq('id', userId).maybeSingle();
+    if (pfe) { console.error('[replay] profiles select error:', pfe); this._s._toast?.('Có lỗi xảy ra, thử lại sau', 'error'); return false; }
+
+    const currentBalance = pf?.token_balance ?? 0;
+    if (currentBalance < cost) {
+      this._s._toast?.(`Không đủ token: ${currentBalance}/${cost} 🪙`, 'error', 3000);
+      if (this._s.manager.auth.profile) this._s.manager.auth.profile.token_balance = currentBalance;
+      this._s._updateTokenDisplay?.();
+      return false;
+    }
+
+    const newBalance = currentBalance - cost;
+    const { error: upe } = await supabase.from('profiles').update({ token_balance: newBalance }).eq('id', userId);
+    if (upe) { console.error('[replay] profiles update error:', upe); this._s._toast?.('Có lỗi xảy ra, thử lại sau', 'error'); return false; }
+
+    if (this._s.manager.auth.profile) this._s.manager.auth.profile.token_balance = newBalance;
+    this._s._updateTokenDisplay?.();
+    return true;
+  }
+
+  // Popup xác nhận trước khi trừ token để chơi lại
+  _showReplayConfirm(cost, onConfirm) {
+    document.getElementById('ms-replay-confirm')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'ms-replay-confirm';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:2100;display:flex;align-items:center;justify-content:center;';
+
+    const box = document.createElement('div');
+    box.style.cssText = 'background:linear-gradient(135deg,#0d1520,#101e2e);border:1px solid rgba(200,169,110,0.4);border-radius:16px;padding:26px;max-width:340px;width:88%;display:flex;flex-direction:column;align-items:center;gap:14px;font-family:"Montserrat",sans-serif;text-align:center;box-sizing:border-box;animation:ms-popup-in 0.3s cubic-bezier(.36,.07,.19,.97);';
+    box.innerHTML = `
+      <img src="/medals/token.svg" style="width:34px;height:34px;object-fit:contain;">
+      <div style="color:#FFE066;font-size:14px;font-weight:700;">Tiêu ${cost} token để chơi lại?</div>
+      <div style="color:rgba(255,255,255,0.55);font-size:11px;line-height:1.6;">Bạn sẽ không nhận thêm token. Chơi lại chỉ để có cơ hội kiếm thêm ⭐ star.</div>
+    `;
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:10px;';
+
+    const yesBtn = document.createElement('button');
+    yesBtn.innerHTML = `Đồng ý (-${cost} ${this._tokenIconHTML(14)})`;
+    yesBtn.style.cssText = 'padding:10px 18px;background:rgba(200,169,110,0.2);border:1px solid rgba(200,169,110,0.5);border-radius:8px;color:#FFE066;font-family:"Montserrat",sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:background .2s;';
+    yesBtn.addEventListener('mouseenter', () => yesBtn.style.background = 'rgba(200,169,110,0.35)');
+    yesBtn.addEventListener('mouseleave', () => yesBtn.style.background = 'rgba(200,169,110,0.2)');
+
+    const noBtn = document.createElement('button');
+    noBtn.textContent = 'Huỷ';
+    noBtn.style.cssText = 'padding:10px 18px;background:transparent;border:.5px solid rgba(255,255,255,0.2);border-radius:8px;color:rgba(255,255,255,0.5);font-family:"Montserrat",sans-serif;font-size:12px;cursor:pointer;';
+
+    yesBtn.addEventListener('click', () => { overlay.remove(); onConfirm(); });
+    noBtn.addEventListener('click', () => overlay.remove());
+
+    btnRow.append(yesBtn, noBtn);
+    box.appendChild(btnRow);
+    overlay.appendChild(box);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
     document.body.appendChild(overlay);
   }
 
@@ -776,10 +1082,10 @@ export class MissionSystem {
     const userId = this._s.manager.auth.profile?.id;
     if (userId) {
       await supabase.from('mission_completions').delete().eq('room_id', this._roomId).eq('user_id', userId);
-      await supabase.from('room_completions').delete().eq('room_id', this._roomId).eq('user_id', userId);
     }
     this._completed.clear();
     this._foundEggs.clear();
+    this._chestWrongCount.clear();
     this._allDone = false;
     // Reset tất cả rương về trạng thái đóng (frame 0)
     this._chestMixers.forEach(({ mixer, action }) => {
@@ -791,6 +1097,7 @@ export class MissionSystem {
     this._missions.forEach(m => {
       if (m.mission_type === 'story_sequence') this._applyStoryArtworkOverlay();
     });
+    this._ensureDetectionSpheres();
     this._buildHUD();
     this._s._toast?.('Nhiệm vụ đã được reset! Hãy khám phá lại từ đầu 🎯', 'success', 3000);
   }

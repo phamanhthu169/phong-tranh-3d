@@ -43,6 +43,8 @@ export class AuthManager {
       district: data.district || '',
       ward:     data.ward     || '',
       street:   data.street   || '',
+      token_balance: data.token_balance || 0,
+      star_balance:  data.star_balance  || 0,
     };
   }
 

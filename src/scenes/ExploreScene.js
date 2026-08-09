@@ -39,8 +39,12 @@ export class ExploreScene extends BaseScene {
         .ex-info-wrap{background:#182D58;border:1px solid rgba(255,255,255,.1);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.15);transition:all .25s;}
         .ex-card:hover .ex-info-wrap{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.25);border-color:rgba(255,255,255,.25);}
         .ex-thumb{aspect-ratio:486/732;background:transparent;position:relative;overflow:hidden;border-bottom:1px solid rgba(0,0,0,.06);flex-shrink:0}
-        .ex-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+        .ex-thumb > img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
         .ex-thumb-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:36px;color:#bbb}
+        .ex-complete-overlay{position:absolute;inset:0;background:rgba(34,197,94,.55);opacity:0;transition:opacity .25s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;pointer-events:none;z-index:2;}
+        .ex-card:hover .ex-complete-overlay{opacity:1;}
+        .ex-complete-label{color:#FFFFFF;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.4);}        .ex-complete-stars{display:flex;align-items:center;gap:4px;color:#FFFFFF;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.4);}
+        .ex-complete-stars img{width:14px;height:14px;object-fit:contain;}
         .ex-body{padding:14px;display:flex;flex-direction:column;gap:6px}
         .ex-name{color:#F1FAFF;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .ex-desc{color:rgba(241,250,255,.8);font-size:9px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px;position:relative;min-height:25px}
@@ -118,10 +122,19 @@ export class ExploreScene extends BaseScene {
   }
 
   async _loadPublished() {
-    const [galleryRes, likesRes, statsRes] = await Promise.all([
+    const userId = this.manager.auth.profile?.id;
+
+    const [galleryRes, likesRes, statsRes, completionsRes, missionCompletionsRes, chestMissionsRes] = await Promise.all([
       supabase.from('gallery').select('name, created_at, scene_data').order('created_at', { ascending: false }),
       supabase.from('gallery_likes').select('gallery_name'),
       supabase.from('gallery_stats').select('gallery_name, views'),
+      userId
+        ? supabase.from('room_completions').select('room_id').eq('user_id', userId)
+        : { data: [] },
+      userId
+        ? supabase.from('mission_completions').select('room_id, stars_earned').eq('user_id', userId)
+        : { data: [] },
+      supabase.from('room_missions').select('room_id').eq('mission_type', 'chest_riddle'),
     ]);
 
     document.getElementById('ex-loading').style.display = 'none';
@@ -143,6 +156,18 @@ export class ExploreScene extends BaseScene {
     const viewsMap = {};
     (statsRes.data || []).forEach(s => {
       viewsMap[s.gallery_name] = s.views || 0;
+    });
+
+    this._completedSet = new Set((completionsRes.data || []).map(c => c.room_id));
+
+    this._starsMap = {};
+    (missionCompletionsRes.data || []).forEach(c => {
+      this._starsMap[c.room_id] = (this._starsMap[c.room_id] || 0) + (c.stars_earned || 0);
+    });
+
+    this._maxStarsMap = {};
+    (chestMissionsRes.data || []).forEach(m => {
+      this._maxStarsMap[m.room_id] = (this._maxStarsMap[m.room_id] || 0) + 3;
     });
 
     this._rooms = rooms.map(row => ({
@@ -193,8 +218,12 @@ sorted.forEach(({ row, likes, views }, i) =>
       || artistId || '—';
     const date     = new Date(row.created_at).toLocaleDateString('vi-VN');
     const artCount = row.scene_data?.artworks?.length || 0;
-    const desc     = meta.description || '';
+   const desc     = meta.description || '';
     const thumbUrl = meta.thumbnailUrl || null;
+
+    const isCompleted = this._completedSet?.has(row.name) || false;
+    const starsEarned = this._starsMap?.[row.name] || 0;
+    const maxStars    = this._maxStarsMap?.[row.name] || 0;
 
     const card = document.createElement('div');
     card.className = 'ex-card';
@@ -205,6 +234,11 @@ sorted.forEach(({ row, likes, views }, i) =>
           ${thumbUrl
             ? `<img src="${thumbUrl}" alt="${roomName}" loading="lazy">`
             : `<div class="ex-thumb-placeholder">🖼</div>`}
+          ${isCompleted ? `
+            <div class="ex-complete-overlay">
+              <div class="ex-complete-stars">${starsEarned}/${maxStars} <img src="/medals/star.svg" alt="star"></div>
+            </div>
+          ` : ''}
         </div>
       </div>
     <div class="ex-info-wrap">
@@ -243,21 +277,19 @@ sorted.forEach(({ row, likes, views }, i) =>
 
     grid.appendChild(card);
 
-    // Mô tả dài hơn 2 dòng -> thêm nút "Xem thêm" mở popup chi tiết
-    if (desc) {
-      const descEl = card.querySelector('.ex-desc');
-      if (descEl && descEl.scrollHeight > descEl.clientHeight + 1) {
-        const more = document.createElement('span');
-        more.className = 'ex-more';
-        more.textContent = 'Xem thêm';
-        more.addEventListener('click', e => {
-          e.stopPropagation();
-          this._openModal(row, {
-            roomName, artistId, artistName, date, artCount, desc, thumbUrl, likes, views,
-          });
+    // Luôn hiện nút "Xem thêm" để mở popup chi tiết, kể cả khi không có mô tả
+    const descEl = card.querySelector('.ex-desc');
+    if (descEl) {
+      const more = document.createElement('span');
+      more.className = 'ex-more';
+      more.textContent = 'Xem thêm';
+      more.addEventListener('click', e => {
+        e.stopPropagation();
+        this._openModal(row, {
+          roomName, artistId, artistName, date, artCount, desc, thumbUrl, likes, views,
         });
-        descEl.appendChild(more);
-      }
+      });
+      descEl.appendChild(more);
     }
   }
 

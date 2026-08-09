@@ -430,6 +430,7 @@ export class ViewerScene extends BaseScene {
     }
     document.body.appendChild(img);
     this._el(img);
+    this._logoImg = img;
   }
 
   /* ================================================================
@@ -439,17 +440,20 @@ export class ViewerScene extends BaseScene {
   const bar = document.createElement('div');
   bar.id = 'topbar';
   bar.innerHTML = `
-    <div id="logo-area">
-      <div id="vw-token-display-top" style="display:none; margin-top: -55px !important;align-items:center;gap:5px;color:#c8a96e;font-family:monospace;font-size:20px;letter-spacing:.06em;cursor:pointer;">
-        <img src="/token/star.png" style="width:16px;height:16px;object-fit:contain">
-        <span id="vw-token-val"></span>
-      </div>
-    </div>
+    <div id="logo-area"></div>
     <div id="gallery-info">
       <span id="gallery-name">[Phòng Tranh 3D]</span>
       <span id="gallery-separator">—</span>
       <span id="artist-name">Artist Name</span>
       <button id="gallery-info-btn" class="icon-btn" type="button" title="Thông tin phòng tranh" aria-label="Thông tin phòng tranh" style="pointer-events:auto;">i</button>
+      <div id="vw-token-display-top" style="display:none; align-items:center;gap:5px;color:#FFFFFF;font-family:monospace;font-size:20px;letter-spacing:.06em;cursor:pointer;pointer-events:auto;">
+        <img src="/medals/token.svg" style="width:16px;height:16px;object-fit:contain">
+        <span id="vw-token-val"></span>
+      </div>
+      <div id="vw-star-display-top" style="display:none; align-items:center;gap:5px;color:#FFFFFF;font-family:monospace;font-size:20px;letter-spacing:.06em;cursor:pointer;pointer-events:auto;">
+        <img src="/medals/star.svg" style="width:16px;height:16px;object-fit:contain">
+        <span id="vw-star-val"></span>
+      </div>
     </div>
     <div id="topbar-right"></div>
   `;
@@ -462,6 +466,7 @@ export class ViewerScene extends BaseScene {
   }
 
   _updateTopBarInfo() {
+    this._positionGalleryInfo();
     const galleryName = this._galleryName || this.manager.currentRoom?.name || 'Phòng Tranh 3D';
     const artistName  = this._artistName || '';
     const gnEl  = document.getElementById('gallery-name');
@@ -484,7 +489,13 @@ export class ViewerScene extends BaseScene {
       }
     }
   }
-
+_positionGalleryInfo() {
+    const info = document.getElementById('gallery-info');
+    if (!info || !this._logoImg) return;
+    const logoRect = this._logoImg.getBoundingClientRect();
+    info.style.left = (logoRect.right + 10) + 'px';
+    info.style.top  = logoRect.top + 'px';
+  }
   /* ================================================================
      POPUP: THÔNG TIN PHÒNG TRANH (đồng bộ với modal "Xem thêm" ở explore)
   ================================================================ */
@@ -596,11 +607,9 @@ export class ViewerScene extends BaseScene {
       }
       
 #gallery-info {
-  margin-top: -55px !important; 
-  margin-left: -220px !important;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  position: fixed;
+  top: 16px;
+  left: 20px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -999,8 +1008,7 @@ export class ViewerScene extends BaseScene {
       .product-thumb-wrap{  width:72px !important; height: 72px !important; margin-top: 10px; margin-left: 14px; flex-shrink:0; }
       .product-thumb-canvas{ width: 100%; height: 100%; display: block; object-fit: cover; border-radius: 10px;}
       .product-body{ flex:1; padding: 14px 4px 14px 12px; display:flex; flex-direction:column; justify-content:space-between; min-width:0; }
-      .product-name{ font-family:'Montserrat', sans-serif; font-size:13px; font-weight:400; color:#FFFFFF; letter-spacing:.04em; white-space:normal; line-height:1.4; overflow:hidden; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; }
-      .product-artist{ font-family:'Montserrat', sans-serif; font-size:11px; font-weight:500; color:#FFE066; letter-spacing:.04em; margin-top:4px; }
+      .product-name{ font-family:'Montserrat', sans-serif; font-size:13px; font-weight:400; color:#FFFFFF; letter-spacing:.04em; white-space:normal; line-height:1.4; overflow:hidden; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; }      .product-artist{ font-family:'Montserrat', sans-serif; font-size:11px; font-weight:500; color:#FFE066; letter-spacing:.04em; margin-top:4px; }
       .product-price{ font-family:var(--font-mono); font-size:13px; font-weight:600; color:#FFFFFF; letter-spacing:.04em; margin-top:4px; }
       .product-price.contact{ color:#FFFFFF; font-size:11px; font-family:var(--font-mono); }
       .product-actions{ flex-shrink:0; display:flex; flex-direction:column; border-left:.5px solid rgba(212,197,169,.08); }
@@ -1184,7 +1192,6 @@ export class ViewerScene extends BaseScene {
         <div class="icon-btn" id="btn-like" title="Thích phòng tranh này"><img src="/icons/heart-empty.svg" style="width:18px;height:18px"></div>
         <span id="like-count" style="color:rgba(212,197,169,0.6);font-size:9px;font-family:monospace;letter-spacing:.04em;min-width:20px;text-align:center;line-height:1"></span>
       </div>
-      <div class="icon-btn" id="btn-settings" title="Cài đặt"><img src="/icons/settings.svg" style="width:18px;height:18px"></div>
       <div class="icon-btn" id="btn-help" title="Hướng dẫn sử dụng"><img src="/icons/help.svg" style="width:18px;height:18px"></div>
       <div class="icon-btn" id="btn-share" title="Chia sẻ phòng tranh"><img src="/icons/link.svg" style="width:18px;height:18px"></div>
       <div class="icon-btn" id="btn-capture" title="Chụp ảnh phòng"><img src="/icons/camera.svg" style="width:18px;height:18px"></div>
@@ -1333,20 +1340,10 @@ export class ViewerScene extends BaseScene {
       }
     });
 
-    document.getElementById('btn-settings').addEventListener('click', () => {
-      const sp = document.getElementById('settings-panel');
-      sp.classList.toggle('open');
-      document.getElementById('btn-settings').classList.toggle('active', sp.classList.contains('open'));
-      document.getElementById('route-panel').classList.remove('open');
-      document.getElementById('btn-route').classList.remove('active');
-    });
-
     document.getElementById('btn-route').addEventListener('click', () => {
       const rp = document.getElementById('route-panel');
       rp.classList.toggle('open');
       document.getElementById('btn-route').classList.toggle('active', rp.classList.contains('open'));
-      document.getElementById('settings-panel').classList.remove('open');
-      document.getElementById('btn-settings').classList.remove('active');
       if (!this.pathWaypoints.length) rp.classList.add('no-waypoints');
       else rp.classList.remove('no-waypoints');
     });
@@ -1394,6 +1391,7 @@ export class ViewerScene extends BaseScene {
     });
 
     this._initChat();
+    this._on(window, 'resize', () => this._positionGalleryInfo());
   }
   
   // Hàm áp dụng ánh sáng với hệ số brightness
@@ -3081,16 +3079,23 @@ if (this._playerSvg.complete && this._playerSvg.naturalWidth) {
   _updateTokenDisplay() {
   if (!this.manager.auth.isLoggedIn) return;
   const balance = this.manager.auth.profile?.token_balance ?? 0;
-  
-  // Dùng element mới trong logo-area thay vì topbar-right
+  const starBalance = this.manager.auth.profile?.star_balance ?? 0;
+
   const el = document.getElementById('vw-token-display-top');
   if (el) {
     el.style.display = 'flex';
-    el.style.marginLeft = '160px';
     if (!this._kioskMode) el.onclick = () => this.manager.navigateTo('profile');
   }
   const valEl = document.getElementById('vw-token-val');
   if (valEl) valEl.textContent = balance.toLocaleString('vi-VN');
+
+  const starEl = document.getElementById('vw-star-display-top');
+  if (starEl) {
+    starEl.style.display = 'flex';
+    if (!this._kioskMode) starEl.onclick = () => this.manager.navigateTo('profile');
+  }
+  const starValEl = document.getElementById('vw-star-val');
+  if (starValEl) starValEl.textContent = starBalance.toLocaleString('vi-VN');
 }
   _checkChestProximity() {
     if (!this.chests.length || this._chestPopupOpen) return;

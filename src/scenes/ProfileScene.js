@@ -1191,7 +1191,9 @@ export class ProfileScene extends BaseScene {
       supabase.from('ranks').select('*').order('min_tokens', { ascending: false }),
     ]);
 
+    // token_balance = currency (hiện thị riêng), star_balance = dùng để tính rank
     const tokens = pfRes.data?.token_balance ?? 0;
+    const stars  = pfRes.data?.star_balance ?? 0;
     const ranks  = (ranksRes.data?.length ? ranksRes.data : FALLBACK_RANKS)
       .sort((a, b) => b.min_tokens - a.min_tokens);
 
@@ -1199,9 +1201,8 @@ export class ProfileScene extends BaseScene {
     if (!section) return;
     section.style.display = 'block';
 
-    document.getElementById('pf-token-count').textContent = `${tokens.toLocaleString('vi-VN')} ⭐ Ngôi Sao`;
-
-    const rank = ranks.find(r => tokens >= r.min_tokens) || ranks[ranks.length - 1];
+    document.getElementById('pf-token-count').innerHTML = `${tokens.toLocaleString('vi-VN')} <img src="/medals/token.svg" style="width:14px;height:14px;vertical-align:middle"> Token · ${stars.toLocaleString('vi-VN')} <img src="/medals/star.svg" style="width:14px;height:14px;vertical-align:middle"> Star`;
+    const rank = ranks.find(r => stars >= r.min_tokens) || ranks[ranks.length - 1];
     document.getElementById('pf-rank-name').textContent = rank.name;
 
     if (rank.badge_url) {
@@ -1210,13 +1211,13 @@ export class ProfileScene extends BaseScene {
     }
 
     const sortedAsc = [...ranks].sort((a, b) => a.min_tokens - b.min_tokens);
-    const nextRank  = sortedAsc.find(r => r.min_tokens > tokens);
+    const nextRank  = sortedAsc.find(r => r.min_tokens > stars);
     if (nextRank) {
       const prevMin = rank.min_tokens;
-      const pct = Math.min(100, ((tokens - prevMin) / (nextRank.min_tokens - prevMin)) * 100);
+      const pct = Math.min(100, ((stars - prevMin) / (nextRank.min_tokens - prevMin)) * 100);
       document.getElementById('pf-rank-bar').style.width = pct + '%';
       document.getElementById('pf-rank-progress-text').textContent =
-        `${tokens.toLocaleString('vi-VN')} / ${nextRank.min_tokens.toLocaleString('vi-VN')} → ${nextRank.name}`;
+        `${stars.toLocaleString('vi-VN')} / ${nextRank.min_tokens.toLocaleString('vi-VN')} ⭐ → ${nextRank.name}`;
     } else {
       document.getElementById('pf-rank-bar').style.width = '100%';
       document.getElementById('pf-rank-progress-text').textContent = 'Rank cao nhất ✦';
