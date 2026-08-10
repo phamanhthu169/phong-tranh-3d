@@ -234,11 +234,9 @@ sorted.forEach(({ row, likes, views }, i) =>
           ${thumbUrl
             ? `<img src="${thumbUrl}" alt="${roomName}" loading="lazy">`
             : `<div class="ex-thumb-placeholder">🖼</div>`}
-          ${isCompleted ? `
-            <div class="ex-complete-overlay">
+          <div class="ex-complete-overlay">
               <div class="ex-complete-stars">${starsEarned}/${maxStars} <img src="/medals/star.svg" alt="star"></div>
             </div>
-          ` : ''}
         </div>
       </div>
     <div class="ex-info-wrap">
