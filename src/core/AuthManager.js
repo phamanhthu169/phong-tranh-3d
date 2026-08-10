@@ -8,7 +8,7 @@ const SALT_ROUNDS = 10;
 // Danh sách câu hỏi bí mật dùng cho đăng ký & khôi phục mật khẩu.
 // Dùng chung 1 nguồn để RegisterScene và ForgotPasswordScene luôn đồng bộ.
 export const SECURITY_QUESTIONS = [
-  'Tên con vật cưu đầu tiên của bạn là gì?',
+  'Tên thú cưng đầu tiên của bạn là gì?',
   'Tên trường tiểu học của bạn là gì?',
   'Bạn sinh ra ở thành phố/tỉnh nào?',
   'Món ăn yêu thích thời nhỏ của bạn là gì?',
